@@ -291,6 +291,51 @@ if [ "$HAS_NODE" -eq 1 ]; then
 fi
 
 # ==============================================================================
+# Start SMF Forum Containers
+# ==============================================================================
+
+print_header "Starting SMF Forum"
+
+cd "$SMF_DIR"
+
+if [ -f "docker-compose.yml" ]; then
+    # Check if SMF containers are already running
+    SMF_RUNNING=$(docker-compose ps -q 2>/dev/null | wc -l)
+    if [ "$SMF_RUNNING" -gt 0 ]; then
+        print_info "SMF containers already running, restarting..."
+        docker-compose down 2>/dev/null || true
+    fi
+    
+    print_info "Starting SMF, MariaDB, phpMyAdmin..."
+    docker-compose up -d
+    
+    # Wait for MariaDB to be healthy
+    print_info "Waiting for SMF database to be ready..."
+    RETRY=0
+    MAX_RETRY=30
+    while [ $RETRY -lt $MAX_RETRY ]; do
+        if docker-compose exec -T smf-db mysqladmin ping -uroot -proot_password &>/dev/null; then
+            break
+        fi
+        RETRY=$((RETRY + 1))
+        sleep 1
+        printf "."
+    done
+    echo ""
+    
+    if [ $RETRY -ge $MAX_RETRY ]; then
+        print_warning "SMF database may not be ready yet"
+    else
+        print_status "SMF Forum is ready (port 8888)"
+        print_status "phpMyAdmin is ready (port 8889)"
+    fi
+else
+    print_warning "SMF docker-compose.yml not found in $SMF_DIR"
+fi
+
+cd "$SCRIPT_DIR"
+
+# ==============================================================================
 # Update tracker.scr configuration
 # ==============================================================================
 
@@ -367,6 +412,18 @@ if [ ! -z "$NODE_API_PID" ] && kill -0 $NODE_API_PID 2>/dev/null; then
     echo -e "  ${GREEN}│${NC}  ✅ Node.js Server     ${BLUE}localhost:3000${NC}              ${GREEN}│${NC}"
 fi
 
+# SMF Forum
+if check_port 8888; then
+    echo -e "  ${GREEN}│${NC}  ✅ SMF Forum          ${BLUE}localhost:8888${NC}              ${GREEN}│${NC}"
+else
+    echo -e "  ${GREEN}│${NC}  ❌ SMF Forum          NOT RUNNING                    ${GREEN}│${NC}"
+fi
+
+# phpMyAdmin
+if check_port 8889; then
+    echo -e "  ${GREEN}│${NC}  ✅ phpMyAdmin         ${BLUE}localhost:8889${NC}              ${GREEN}│${NC}"
+fi
+
 echo -e "  ${GREEN}└─────────────────────────────────────────────────────────┘${NC}"
 
 # ==============================================================================
@@ -380,7 +437,10 @@ echo -e "  ${CYAN}├───────────────────�
 echo -e "  ${CYAN}│${NC}  📊 Grafana Dashboard:  ${YELLOW}http://localhost:3000${NC}         ${CYAN}│${NC}"
 echo -e "  ${CYAN}│${NC}     Login: admin / admin                               ${CYAN}│${NC}"
 echo -e "  ${CYAN}│${NC}                                                         ${CYAN}│${NC}"
-echo -e "  ${CYAN}│${NC}  📈 Prometheus:         ${YELLOW}http://localhost:9090${NC}         ${CYAN}│${NC}"
+echo -e "  ${CYAN}│${NC}  � SMF Forum:          ${YELLOW}http://localhost:8888${NC}         ${CYAN}│${NC}"
+echo -e "  ${CYAN}│${NC}  🗃️  phpMyAdmin:         ${YELLOW}http://localhost:8889${NC}         ${CYAN}│${NC}"
+echo -e "  ${CYAN}│${NC}                                                         ${CYAN}│${NC}"
+echo -e "  ${CYAN}│${NC}  �📈 Prometheus:         ${YELLOW}http://localhost:9090${NC}         ${CYAN}│${NC}"
 echo -e "  ${CYAN}│${NC}  🔧 API Health:         ${YELLOW}http://localhost:8080/health${NC}  ${CYAN}│${NC}"
 echo -e "  ${CYAN}│${NC}  📉 API Metrics:        ${YELLOW}http://localhost:8080/metrics${NC} ${CYAN}│${NC}"
 echo -e "  ${CYAN}│${NC}  🗄️  ClickHouse:         ${YELLOW}http://localhost:8123${NC}         ${CYAN}│${NC}"

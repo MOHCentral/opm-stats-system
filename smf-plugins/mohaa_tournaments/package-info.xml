@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE package-info SYSTEM "http://www.simplemachines.org/xml/package-info">
+<package-info xmlns="http://www.simplemachines.org/xml/package-info" xmlns:smf="http://www.simplemachines.org/">
+    <id>mohaa:tournaments</id>
+    <name>MOHAA Tournaments</name>
+    <version>1.0.0</version>
+    <type>modification</type>
+    
+    <install for="2.1.0 - 2.1.*">
+        <readme>readme.txt</readme>
+        <require-package id="mohaa:stats_core" version="1.0.0">MOHAA Stats Core is required</require-package>
+        
+        <database>install_tournaments.php</database>
+        
+        <require-file name="Sources/MohaaTournaments.php" destination="$sourcedir" />
+        <require-file name="Themes/default/MohaaTournaments.template.php" destination="$themedir" />
+        
+        <hook hook="integrate_actions" function="MohaaTournaments_Actions" file="$sourcedir/MohaaTournaments.php" />
+        <hook hook="integrate_admin_areas" function="MohaaTournaments_AdminAreas" file="$sourcedir/MohaaTournaments.php" />
+    </install>
+    
+    <uninstall for="2.1.0 - 2.1.*">
+        <database>uninstall_tournaments.php</database>
+        <remove-file name="$sourcedir/MohaaTournaments.php" />
+        <remove-file name="$themedir/MohaaTournaments.template.php" />
+        <hook hook="integrate_actions" function="MohaaTournaments_Actions" file="$sourcedir/MohaaTournaments.php" reverse="true" />
+        <hook hook="integrate_admin_areas" function="MohaaTournaments_AdminAreas" file="$sourcedir/MohaaTournaments.php" reverse="true" />
+    </uninstall>
+</package-info>

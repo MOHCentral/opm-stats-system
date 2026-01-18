@@ -1,0 +1,181 @@
+═══════════════════════════════════════════════════════════════════════════
+OPENMOHAA COMPREHENSIVE EVENT SYSTEM - QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════
+
+TOTAL EVENTS: 30
+PR #8 COMMIT: ce2e1fd3 "Implement event_subscribe system and comprehensive player stat hooks"
+
+═══════════════════════════════════════════════════════════════════════════
+COMBAT EVENTS (10)
+═══════════════════════════════════════════════════════════════════════════
+
+1. player_kill
+   Args: attacker, victim, inflictor, hitlocation, meansofdeath
+   When: Attacker kills victi
+   Args: inflictor
+   When: Player dies
+
+3. player_damage
+   Args: attacker, damage_amount, meansofdeath
+   When: Player takes damage
+
+4. weapon_fire
+   Args: weapon_name, ammo_available
+   When: Player fires weapon
+
+5. weapon_hit
+   Args: target_entity, hit_location
+   When: Weapon hits target
+
+6. player_headshot
+   Args: target_entity, weapon_name
+   When: Player scores headshot kill
+
+7. weapon_reload
+   Args: weapon_name
+   When: Player reloads weapon
+
+8. weapon_change
+   Args: old_weapon_name, new_weapon_name
+   When: Player switches weapons
+
+9. grenade_throw
+   Args: projectile_entity
+   When: Player throws grenade
+
+10. grenade_explode
+    Args: projectile_entity
+    When: Grenade detonates
+
+═══════════════════════════════════════════════════════════════════════════
+MOVEMENT EVENTS (5)
+═══════════════════════════════════════════════════════════════════════════
+
+1. player_jump
+   Args: (none)
+   When: Player jumps
+
+2. player_land
+   Args: fall_height
+   When: Player lands from fall
+
+3. player_crouch
+   Args: (none)
+   When: Player crouches
+
+4. player_prone
+   Args: (none)
+   When: Player goes prone
+
+5. player_distance
+   Args: distance_walked, distance_sprinted, distance_swam, distance_driven
+   When: Periodic movement tracking
+
+═══════════════════════════════════════════════════════════════════════════
+INTERACTION EVENTS (5)
+═══════════════════════════════════════════════════════════════════════════
+
+1. ladder_mount
+   Args: ladder_entity
+   When: Player climbs ladder
+
+2. ladder_dismount
+   Args: ladder_entity
+   When: Player leaves ladder
+
+3. item_pickup
+   Args: item_name, amount
+   When: Player picks up item
+
+4. item_drop
+   Args: item_name
+   When: Player drops item
+
+5. player_use
+   Args: target_entity
+   When: Player uses entity (button, switch, etc.)
+
+═══════════════════════════════════════════════════════════════════════════
+SESSION EVENTS (5)
+═══════════════════════════════════════════════════════════════════════════
+
+1. client_connect
+   Args: client_number
+   When: Client connects to server
+
+2. client_disconnect
+   Args: (none)
+   When: Client disconnects
+
+3. client_begin
+   Args: (none)
+   When: Client spawn is initialized
+
+4. team_join
+   Args: old_team_number, new_team_number
+   When: Player changes teams
+
+5. player_say
+   Args: message_text
+   When: Player sends chat message
+
+═══════════════════════════════════════════════════════════════════════════
+USAGE SYNTAX
+═══════════════════════════════════════════════════════════════════════════
+
+Subscribe to an event:
+  event_subscribe "event_name" "script.scr::handler_label"
+
+Handler definition:
+  handler_label local.arg1 local.arg2 local.arg3:
+      // Process event
+      println ("Event triggered with args: " + local.arg1)
+  end
+
+Extract arguments in handler:
+  // Arguments automatically available as local variables
+  // Argument order matches event documentation
+
+═══════════════════════════════════════════════════════════════════════════
+CURRENT IMPLEMENTATION
+═══════════════════════════════════════════════════════════════════════════
+
+File: global/tracker.scr
+Status: ✅ Updated to handle all 30 events
+Features:
+  - Subscribes to all 30 events
+  - Extracts event arguments
+  - Formats data for HTTP POST
+  - Sends to API server at localhost:3000
+  - Requires player login with /login TOKEN
+
+File: api-server/server.js (Node.js)
+Status: ✅ Ready to receive all events
+Endpoint: POST http://localhost:3000/events
+
+═══════════════════════════════════════════════════════════════════════════
+ENGINE SUPPORT
+═══════════════════════════════════════════════════════════════════════════
+
+Commands:
+  ✅ event_subscribe     - Register event handler
+  ✅ registercmd         - Register console command
+  ✅ curl_post           - HTTP POST requests
+  ✅ curl_put            - HTTP PUT requests
+  ✅ curl_get            - HTTP GET requests
+
+System:
+  ✅ G_ScriptEvent()     - Trigger events from C++
+  ✅ EventNameToType()   - Map names to event types
+  ✅ ScriptDelegate      - Event callback system
+
+═══════════════════════════════════════════════════════════════════════════
+DOCUMENTATION FILES
+═══════════════════════════════════════════════════════════════════════════
+
+- EVENT_DOCUMENTATION.md       Full event reference with parameters
+- EVENT_UPDATE_SUMMARY.md      What was updated and when
+- IMPLEMENTATION_GUIDE.md      Complete implementation instructions
+- EVENTS_QUICK_REFERENCE.txt   This file
+
+═══════════════════════════════════════════════════════════════════════════

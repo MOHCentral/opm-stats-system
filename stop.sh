@@ -26,9 +26,19 @@ echo -e "${YELLOW}Stopping Docker containers...${NC}"
 cd "$API_DIR"
 if [ -f "docker-compose.yml" ]; then
     docker-compose down
-    echo -e "${GREEN}[✓] Docker containers stopped${NC}"
+    echo -e "${GREEN}[✓] Stats system containers stopped${NC}"
 else
-    echo -e "${RED}[!] docker-compose.yml not found${NC}"
+    echo -e "${RED}[!] docker-compose.yml not found in $API_DIR${NC}"
+fi
+
+# Stop SMF containers
+echo -e "${YELLOW}Stopping SMF containers...${NC}"
+cd "$SMF_DIR"
+if [ -f "docker-compose.yml" ]; then
+    docker-compose down
+    echo -e "${GREEN}[✓] SMF containers stopped${NC}"
+else
+    echo -e "${YELLOW}[!] SMF docker-compose.yml not found${NC}"
 fi
 
 echo ""
