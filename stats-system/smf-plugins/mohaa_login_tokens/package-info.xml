@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE package-info SYSTEM "http://www.simplemachines.org/xml/package-info">
+<package-info xmlns="http://www.simplemachines.org/xml/package-info" xmlns:smf="http://www.simplemachines.org/">
+    <id>mohaa:login_tokens</id>
+    <name>MOHAA Login Tokens</name>
+    <version>1.0.0</version>
+    <type>modification</type>
+    
+    <install for="2.1.0 - 2.1.*">
+        <readme>readme.txt</readme>
+        <require-package id="mohaa:stats_core" version="1.0.0">MOHAA Stats Core is required</require-package>
+        
+        <database>install_tokens.php</database>
+        
+        <require-file name="Sources/MohaaLoginTokens.php" destination="$sourcedir" />
+        <require-file name="Themes/default/MohaaLoginTokens.template.php" destination="$themedir" />
+        
+        <hook hook="integrate_actions" function="MohaaLoginTokens_Actions" file="$sourcedir/MohaaLoginTokens.php" />
+        <hook hook="integrate_profile_areas" function="MohaaLoginTokens_ProfileAreas" file="$sourcedir/MohaaLoginTokens.php" />
+    </install>
+    
+    <uninstall for="2.1.0 - 2.1.*">
+        <database>uninstall_tokens.php</database>
+        <remove-file name="$sourcedir/MohaaLoginTokens.php" />
+        <remove-file name="$themedir/MohaaLoginTokens.template.php" />
+        <hook hook="integrate_actions" function="MohaaLoginTokens_Actions" file="$sourcedir/MohaaLoginTokens.php" reverse="true" />
+        <hook hook="integrate_profile_areas" function="MohaaLoginTokens_ProfileAreas" file="$sourcedir/MohaaLoginTokens.php" reverse="true" />
+    </uninstall>
+</package-info>

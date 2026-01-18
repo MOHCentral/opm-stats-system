@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE package-info SYSTEM "http://www.simplemachines.org/xml/package-info">
+<package-info xmlns="http://www.simplemachines.org/xml/package-info" xmlns:smf="http://www.simplemachines.org/">
+    <id>mohaa:stats_core</id>
+    <name>MOHAA Stats Core</name>
+    <version>1.0.0</version>
+    <type>modification</type>
+    
+    <install for="2.1.0 - 2.1.*">
+        <readme>readme.txt</readme>
+        
+        <!-- Database changes -->
+        <database>install_database.php</database>
+        
+        <!-- Copy source files -->
+        <require-dir name="Sources" destination="$sourcedir" />
+        
+        <!-- Copy template files -->
+        <require-dir name="Themes" destination="$themedir" />
+        
+        <!-- Copy CSS and JS -->
+        <require-file name="Themes/default/css/mohaa_stats.css" destination="$themedir/css" />
+        <require-file name="Themes/default/scripts/mohaa_stats.js" destination="$themedir/scripts" />
+        
+        <!-- Hook integrations -->
+        <hook hook="integrate_pre_include" function="$sourcedir/MohaaStats/MohaaStats.php" />
+        <hook hook="integrate_actions" function="MohaaStats_Actions" file="$sourcedir/MohaaStats/MohaaStats.php" />
+        <hook hook="integrate_admin_areas" function="MohaaStats_AdminAreas" file="$sourcedir/MohaaStats/MohaaStats.php" />
+        <hook hook="integrate_menu_buttons" function="MohaaStats_MenuButtons" file="$sourcedir/MohaaStats/MohaaStats.php" />
+        <hook hook="integrate_load_theme" function="MohaaStats_LoadTheme" file="$sourcedir/MohaaStats/MohaaStats.php" />
+    </install>
+    
+    <uninstall for="2.1.0 - 2.1.*">
+        <database>uninstall_database.php</database>
+        
+        <remove-dir name="$sourcedir/MohaaStats" />
+        <remove-dir name="$themedir/MohaaStats" />
+        <remove-file name="$themedir/css/mohaa_stats.css" />
+        <remove-file name="$themedir/scripts/mohaa_stats.js" />
+        
+        <hook hook="integrate_pre_include" function="$sourcedir/MohaaStats/MohaaStats.php" reverse="true" />
+        <hook hook="integrate_actions" function="MohaaStats_Actions" file="$sourcedir/MohaaStats/MohaaStats.php" reverse="true" />
+        <hook hook="integrate_admin_areas" function="MohaaStats_AdminAreas" file="$sourcedir/MohaaStats/MohaaStats.php" reverse="true" />
+        <hook hook="integrate_menu_buttons" function="MohaaStats_MenuButtons" file="$sourcedir/MohaaStats/MohaaStats.php" reverse="true" />
+        <hook hook="integrate_load_theme" function="MohaaStats_LoadTheme" file="$sourcedir/MohaaStats/MohaaStats.php" reverse="true" />
+    </uninstall>
+</package-info>

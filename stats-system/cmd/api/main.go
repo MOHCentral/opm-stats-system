@@ -1,0 +1,307 @@
+// OpenMOHAA Stats API - High-Throughput Telemetry Ingestion Server
+//
+// Architecture:
+// - Buffered Worker Pool pattern for async event processing
+// - Load shedding via backpressure when queue is full
+// - Dual-store: ClickHouse (OLAP) + PostgreSQL (OLTP)
+// - Redis for caching, rate limiting, and real-time match state
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"runtime"
+	"syscall"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
+
+	"github.com/openmohaa/stats-api/internal/config"
+	"github.com/openmohaa/stats-api/internal/db"
+	"github.com/openmohaa/stats-api/internal/handlers"
+	"github.com/openmohaa/stats-api/internal/worker"
+)
+
+func main() {
+	// Initialize structured logger
+	logger, _ := zap.NewProduction()
+	if os.Getenv("ENV") == "development" {
+		logger, _ = zap.NewDevelopment()
+	}
+	defer logger.Sync()
+	sugar := logger.Sugar()
+
+	sugar.Info("OpenMOHAA Stats API starting up...")
+
+	// Load configuration
+	cfg := config.Load()
+	sugar.Infow("Configuration loaded",
+		"port", cfg.Port,
+		"workers", cfg.WorkerCount,
+		"queueSize", cfg.QueueSize,
+	)
+
+	// Initialize database connections
+	ctx := context.Background()
+
+	// PostgreSQL (OLTP - users, tournaments, matches)
+	pgPool, err := db.NewPostgresPool(ctx, cfg.PostgresURL)
+	if err != nil {
+		sugar.Fatalw("Failed to connect to PostgreSQL", "error", err)
+	}
+	defer pgPool.Close()
+	sugar.Info("PostgreSQL connection established")
+
+	// ClickHouse (OLAP - telemetry events)
+	chConn, err := db.NewClickHouseConn(ctx, cfg.ClickHouseURL)
+	if err != nil {
+		sugar.Fatalw("Failed to connect to ClickHouse", "error", err)
+	}
+	defer chConn.Close()
+	sugar.Info("ClickHouse connection established")
+
+	// Redis (caching, rate limiting, real-time state)
+	redisClient := db.NewRedisClient(cfg.RedisURL)
+	defer redisClient.Close()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		sugar.Fatalw("Failed to connect to Redis", "error", err)
+	}
+	sugar.Info("Redis connection established")
+
+	// Initialize worker pool for async event processing
+	workerPool := worker.NewPool(worker.PoolConfig{
+		WorkerCount:   cfg.WorkerCount,
+		QueueSize:     cfg.QueueSize,
+		BatchSize:     cfg.BatchSize,
+		FlushInterval: cfg.FlushInterval,
+		ClickHouse:    chConn,
+		Postgres:      pgPool,
+		Redis:         redisClient,
+		Logger:        logger,
+	})
+	workerPool.Start(ctx)
+	sugar.Infow("Worker pool started",
+		"workers", cfg.WorkerCount,
+		"queueSize", cfg.QueueSize,
+	)
+
+	// Initialize handlers
+	h := handlers.New(handlers.Config{
+		WorkerPool: workerPool,
+		Postgres:   pgPool,
+		ClickHouse: chConn,
+		Redis:      redisClient,
+		Logger:     logger,
+		JWTSecret:  cfg.JWTSecret,
+	})
+
+	// Setup router
+	r := chi.NewRouter()
+
+	// Middleware
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Compress(5))
+	r.Use(middleware.Timeout(30 * time.Second))
+
+	// CORS for frontend
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Server-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
+
+	// Health & Metrics
+	r.Get("/health", h.Health)
+	r.Get("/ready", h.Ready)
+	r.Handle("/metrics", promhttp.Handler())
+
+	// API v1 Routes
+	r.Route("/api/v1", func(r chi.Router) {
+		// Ingestion endpoints (from game servers)
+		r.Route("/ingest", func(r chi.Router) {
+			r.Use(h.ServerAuthMiddleware)
+			r.Post("/events", h.IngestEvents)
+			r.Post("/match-result", h.IngestMatchResult)
+		})
+
+		// Stats endpoints (for frontend)
+		r.Route("/stats", func(r chi.Router) {
+			r.Get("/global", h.GetGlobalStats)
+			r.Get("/matches", h.GetMatches)
+			r.Get("/weapons", h.GetGlobalWeaponStats)
+			
+			r.Get("/leaderboard", h.GetLeaderboard) // [UPDATED] Unified handler
+			r.Get("/leaderboard/global", h.GetLeaderboard) // Redirect to unified handler
+			// Actually I replaced GetGlobalLeaderboard method with GetLeaderboard, so I MUST update the route name.
+			// The replace_file_content replaced the contents but kept the receiver method signature? 
+			// No, I changed the function name to GetLeaderboard in the replacement content.
+			// So GetGlobalLeaderboard no longer exists on *Handler.
+			
+			// New routes:
+			r.Get("/leaderboard", h.GetLeaderboard)
+			r.Get("/leaderboard/weapon/{weapon}", h.GetWeaponLeaderboard)
+			r.Get("/leaderboard/map/{map}", h.GetMapLeaderboard)
+
+			r.Get("/player/{guid}", h.GetPlayerStats)
+			r.Get("/player/{guid}/deep", h.GetPlayerDeepStats)
+			r.Get("/player/{guid}/matches", h.GetPlayerMatches)
+			r.Get("/player/{guid}/weapons", h.GetPlayerWeaponStats)
+			r.Get("/player/{guid}/heatmap/{map}", h.GetPlayerHeatmap)
+			r.Get("/player/{guid}/deaths/{map}", h.GetPlayerDeathHeatmap)
+			r.Get("/player/{guid}/heatmap/body", h.GetPlayerBodyHeatmap) // [NEW] Body Heatmap
+			r.Get("/player/{guid}/performance", h.GetPlayerPerformanceHistory) // [NEW] Performance Graph
+
+			r.Get("/map/{map}/heatmap", h.GetMapHeatmap)
+
+			r.Get("/match/{matchId}", h.GetMatchDetails)
+			r.Get("/match/{matchId}/timeline", h.GetMatchTimeline)
+			r.Get("/match/{matchId}/heatmap", h.GetMatchHeatmap)
+
+			r.Get("/query", h.GetDynamicStats)
+			r.Get("/server/{serverId}/stats", h.GetServerStats)
+			r.Get("/live/matches", h.GetLiveMatches)
+		})
+
+		// Tournament endpoints
+		r.Route("/tournaments", func(r chi.Router) {
+			r.Get("/", h.ListTournaments)
+			r.Get("/{id}", h.GetTournament)
+			r.Get("/{id}/bracket", h.GetTournamentBracket)
+			r.Get("/{id}/standings", h.GetTournamentStandings)
+
+			// Protected tournament management
+			r.Group(func(r chi.Router) {
+				r.Use(h.UserAuthMiddleware)
+				r.Post("/", h.CreateTournament)
+				r.Put("/{id}", h.UpdateTournament)
+				r.Post("/{id}/register", h.RegisterForTournament)
+				r.Post("/{id}/checkin", h.CheckinTournament)
+			
+				// Match reporting
+				r.Post("/matches/{matchID}/report", h.ReportMatchResult)
+			})
+		})
+
+		// Auth endpoints
+		r.Route("/auth", func(r chi.Router) {
+			// OAuth2 Device Flow for headless game clients
+			r.Post("/device", h.InitDeviceAuth)
+			r.Post("/token", h.PollDeviceToken)
+			r.Post("/verify", h.VerifyToken)
+
+			// Web OAuth (Discord/Steam)
+			r.Get("/discord", h.DiscordAuth)
+			r.Get("/discord/callback", h.DiscordCallback)
+			r.Get("/steam", h.SteamAuth)
+			r.Get("/steam/callback", h.SteamCallback)
+
+			// Identity claiming
+			r.Post("/claim/init", h.InitIdentityClaim)
+			r.Post("/claim/verify", h.VerifyIdentityClaim)
+		})
+
+		// User endpoints
+		r.Route("/users", func(r chi.Router) {
+			r.Use(h.UserAuthMiddleware)
+			r.Get("/me", h.GetCurrentUser)
+			r.Put("/me", h.UpdateCurrentUser)
+			r.Get("/me/identities", h.GetUserIdentities)
+			r.Delete("/me/identities/{id}", h.UnlinkIdentity)
+		})
+
+		// Server management
+		r.Route("/servers", func(r chi.Router) {
+			r.Get("/", h.ListServers)
+			r.Get("/{id}", h.GetServer)
+
+			r.Group(func(r chi.Router) {
+				r.Use(h.AdminAuthMiddleware)
+				r.Post("/", h.RegisterServer)
+				r.Put("/{id}", h.UpdateServer)
+				r.Post("/{id}/rotate-token", h.RotateServerToken)
+			})
+		})
+
+		// Achievement endpoints
+		r.Route("/achievements", func(r chi.Router) {
+			r.Get("/", h.ListAchievements)
+			r.Get("/player/{guid}", h.GetPlayerAchievements)
+		})
+	})
+
+	// HTMX partial endpoints (for frontend SSR)
+	r.Route("/partials", func(r chi.Router) {
+		r.Get("/live-matches", h.PartialLiveMatches)
+		r.Get("/leaderboard", h.PartialLeaderboard)
+		r.Get("/recent-matches", h.PartialRecentMatches)
+		r.Get("/player-card/{guid}", h.PartialPlayerCard)
+		r.Get("/player/{guid}/matches", h.PartialPlayerMatches)
+		r.Get("/bracket/{tournamentId}", h.PartialBracket)
+	})
+
+	// Frontend routes (SSR HTML pages)
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", h.PageIndex)
+		r.Get("/login", h.PageLogin)
+		r.Get("/player/{guid}", h.PagePlayer)
+		r.Get("/leaderboard", h.PageLeaderboard)
+		r.Get("/match/{matchId}", h.PageMatch)
+		r.Get("/stats", h.PageStats)
+		r.Get("/maps", h.PageMaps)
+		r.Get("/maps/{mapId}", h.PageMapDetail)
+		r.Get("/tournaments", h.PageTournaments)
+		r.Get("/tournaments/{id}", h.PageTournamentDetail)
+	})
+
+	// Static files for frontend
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static"))))
+
+	// Create server
+	server := &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.Port),
+		Handler:      r,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Graceful shutdown
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		sugar.Infof("Server listening on port %d", cfg.Port)
+		sugar.Infof("Workers: %d | Queue Size: %d | CPUs: %d",
+			cfg.WorkerCount, cfg.QueueSize, runtime.NumCPU())
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			sugar.Fatalw("Server failed", "error", err)
+		}
+	}()
+
+	<-shutdown
+	sugar.Info("Shutting down gracefully...")
+
+	// Give workers time to flush
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	workerPool.Stop()
+	server.Shutdown(ctx)
+
+	sugar.Info("Server stopped")
+}

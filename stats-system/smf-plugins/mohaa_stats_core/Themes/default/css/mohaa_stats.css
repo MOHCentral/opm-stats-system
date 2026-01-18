@@ -1,0 +1,647 @@
+/**
+ * MOHAA Stats - CSS Styles for SMF
+ *
+ * @package MohaaStats
+ * @version 1.0.0
+ */
+
+/* ========================================================================
+   Theme Colors (MOHAA military inspired)
+   ======================================================================== */
+
+:root {
+    --mohaa-olive: #4a5d23;
+    --mohaa-olive-dark: #3a4a1a;
+    --mohaa-sand: #c4b896;
+    --mohaa-brown: #8b7355;
+    --mohaa-dark: #1a1a1a;
+    --mohaa-positive: #4ade80;
+    --mohaa-negative: #f87171;
+    --mohaa-gold: #fbbf24;
+    --mohaa-silver: #9ca3af;
+    --mohaa-bronze: #d97706;
+}
+
+/* ========================================================================
+   Dashboard Grid Layout
+   ======================================================================== */
+
+.mohaa-stats-dashboard {
+    margin-bottom: 20px;
+}
+
+.mohaa-stats-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.mohaa-main-content {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .mohaa-main-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ========================================================================
+   Stat Cards
+   ======================================================================== */
+
+.mohaa-stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.mohaa-stat-card {
+    background: linear-gradient(135deg, var(--mohaa-olive-dark), var(--mohaa-olive));
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.mohaa-stat-card .stat-value {
+    font-size: 2em;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--mohaa-sand);
+}
+
+.mohaa-stat-card .stat-label {
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.9;
+}
+
+.mohaa-stat-card .stat-value.kd-positive {
+    color: var(--mohaa-positive);
+}
+
+.mohaa-stat-card .stat-value.kd-negative {
+    color: var(--mohaa-negative);
+}
+
+/* ========================================================================
+   Panels
+   ======================================================================== */
+
+.mohaa-panel {
+    margin-bottom: 20px;
+}
+
+.mohaa-panel .windowbg {
+    padding: 15px;
+}
+
+.mohaa-view-all {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    text-align: right;
+}
+
+.mohaa-view-all a {
+    color: var(--mohaa-olive);
+    font-weight: 600;
+}
+
+/* ========================================================================
+   Leaderboard Tables
+   ======================================================================== */
+
+.mohaa-leaderboard-mini {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.mohaa-leaderboard-mini th,
+.mohaa-leaderboard-mini td {
+    padding: 8px 10px;
+    text-align: left;
+}
+
+.mohaa-leaderboard-mini th {
+    font-size: 0.85em;
+    text-transform: uppercase;
+    color: #666;
+    border-bottom: 2px solid var(--mohaa-olive);
+}
+
+.mohaa-leaderboard-mini tr:hover {
+    background: rgba(74, 93, 35, 0.1);
+}
+
+.mohaa-leaderboard {
+    width: 100%;
+}
+
+.mohaa-leaderboard .rank {
+    width: 60px;
+    font-weight: bold;
+}
+
+.mohaa-leaderboard .rank-1 {
+    color: var(--mohaa-gold);
+    font-size: 1.1em;
+}
+
+.mohaa-leaderboard .rank-2 {
+    color: var(--mohaa-silver);
+}
+
+.mohaa-leaderboard .rank-3 {
+    color: var(--mohaa-bronze);
+}
+
+/* ========================================================================
+   Match Lists
+   ======================================================================== */
+
+.mohaa-match-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mohaa-match-item {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.mohaa-match-item:last-child {
+    border-bottom: none;
+}
+
+.mohaa-match-item a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s;
+}
+
+.mohaa-match-item a:hover {
+    background: rgba(74, 93, 35, 0.1);
+    margin: 0 -15px;
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+.mohaa-match-item .match-map {
+    font-weight: 600;
+}
+
+.mohaa-match-item .match-mode {
+    background: var(--mohaa-olive);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+.mohaa-match-item .match-players {
+    color: #666;
+}
+
+.mohaa-match-item .match-time {
+    color: #999;
+    font-size: 0.9em;
+}
+
+/* ========================================================================
+   Live Matches
+   ======================================================================== */
+
+.mohaa-live-match {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    position: relative;
+}
+
+.live-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--mohaa-negative);
+    font-weight: bold;
+    font-size: 0.8em;
+}
+
+.live-indicator .pulse {
+    width: 8px;
+    height: 8px;
+    background: var(--mohaa-negative);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.live-server {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.live-map {
+    color: var(--mohaa-olive);
+}
+
+.live-players {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.live-score {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.live-score .team-allies {
+    color: #3b82f6;
+}
+
+.live-score .team-axis {
+    color: #ef4444;
+}
+
+.live-score .vs {
+    color: #999;
+    font-weight: normal;
+}
+
+/* ========================================================================
+   Player Profile
+   ======================================================================== */
+
+.mohaa-player-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.player-avatar {
+    width: 80px;
+    height: 80px;
+    background: var(--mohaa-olive);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.player-avatar .avatar-letter {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: white;
+}
+
+.player-info h3 {
+    margin: 0 0 5px 0;
+    font-size: 1.5em;
+}
+
+.player-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: #666;
+}
+
+.player-meta .player-rank {
+    background: var(--mohaa-olive);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.player-meta .verified-badge {
+    background: var(--mohaa-positive);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+/* ========================================================================
+   Tabs
+   ======================================================================== */
+
+.mohaa-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--mohaa-olive);
+    padding-bottom: 0;
+}
+
+.tab-button {
+    background: none;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 1em;
+    color: #666;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+}
+
+.tab-button:hover {
+    color: var(--mohaa-olive);
+}
+
+.tab-button.active {
+    color: var(--mohaa-olive);
+    border-bottom-color: var(--mohaa-olive);
+    font-weight: 600;
+}
+
+/* ========================================================================
+   Match History
+   ======================================================================== */
+
+.mohaa-match-history {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mohaa-match-history .match-item {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.mohaa-match-history .match-item a {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 0;
+    text-decoration: none;
+    color: inherit;
+}
+
+.mohaa-match-history .match-kd {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+.mohaa-match-history .match-kd.positive {
+    background: rgba(74, 222, 128, 0.2);
+    color: var(--mohaa-positive);
+}
+
+.mohaa-match-history .match-kd.negative {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--mohaa-negative);
+}
+
+.mohaa-match-history .match-details {
+    flex: 1;
+}
+
+.mohaa-match-history .match-map {
+    display: block;
+    font-weight: 600;
+}
+
+.mohaa-match-history .match-stats {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.mohaa-match-history .match-result .win {
+    background: var(--mohaa-positive);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.mohaa-match-history .match-result .loss {
+    background: var(--mohaa-negative);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.mohaa-match-history .match-time {
+    color: #999;
+    font-size: 0.85em;
+}
+
+/* ========================================================================
+   Achievements
+   ======================================================================== */
+
+.mohaa-achievements-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+}
+
+.achievement-card {
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.achievement-card.unlocked {
+    background: rgba(74, 222, 128, 0.1);
+    border-color: var(--mohaa-positive);
+}
+
+.achievement-card.locked {
+    opacity: 0.6;
+}
+
+.achievement-icon {
+    font-size: 2em;
+}
+
+.achievement-info h5 {
+    margin: 0 0 5px 0;
+}
+
+.achievement-info p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.achievement-info .unlocked-date {
+    color: var(--mohaa-positive);
+    font-size: 0.8em;
+}
+
+.achievement-info .progress-bar {
+    height: 4px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.achievement-info .progress-bar .progress {
+    height: 100%;
+    background: var(--mohaa-olive);
+    border-radius: 2px;
+}
+
+/* ========================================================================
+   Link Identity
+   ======================================================================== */
+
+.mohaa-token-box,
+.mohaa-claim-box {
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid var(--mohaa-positive);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 15px;
+}
+
+.mohaa-token-box code.token,
+.mohaa-claim-box code.claim-code {
+    display: block;
+    background: var(--mohaa-dark);
+    color: var(--mohaa-sand);
+    padding: 15px;
+    border-radius: 4px;
+    font-size: 1.2em;
+    font-family: monospace;
+    margin: 10px 0;
+}
+
+.mohaa-token-box .expires {
+    color: #666;
+    font-size: 0.9em;
+}
+
+/* ========================================================================
+   Filters
+   ======================================================================== */
+
+.mohaa-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.mohaa-filters label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mohaa-filters select {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+}
+
+/* ========================================================================
+   Heatmap Styles
+   ======================================================================== */
+
+.mohaa-heatmap-container {
+    position: relative;
+    aspect-ratio: 16/9;
+    background: #1a1a1a;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.mohaa-heatmap-container img.map-background {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mohaa-heatmap-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.heatmap-point {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.7;
+}
+
+.heatmap-point.kill {
+    background: var(--mohaa-positive);
+    box-shadow: 0 0 10px var(--mohaa-positive);
+}
+
+.heatmap-point.death {
+    background: var(--mohaa-negative);
+    box-shadow: 0 0 10px var(--mohaa-negative);
+}
+
+/* ========================================================================
+   Responsive
+   ======================================================================== */
+
+@media (max-width: 600px) {
+    .mohaa-stat-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .mohaa-player-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .mohaa-tabs {
+        overflow-x: auto;
+    }
+    
+    .tab-button {
+        white-space: nowrap;
+    }
+}
