@@ -1,0 +1,5 @@
+# Genkit
+.genkit/
+
+# Node
+stats-system/api-server/node_modules/
