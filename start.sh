@@ -25,9 +25,9 @@ NC='\033[0m' # No Color
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-API_DIR="$SCRIPT_DIR/stats-system"
-NODE_DIR="$SCRIPT_DIR/stats-system/api-server"
-SMF_DIR="$SCRIPT_DIR/stats-system/smf"
+API_DIR="$SCRIPT_DIR"
+NODE_DIR="$SCRIPT_DIR/api-server"
+SMF_DIR="$SCRIPT_DIR/smf"
 LOG_DIR="$SCRIPT_DIR/logs"
 
 # Create log directory

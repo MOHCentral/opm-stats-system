@@ -11,8 +11,8 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-API_DIR="$SCRIPT_DIR/stats-system"
-SMF_DIR="$SCRIPT_DIR/stats-system/smf"
+API_DIR="$SCRIPT_DIR"
+SMF_DIR="$SCRIPT_DIR/smf"
 
 echo -e "${YELLOW}Stopping OpenMOHAA Stats System...${NC}"
 
