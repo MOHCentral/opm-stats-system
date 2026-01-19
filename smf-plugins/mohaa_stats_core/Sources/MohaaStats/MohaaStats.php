@@ -116,7 +116,7 @@ function MohaaStats_MenuButtons(array &$buttons): void
             ],
             'tokens' => [
                 'title' => $txt['mohaa_tokens'] ?? 'Link Account',
-                'href' => $scripturl . '?action=mohaalogintokens',
+                'href' => $scripturl . '?action=profile;area=mohaaidentity',
                 'show' => true,
             ],
         ],

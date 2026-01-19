@@ -147,8 +147,8 @@ func TestLoginFlow(t *testing.T) {
 		t.Logf("Token verified, linked to forum user %d", verifyResp.ForumUserID)
 	})
 
-	// Step 4: Try to reuse the token (should fail)
-	t.Run("TokenReuseBlocked", func(t *testing.T) {
+	// Step 4: Verify token reuse is ALLOWED (User requested 'Never Expire')
+	t.Run("TokenReuseAllowed", func(t *testing.T) {
 		if token == "" {
 			t.Skip("No token available")
 		}
@@ -172,11 +172,11 @@ func TestLoginFlow(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Fatalf("Expected 401 Unauthorized, got %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200 OK for reusable token, got %d", resp.StatusCode)
 		}
 
-		t.Log("Token reuse correctly blocked")
+		t.Log("Token reuse correctly allowed")
 	})
 
 	// Step 5: Test invalid token
