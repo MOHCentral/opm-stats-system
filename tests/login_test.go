@@ -205,7 +205,9 @@ func TestLoginFlow(t *testing.T) {
 		}
 
 		t.Log("Invalid token correctly rejected")
-		// Step 6: Test login with Trusted IP (No token required)
+	})
+
+	// Step 6: Test login with Trusted IP (No token required)
 	t.Run("LoginWithTrustedIP", func(t *testing.T) {
 		// Uses the same IP "192.168.1.100" which should now be trusted from Step 3
 		payload := map[string]interface{}{
@@ -246,7 +248,6 @@ func TestLoginFlow(t *testing.T) {
 
 		t.Log("Trusted IP login successful")
 	})
-})
 }
 
 // TestTokenGeneration tests various token generation scenarios

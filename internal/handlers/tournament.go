@@ -490,6 +490,16 @@ func (h *Handler) PollDeviceToken(w http.ResponseWriter, r *http.Request) {
 // 1. First use: Token verified, IP becomes trusted
 // 2. Same IP reconnect: Token already used but IP is trusted → Allow
 // 3. New IP: Token already used, IP not trusted → Create pending approval request
+// VerifyToken validates a login token from the game server
+// This is called when a player types /login <token> in-game
+// POST /api/v1/auth/verify
+// Body: {"token": "ABC12345", "player_guid": "xxx", "server_name": "My Server", "player_ip": "1.2.3.4"}
+//
+// Security model:
+// 1. First use: Token verified, IP becomes trusted
+// 2. Same IP reconnect: Token already used but IP is trusted → Allow
+// 3. New IP: Token already used, IP not trusted → Create pending approval request
+// 4. Trusted IP Login: No token provided, but IP is trusted -> Allow (Reverse lookup user from IP)
 func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -505,59 +515,98 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Token == "" {
-		h.errorResponse(w, http.StatusBadRequest, "token is required")
-		return
-	}
-
-	// Look up the token in database
-	var forumUserID int
-	var tokenID string
-	var expiresAt time.Time
-	var usedAt *time.Time
-	var usedFromIP *string
-	var isActive bool
-
-	err := h.pg.QueryRow(ctx, `
-		SELECT id, forum_user_id, expires_at, used_at, used_from_ip::text, is_active
-		FROM login_tokens
-		WHERE token = $1
-	`, req.Token).Scan(&tokenID, &forumUserID, &expiresAt, &usedAt, &usedFromIP, &isActive)
-
-	// Log the attempt
-	logAttempt := func(success bool, reason string) {
-		if forumUserID > 0 {
+	// Helper to log attempts
+	// Note: We need forumUserID to exist before calling this, or pass 0
+	logAttempt := func(uID int, success bool, reason string) {
+		if uID > 0 {
 			h.pg.Exec(ctx, `
 				INSERT INTO login_token_history 
 				(forum_user_id, token, server_name, server_address, player_ip, player_guid, success, failure_reason)
 				VALUES ($1, $2, $3, $4, $5::inet, $6, $7, $8)
-			`, forumUserID, req.Token, req.ServerName, req.ServerAddress, req.PlayerIP, req.PlayerGUID, success, reason)
+			`, uID, req.Token, req.ServerName, req.ServerAddress, req.PlayerIP, req.PlayerGUID, success, reason)
 		}
 	}
 
-	if err != nil {
-		logAttempt(false, "token_not_found")
-		h.errorResponse(w, http.StatusUnauthorized, "Invalid token")
-		return
+	var forumUserID int
+	var tokenID string
+
+	// SCENARIO 1: Token provided
+	if req.Token != "" {
+		var expiresAt time.Time
+		var usedAt *time.Time
+		var usedFromIP *string
+		var isActive bool
+
+		err := h.pg.QueryRow(ctx, `
+			SELECT id, forum_user_id, expires_at, used_at, used_from_ip::text, is_active
+			FROM login_tokens
+			WHERE token = $1
+		`, req.Token).Scan(&tokenID, &forumUserID, &expiresAt, &usedAt, &usedFromIP, &isActive)
+
+		if err != nil {
+			// Don't know user ID, can't log to history table efficiently (or log with null user)
+			h.errorResponse(w, http.StatusUnauthorized, "Invalid token")
+			return
+		}
+
+		// Check if token is active
+		if !isActive {
+			logAttempt(forumUserID, false, "token_revoked")
+			h.errorResponse(w, http.StatusUnauthorized, "Token has been revoked")
+			return
+		}
+
+		// Check if token expired
+		if time.Now().After(expiresAt) {
+			logAttempt(forumUserID, false, "token_expired")
+			h.errorResponse(w, http.StatusUnauthorized, "Token has expired")
+			return
+		}
+
+		// Check if token was already used
+		if usedAt != nil {
+			// Token used! Check if we can proceed based on Trust
+			// FALLTHROUGH to Trust Check below
+		} else {
+			// Valid unused token!
+			// Mark as used
+			_, err = h.pg.Exec(ctx, `
+				UPDATE login_tokens 
+				SET used_at = NOW(), used_from_ip = $1::inet, used_player_guid = $2
+				WHERE id = $3
+			`, req.PlayerIP, req.PlayerGUID, tokenID)
+
+			if err != nil {
+				h.logger.Errorw("Failed to mark token as used", "error", err)
+			}
+			
+			// We have a winner. Trust this IP.
+			// Proceed to Success Block
+			goto LoginSuccess
+		}
+	} else {
+		// SCENARIO 2: No token provided (Attempting Trusted IP Login)
+		// Try to find the user based on IP
+		err := h.pg.QueryRow(ctx, `
+			SELECT forum_user_id 
+			FROM trusted_ips 
+			WHERE ip_address = $1::inet AND is_active = true 
+			ORDER BY last_used_at DESC 
+			LIMIT 1
+		`, req.PlayerIP).Scan(&forumUserID)
+
+		if err != nil {
+			// No token AND no trusted IP match -> Fail
+			h.errorResponse(w, http.StatusBadRequest, "Token required (IP not trusted)")
+			return
+		}
+		
+		// Found a user for this IP! Proceed to Trust Check (implicit success)
 	}
 
-	// Check if token is active
-	if !isActive {
-		logAttempt(false, "token_revoked")
-		h.errorResponse(w, http.StatusUnauthorized, "Token has been revoked")
-		return
-	}
-
-	// Check if token expired
-	if time.Now().After(expiresAt) {
-		logAttempt(false, "token_expired")
-		h.errorResponse(w, http.StatusUnauthorized, "Token has expired")
-		return
-	}
-
-	// Check if token was already used
-	if usedAt != nil {
-		// Token was used before - check if IP is trusted
+	// TRUST CHECK BLOCK
+	// We have a forumUserID and an IP. Is this IP trusted for this user?
+	{
 		var isTrusted bool
 		err := h.pg.QueryRow(ctx, `
 			SELECT EXISTS(
@@ -568,31 +617,29 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 			)
 		`, forumUserID, req.PlayerIP).Scan(&isTrusted)
 
-		if err != nil {
-			h.logger.Errorw("Failed to check trusted IP", "error", err)
-		}
-
 		if isTrusted {
-			// IP is trusted! Allow the login
-			// Update last_used_at for this trusted IP
+			// Update stats for trusted IP
 			h.pg.Exec(ctx, `
 				UPDATE trusted_ips 
 				SET last_used_at = NOW() 
 				WHERE forum_user_id = $1 AND ip_address = $2::inet AND is_active = true
 			`, forumUserID, req.PlayerIP)
-
-			logAttempt(true, "trusted_ip_reconnect")
-
+			
+			logAttempt(forumUserID, true, "trusted_ip_login")
+			
 			h.jsonResponse(w, http.StatusOK, map[string]interface{}{
 				"valid":         true,
 				"forum_user_id": forumUserID,
-				"message":       "Reconnected from trusted IP",
+				"message":       "Logged in via Trusted IP",
 				"trusted_ip":    true,
 			})
 			return
 		}
 
-		// IP is NOT trusted - check if there's already a pending request
+		// If we are here, we had a valid token (since empty token falls out earlier), 
+		// but the token was USED, and the IP is NOT trusted.
+		// Create pending request.
+		
 		var pendingExists bool
 		h.pg.QueryRow(ctx, `
 			SELECT EXISTS(
@@ -605,8 +652,7 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 		`, forumUserID, req.PlayerIP).Scan(&pendingExists)
 
 		if !pendingExists {
-			// Create a pending approval request
-			_, err := h.pg.Exec(ctx, `
+			_, _ = h.pg.Exec(ctx, `
 				INSERT INTO pending_ip_approvals 
 				(forum_user_id, ip_address, player_guid, server_name, server_address)
 				VALUES ($1, $2::inet, $3, $4, $5)
@@ -626,29 +672,19 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		logAttempt(false, "new_ip_pending_approval")
+		logAttempt(forumUserID, false, "new_ip_pending_approval")
 		h.jsonResponse(w, http.StatusForbidden, map[string]interface{}{
 			"valid":            false,
 			"error":            "new_ip_detected",
-			"message":          "New IP detected. Please approve this IP on the website or generate a new token.",
+			"message":          "New IP detected. Please approve this IP on the website.",
 			"pending_approval": true,
 		})
 		return
 	}
 
-	// Token is valid and unused! Mark it as used
-	_, err = h.pg.Exec(ctx, `
-		UPDATE login_tokens 
-		SET used_at = NOW(), used_from_ip = $1::inet, used_player_guid = $2
-		WHERE id = $3
-	`, req.PlayerIP, req.PlayerGUID, tokenID)
-
-	if err != nil {
-		h.logger.Errorw("Failed to mark token as used", "error", err)
-	}
-
-	// Add this IP to trusted IPs
-	_, err = h.pg.Exec(ctx, `
+LoginSuccess:
+	// Add/Update Trusted IP (for fresh tokens)
+	_, err := h.pg.Exec(ctx, `
 		INSERT INTO trusted_ips (forum_user_id, ip_address, source, player_guid)
 		VALUES ($1, $2::inet, 'token_login', $3)
 		ON CONFLICT (forum_user_id, ip_address) 
@@ -663,7 +699,7 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 		h.logger.Errorw("Failed to add trusted IP", "error", err)
 	}
 
-	// Link the player GUID to the forum user (create or update mapping)
+	// Link player GUID
 	if req.PlayerGUID != "" {
 		_, err = h.pg.Exec(ctx, `
 			INSERT INTO smf_user_mappings (smf_member_id, primary_guid, updated_at)
@@ -676,11 +712,10 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Log success
-	logAttempt(true, "")
-
-	// Clean up from Redis
-	h.redis.Del(ctx, "login_token:"+req.Token)
+	logAttempt(forumUserID, true, "")
+	if req.Token != "" {
+		h.redis.Del(ctx, "login_token:"+req.Token)
+	}
 
 	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"valid":         true,
