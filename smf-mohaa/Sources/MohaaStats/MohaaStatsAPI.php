@@ -127,7 +127,7 @@ class MohaaStatsAPIClient
     public function getWeaponsList(): ?array { return $this->get('/stats/weapons/list'); }
     public function getWeaponStats(string $weaponId): ?array { return $this->get('/stats/weapon/' . urlencode($weaponId)); }
     public function initClaim(int $forumUserId): ?array { return $this->post('/auth/claim/init', ['forum_user_id'=>$forumUserId]); }
-    public function initDeviceAuth(int $forumUserId): ?array { return $this->post('/auth/device', ['forum_user_id'=>$forumUserId]); }
+    public function initDeviceAuth(int $forumUserId, bool $regenerate = false): ?array { return $this->post('/auth/device', ['forum_user_id'=>$forumUserId, 'regenerate'=>$regenerate]); }
 
     // Server Stats
     public function getGlobalActivity(): ?array { return $this->get('/stats/global/activity'); }
@@ -166,6 +166,13 @@ class MohaaStatsAPIClient
     public function getPlayerComparisons(string $guid): ?array { return []; }
     public function getHeadToHead(string $guid1, string $guid2): ?array { return []; }
     public function getLeaderboardCards(): ?array { return $this->get('/stats/leaderboard/cards'); }
+
+    // Auth/Identity methods
+    public function getLoginHistory(int $memberId): ?array { return $this->get('/auth/login-history/' . $memberId); }
+    public function getTrustedIPs(int $memberId): ?array { return $this->get('/auth/trusted-ips/' . $memberId); }
+    public function getPendingIPApprovals(int $memberId): ?array { return $this->get('/auth/pending-approvals/' . $memberId); }
+    public function deleteTrustedIP(int $memberId, int $ipId): ?array { return $this->post('/auth/trusted-ips/' . $memberId . '/delete', ['ip_id' => $ipId]); }
+    public function resolvePendingIP(int $memberId, int $approvalId, string $action): ?array { return $this->post('/auth/pending-approvals/' . $memberId . '/resolve', ['approval_id' => $approvalId, 'action' => $action]); }
 }
 
 function MohaaStats_APIProxy(): void
