@@ -37,22 +37,22 @@ type Achievement struct {
 type AchievementCategory string
 
 const (
-	CategoryFirstSteps   AchievementCategory = "First Steps"
-	CategoryCombat       AchievementCategory = "Combat Novice"
-	CategoryWeapon       AchievementCategory = "Weapon Specialist"
-	CategoryTactical     AchievementCategory = "Tactical Excellence"
-	CategoryHumiliation  AchievementCategory = "Humiliation"
-	CategoryHallOfShame  AchievementCategory = "Hall of Shame"
-	CategoryDedication   AchievementCategory = "Dedication & Milestones"
-	CategoryHidden       AchievementCategory = "Hidden & Secret"
-	CategoryTournament   AchievementCategory = "Tournament"
-	CategoryCommunity    AchievementCategory = "Special & Community"
-	
+	CategoryFirstSteps  AchievementCategory = "First Steps"
+	CategoryCombat      AchievementCategory = "Combat Novice"
+	CategoryWeapon      AchievementCategory = "Weapon Specialist"
+	CategoryTactical    AchievementCategory = "Tactical Excellence"
+	CategoryHumiliation AchievementCategory = "Humiliation"
+	CategoryHallOfShame AchievementCategory = "Hall of Shame"
+	CategoryDedication  AchievementCategory = "Dedication & Milestones"
+	CategoryHidden      AchievementCategory = "Hidden & Secret"
+	CategoryTournament  AchievementCategory = "Tournament"
+	CategoryCommunity   AchievementCategory = "Special & Community"
+
 	// New Categories
-	CategoryMovement     AchievementCategory = "Movement & Agility"
-	CategoryVehicles     AchievementCategory = "Vehicle Warfare"
-	CategorySocial       AchievementCategory = "Social Butterfly"
-	CategoryObjective    AchievementCategory = "Objective & Teamwork"
+	CategoryMovement  AchievementCategory = "Movement & Agility"
+	CategoryVehicles  AchievementCategory = "Vehicle Warfare"
+	CategorySocial    AchievementCategory = "Social Butterfly"
+	CategoryObjective AchievementCategory = "Objective & Teamwork"
 )
 
 // AchievementDefinition holds the static data for an achievement
@@ -62,7 +62,7 @@ type AchievementDefinition struct {
 	Description string
 	Tier        int
 	Category    AchievementCategory
-	Target      int64 // Value needed to unlock (e.g., 100 kills)
+	Target      int64  // Value needed to unlock (e.g., 100 kills)
 	Metric      string // The metric name to check against (e.g., "kills", "headshots")
 }
 
@@ -74,110 +74,11 @@ type PlayerAchievement struct {
 	UnlockedAt    time.Time  `json:"unlocked_at" db:"unlocked_at"`
 	MatchID       string     `json:"match_id,omitempty" db:"match_id"`
 	NotifiedAt    *time.Time `json:"notified_at,omitempty" db:"notified_at"`
-	
+
 	// Join fields
 	Achievement *Achievement `json:"achievement,omitempty" db:"-"`
 }
 
-var AllAchievements = []AchievementDefinition{
-	// Tier 1: First Steps
-	{
-		ID:          "boot_camp",
-		Name:        "Boot Camp Graduate",
-		Description: "Complete your first match",
-		Tier:        1,
-		Category:    CategoryFirstSteps,
-		Target:      1,
-		Metric:      "matches",
-	},
-	{
-		ID:          "first_blood",
-		Name:        "First Blood",
-		Description: "Get your first kill",
-		Tier:        1,
-		Category:    CategoryFirstSteps,
-		Target:      1,
-		Metric:      "kills",
-	},
-	{
-		ID:          "centurion",
-		Name:        "Centurion",
-		Description: "Get 100 kills",
-		Tier:        2,
-		Category:    CategoryCombat,
-		Target:      100,
-		Metric:      "kills",
-	},
-	{
-		ID:          "headhunter",
-		Name:        "Headhunter",
-		Description: "Get 100 headshots",
-		Tier:        2,
-		Category:    CategoryCombat,
-		Target:      100,
-		Metric:      "headshots",
-	},
-	{
-		ID:          "marathon",
-		Name:        "Marathon Runner",
-		Description: "Travel 10km total",
-		Tier:        2,
-		Category:    CategoryMovement,
-		Target:      10000,
-		Metric:      "distance",
-	},
-	{
-		ID:          "basher",
-		Name:        "Basher",
-		Description: "Get 25 pistol whip kills",
-		Tier:        2,
-		Category:    CategoryCombat,
-		Target:      25,
-		Metric:      "bash_kills",
-	},
-	{
-		ID:          "road_rage",
-		Name:        "Road Rage",
-		Description: "Run over 10 enemies with a vehicle",
-		Tier:        3,
-		Category:    CategoryVehicles,
-		Target:      10,
-		Metric:      "roadkills",
-	},
-	{
-		ID:          "chatterbox",
-		Name:        "Chatterbox",
-		Description: "Send 500 chat messages",
-		Tier:        1,
-		Category:    CategorySocial,
-		Target:      500,
-		Metric:      "chat_msgs",
-	},
-	{
-		ID:          "bunny_hopper",
-		Name:        "Bunny Hopper",
-		Description: "Jump 1000 times",
-		Tier:        1,
-		Category:    CategoryMovement,
-		Target:      1000,
-		Metric:      "jumps",
-	},
-	{
-		ID:          "oops",
-		Name:        "Oops!",
-		Description: "Commit suicide 10 times",
-		Tier:        1,
-		Category:    CategoryHallOfShame,
-		Target:      10,
-		Metric:      "suicides",
-	},
-	{
-		ID:          "flag_runner",
-		Name:        "Flag Runner",
-		Description: "Capture 5 flags",
-		Tier:        3,
-		Category:    CategoryObjective,
-		Target:      5,
-		Metric:      "flag_captures",
-	},
-}
+// NOTE: Achievement definitions are stored in SMF MariaDB (smf_mohaa_achievement_defs table)
+// The Go API does NOT manage achievement definitions - PHP/SMF is the source of truth.
+// This API only provides player stats that PHP uses to calculate achievement progress.

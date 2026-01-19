@@ -428,49 +428,135 @@ function format_playtime($seconds)
 /**
  * Competitive Leaderboard Dashboard
  */
+/**
+ * Competitive Leaderboard Dashboard
+ */
 function template_mohaa_stats_dashboard()
 {
-    global $context, $txt, $scripturl;
+    global $context, $txt, $scripturl, $settings;
 
-    $cards = $context['mohaa_dashboard_cards'] ?? [];
-    
+    // Use the data structure from the controller
+    $cardsData = $context['mohaa_dashboard_cards'] ?? [];
+
+    // Definition of all 40 widgets
+    $widgets = [
+        // A. Lethality
+        'kills' => ['label' => 'Kills', 'icon' => '??'],
+        'deaths' => ['label' => 'Deaths', 'icon' => '??'],
+        'kd' => ['label' => 'K/D Ratio', 'icon' => '??'],
+        'headshots' => ['label' => 'Headshots', 'icon' => '??'],
+        'accuracy' => ['label' => 'Accuracy', 'icon' => '??'],
+        'shots_fired' => ['label' => 'Trigger Happy', 'icon' => '??'],
+        'damage' => ['label' => 'Damage Dealer', 'icon' => '??'],
+        'bash_kills' => ['label' => 'Executioner', 'icon' => '??'],
+        'grenade_kills' => ['label' => 'Grenadier', 'icon' => '??'],
+        'roadkills' => ['label' => 'Road Rage', 'icon' => '??'],
+        'telefrags' => ['label' => 'Telefrags', 'icon' => '??'],
+        'crushed' => ['label' => 'Crushed', 'icon' => '??'],
+        'teamkills' => ['label' => 'Betrayals', 'icon' => '??'],
+        'suicides' => ['label' => 'Suicides', 'icon' => '??'],
+
+        // B. Weapon
+        'reloads' => ['label' => 'Reloader', 'icon' => '??'],
+        'weapon_swaps' => ['label' => 'Fickle', 'icon' => '??'],
+        'no_ammo' => ['label' => 'Empty Clip', 'icon' => '??'],
+        'looter' => ['label' => 'Looter', 'icon' => '??'],
+
+        // C. Movement
+        'distance' => ['label' => 'Marathon Man', 'icon' => '???'],
+        'sprinted' => ['label' => 'Sprinter', 'icon' => '???'],
+        'swam' => ['label' => 'Swimmer', 'icon' => '???'],
+        'driven' => ['label' => 'Driver', 'icon' => '??'],
+        'jumps' => ['label' => 'Bunny Hopper', 'icon' => '??'],
+        'crouch_time' => ['label' => 'Tactical Crouch', 'icon' => '??'],
+        'prone_time' => ['label' => 'Camper', 'icon' => '???'],
+        'ladders' => ['label' => 'Mountaineer', 'icon' => '??'],
+
+        // D. Survival
+        'health_picked' => ['label' => 'Glutton', 'icon' => '??'],
+        'ammo_picked' => ['label' => 'Hoarder', 'icon' => '??'],
+        'armor_picked' => ['label' => 'Tank', 'icon' => '???'],
+        'items_picked' => ['label' => 'Scavenger', 'icon' => '??'],
+
+        // E. Objectives
+        'wins' => ['label' => 'Grand Champion', 'icon' => '??'],
+        'objectives_done' => ['label' => 'Objective Master', 'icon' => '??'],
+        'rounds_played' => ['label' => 'Veteran', 'icon' => '??'],
+        'games_finished' => ['label' => 'Ironman', 'icon' => '??'],
+
+        // F. Vehicles
+        'vehicle_enter' => ['label' => 'Pilot', 'icon' => '??'],
+        'turret_enter' => ['label' => 'Gunner', 'icon' => '??'],
+        'vehicle_kills' => ['label' => 'Saboteur', 'icon' => '??'],
+
+        // G. Social
+        'chat_msgs' => ['label' => 'Chatterbox', 'icon' => '??'],
+        'spectating' => ['label' => 'Spectator', 'icon' => '??'],
+        'doors_opened' => ['label' => 'Door Monitor', 'icon' => '??'],
+    ];
+
     echo '
     <div class="mohaa-dashboard">
+        <!-- DEBUG PROBE -->
+        <div style="background:red; color:white; padding:10px;">
+            DEBUG: Template Loaded.<br>
+            Widgets Count: ' . count($widgets) . '<br>
+            Data Keys: ' . implode(',', array_keys($cardsData)) . '
+        </div>
+
+        <!-- War Room Header -->
         <div class="war-room-header">
             <div class="header-title">
-                <h1>🏆 COMPETITIVE LEADERBOARDS</h1>
+                <h1>🏆 TOTAL DOMINATION</h1>
                 <span class="header-subtitle">Performance Analysis & Global Records</span>
             </div>
             <div class="header-actions">
                 <a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kills" class="button">📋 View Detailed Table</a>
             </div>
+        </div>
+        
+        <!-- Ensure CSS is loaded -->
+        <link rel="stylesheet" href="', $settings['theme_url'], '/css/mohaa_dashboard.css?v=2" />
+        
+        <div class="mohaa-stats-grid">';
+
+    foreach ($widgets as $key => $meta) {
+        $top3 = $cardsData[$key] ?? [];
+        
+        // Render Card
+        echo '
+        <div class="mohaa-stat-card">
+            <div class="card-header">
+                <span class="card-icon">', $meta['icon'], '</span>
+                <span class="card-title">', $meta['label'], '</span>
+            </div>
+            <ul class="top-list">';
+
+        if (empty($top3)) {
+            echo '<li class="top-entry"><span class="name" style="color:inherit; opacity:0.5; font-style:italic;">No Data</span></li>';
+        } else {
+            foreach ($top3 as $idx => $player) {
+                $rank = $idx + 1;
+                echo '
+                <li class="top-entry rank-', $rank, '">
+                    <span class="rank">#', $rank, '</span>
+                    <span class="name">', htmlspecialchars($player['name']), '</span>
+                    <span class="value">', $player['value'], '</span>
+                </li>';
+            }
+        }
+        
+        echo '
+            </ul>
+             <a href="', $scripturl, '?action=mohaastats;sa=leaderboard;stat=', $key, '" class="card-footer">
+                View Leaderboard
+            </a>
         </div>';
-
-    // Combat Section
-    if (!empty($cards['combat'])) {
-        echo '<h3 class="category_header" style="margin-top: 20px;">⚔️ Combat Records</h3>
-              <div class="mohaa-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
-        foreach ($cards['combat'] as $card) template_mohaa_stat_card($card);
-        echo '</div>';
     }
 
-    // Game Flow Section
-    if (!empty($cards['game_flow'])) {
-        echo '<h3 class="category_header" style="margin-top: 20px;">🎮 Game Flow</h3>
-              <div class="mohaa-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
-        foreach ($cards['game_flow'] as $card) template_mohaa_stat_card($card);
-        echo '</div>';
-    }
-
-    // Niche Section
-    if (!empty($cards['niche'])) {
-        echo '<h3 class="category_header" style="margin-top: 20px;">🌟 Special Records</h3>
-              <div class="mohaa-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
-        foreach ($cards['niche'] as $card) template_mohaa_stat_card($card);
-        echo '</div>';
-    }
-
-    echo '</div>';
+    echo '
+        </div>
+    </div>';
 }
 
 function template_mohaa_stat_card($card)

@@ -240,21 +240,44 @@ For EACH of 20+ weapons:
 ## 🗄️ Key Files & Locations
 
 ### Game Scripts
-- `/home/elgan/.local/share/openmohaa/main/global/tracker.scr` - Event tracking script
+- `global/tracker.scr` - Event tracking script (Morpheus)
 
 ### API Server
-- `/home/elgan/.local/share/openmohaa/main/mohaa-stats-api/` - Go API project root
+- `cmd/api/main.go` - Go API entry point
+- `internal/` - API handlers, logic, models
 
-### SMF Integration
+### SMF Plugin Development (SINGLE SOURCE OF TRUTH)
+- **All sources**: `smf-mohaa/Sources/`
+- **All templates**: `smf-mohaa/Themes/default/`
+- **Container mount**: `/mohaa` → symlinked to SMF directories
+- **No docker cp needed** - edit locally, changes instant via symlinks
+
+```
+smf-mohaa/
+├── Sources/
+│   ├── MohaaAchievements.php
+│   ├── MohaaPlayers.php
+│   ├── MohaaServers.php
+│   ├── MohaaTeams.php
+│   ├── MohaaTournaments.php
+│   └── MohaaStats/
+│       ├── MohaaStats.php
+│       ├── MohaaStatsAPI.php
+│       └── MohaaStatsAdmin.php
+└── Themes/default/
+    ├── Mohaa*.template.php
+    └── languages/
+```
+
+### Docker
 - Container: `smf-smf-1` (localhost:8888)
 - Database: `smf-smf-db-1` (MariaDB, root/root_password)
-- Sources: `/var/www/html/Sources/MohaaPlayers.php`
-- Templates: `/var/www/html/Themes/default/*.template.php`
+- Docker config: `smf/docker-compose.yml`
 
 ### Documentation
-- `/home/elgan/.local/share/openmohaa/main/docs/` - Organized documentation
-- `/home/elgan/.local/share/openmohaa/main/MASSIVE_STATS.md` - Full stats taxonomy
-- `/home/elgan/.local/share/openmohaa/main/STATS_SYSTEM.md` - UI specifications
+- `docs/` - Organized documentation
+- `docs/design/MASSIVE_STATS.md` - Full stats taxonomy
+- `docs/EVENT_DOCUMENTATION.md` - 30 engine events
 
 ---
 

@@ -82,77 +82,97 @@ function MohaaAchievements_List(): void
     $context['page_title'] = $txt['mohaa_achievements'] ?? 'Achievements';
     $context['sub_template'] = 'mohaa_achievements_list';
     
-    // Initialize API
-    require_once(__DIR__ . '/MohaaStats/MohaaStatsAPI.php');
-    $api = new MohaaStatsAPIClient();
-    
-    // Get all achievement definitions from API
-    $apiAchievements = $api->getAchievements() ?? [];
+    // Get all achievement definitions from DATABASE (not API - DB has 85+ achievements)
     $achievements = [];
-    foreach ($apiAchievements as $a) {
-        $achievements[$a['id_achievement']] = $a;
-    }
+    $request = $smcFunc['db_query']('', '
+        SELECT id_achievement, code, name, description, category, tier, icon, 
+               requirement_type, requirement_value, points, is_hidden, sort_order
+        FROM {db_prefix}mohaa_achievement_defs
+        WHERE is_hidden = 0
+        ORDER BY category, tier, sort_order'
+    );
     
-    // Get user's GUID and progress
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $achievements[$row['id_achievement']] = [
+            'id_achievement' => $row['id_achievement'],
+            'code' => $row['code'],
+            'name' => $row['name'],
+            'description' => $row['description'],
+            'tier' => (int)$row['tier'],
+            'category' => $row['category'],
+            'target' => (int)$row['requirement_value'],
+            'metric' => $row['requirement_type'],
+            'icon' => $row['icon'],
+            'points' => (int)$row['points'],
+        ];
+    }
+    $smcFunc['db_free_result']($request);
+    
+    // Get user's unlocked achievements and progress from DATABASE
     $unlocked = [];
     $progress = [];
     
     if (!$user_info['is_guest']) {
-        // Get GUID
+        // Get unlocked achievements for this user
         $request = $smcFunc['db_query']('', '
-            SELECT player_guid FROM {db_prefix}mohaa_identities 
-            WHERE id_member = {int:member} LIMIT 1',
+            SELECT pa.id_achievement, pa.unlocked_date
+            FROM {db_prefix}mohaa_player_achievements pa
+            WHERE pa.id_member = {int:member}',
             ['member' => $user_info['id']]
         );
-        $row = $smcFunc['db_fetch_assoc']($request);
+        
+        while ($row = $smcFunc['db_fetch_assoc']($request)) {
+            $unlocked[$row['id_achievement']] = [
+                'id_achievement' => $row['id_achievement'],
+                'unlocked_date' => $row['unlocked_date'],
+            ];
+        }
         $smcFunc['db_free_result']($request);
         
-        if ($row && !empty($row['player_guid'])) {
-            $playerData = $api->getPlayerAchievements($row['player_guid']);
-            
-            // Map unlocked
-            if (!empty($playerData['unlocked'])) {
-                foreach ($playerData['unlocked'] as $u) {
-                    $unlocked[$u['id_achievement']] = $u;
-                }
-            }
-            // Map progress
-            if (!empty($playerData['progress'])) {
-                foreach ($playerData['progress'] as $p) {
-                    $progress[$p['id_achievement']] = $p['current_progress'];
-                }
-            }
+        // Get progress for in-progress achievements
+        $request = $smcFunc['db_query']('', '
+            SELECT id_achievement, current_progress
+            FROM {db_prefix}mohaa_achievement_progress
+            WHERE id_member = {int:member}',
+            ['member' => $user_info['id']]
+        );
+        
+        while ($row = $smcFunc['db_fetch_assoc']($request)) {
+            $progress[$row['id_achievement']] = (int)$row['current_progress'];
         }
+        $smcFunc['db_free_result']($request);
     }
     
-    // Group by category
-    $categories = [
-        'basic' => ['name' => 'Basic Training', 'tier' => 1, 'style' => 'bronze'],
-        'weapon' => ['name' => 'Weapon Specialist', 'tier' => 2, 'style' => 'silver'],
-        'tactical' => ['name' => 'Tactical & Skill', 'tier' => 3, 'style' => 'gold'],
-        'humiliation' => ['name' => 'Humiliation', 'tier' => 4, 'style' => 'patch'],
-        'shame' => ['name' => 'Hall of Shame', 'tier' => 5, 'style' => 'rusty'],
-        'map' => ['name' => 'Map & World', 'tier' => 6, 'style' => 'stamp'],
-        'dedication' => ['name' => 'Dedication', 'tier' => 7, 'style' => 'trophy'],
-        'secret' => ['name' => 'Secret', 'tier' => 8, 'style' => 'secret'],
+    // Group by category - dynamically from API data
+    $categoryStyles = [
+        1 => 'bronze',
+        2 => 'silver', 
+        3 => 'gold',
+        4 => 'patch',
+        5 => 'rusty',
     ];
     
     $grouped = [];
-    foreach ($categories as $cat => $info) {
-        $grouped[$cat] = [
-            'info' => $info,
-            'achievements' => [],
-        ];
-    }
     
     foreach ($achievements as $id => $ach) {
-        $cat = $ach['category'];
-        if (!isset($grouped[$cat])) continue;
+        $cat = $ach['category'] ?? 'Other';
+        $tier = $ach['tier'] ?? 1;
+        
+        if (!isset($grouped[$cat])) {
+            $grouped[$cat] = [
+                'info' => [
+                    'name' => $cat,
+                    'tier' => $tier,
+                    'style' => $categoryStyles[$tier] ?? 'bronze',
+                ],
+                'achievements' => [],
+            ];
+        }
         
         $ach['is_unlocked'] = isset($unlocked[$id]);
         $ach['unlocked_date'] = $unlocked[$id]['unlocked_date'] ?? null;
         $ach['current_progress'] = $progress[$id] ?? 0;
-        $ach['progress_percent'] = min(100, round(($ach['current_progress'] / max(1, $ach['requirement_value'])) * 100));
+        $ach['progress_percent'] = min(100, round(($ach['current_progress'] / max(1, $ach['target'] ?? 1)) * 100));
         
         $grouped[$cat]['achievements'][] = $ach;
     }

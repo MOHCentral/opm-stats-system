@@ -40,7 +40,11 @@ function template_mohaa_server_stats()
             
         </div>
 
+        </div>
+
         <!-- Lower Section: Recent Matches -->
+
+        <div class="mohaa-grid-2" style="display:none;">
         <div class="cat_bar" style="margin-top: 20px;">
             <h3 class="catbg">', $txt['mohaa_recent_matches'] ?? 'Recent Matches', '</h3>
         </div>

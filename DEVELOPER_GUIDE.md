@@ -332,35 +332,50 @@ ON DUPLICATE KEY UPDATE value = VALUES(value);
 
 ## Development Workflow
 
+### Plugin File Structure (SINGLE SOURCE OF TRUTH)
+
+All MOHAA plugin code lives in `smf-mohaa/`:
+
+```
+smf-mohaa/
+├── Sources/                    # PHP source files
+│   ├── MohaaAchievements.php
+│   ├── MohaaPlayers.php
+│   ├── MohaaServers.php
+│   ├── MohaaTeams.php
+│   ├── MohaaTournaments.php
+│   └── MohaaStats/             # Core stats module
+│       ├── MohaaStats.php
+│       ├── MohaaStatsAPI.php
+│       └── MohaaStatsAdmin.php
+└── Themes/default/             # Template files
+    ├── *.template.php          # All templates
+    └── languages/              # Language files
+```
+
+### How It Works
+
+1. `smf-mohaa/` is mounted at `/mohaa` in the container
+2. `entrypoint.sh` creates symlinks from `/mohaa` to SMF directories
+3. **Edit files locally → Changes are instant!** (no docker cp needed)
+
 ### Making Template Changes
 
-1. **Edit locally** in `/home/elgan/.local/share/openmohaa/main/mohaa-stats-api/smf-plugins/`
-
-2. **Copy to container:**
-   ```bash
-   docker cp /path/to/Template.template.php smf-smf-1:/var/www/html/Themes/default/
-   ```
-
-3. **Verify syntax:**
+1. **Edit locally** in `smf-mohaa/Themes/default/`
+2. **Refresh browser** - changes are immediate via symlinks
+3. **Verify syntax if needed:**
    ```bash
    docker exec smf-smf-1 php -l /var/www/html/Themes/default/Template.template.php
    ```
 
-4. **Test in browser:** `http://localhost:8888/index.php?action=mohaaXXX`
+### Making PHP Changes
 
-### Making PHP Changes (MohaaPlayers.php)
-
-1. **Edit directly in container** or copy:
-   ```bash
-   docker cp MohaaPlayers.php smf-smf-1:/var/www/html/Sources/
-   ```
-
-2. **Verify syntax:**
+1. **Edit locally** in `smf-mohaa/Sources/`
+2. **Refresh browser** - PHP files are interpreted on each request
+3. **Verify syntax:**
    ```bash
    docker exec smf-smf-1 php -l /var/www/html/Sources/MohaaPlayers.php
    ```
-
-3. **No restart needed** - PHP files are interpreted on each request
 
 ### Adding New Actions
 
@@ -422,28 +437,28 @@ $context['leaderboard'] = $data;
 
 ## File Reference
 
-### Container Paths
-
-| Path | Description |
-|------|-------------|
-| `/var/www/html/` | SMF root directory |
-| `/var/www/html/Sources/` | PHP source files |
-| `/var/www/html/Themes/default/` | Template files |
-| `/var/www/html/Settings.php` | SMF configuration |
-| `/var/log/apache2/error.log` | Apache error log |
-
 ### Local Development Paths
 
 | Path | Description |
 |------|-------------|
-| `/home/elgan/.local/share/openmohaa/main/` | OpenMOHAA game directory |
-| `mohaa-stats-api/` | Stats API project root |
-| `mohaa-stats-api/smf/` | SMF Docker setup |
-| `mohaa-stats-api/smf-plugins/` | Plugin source files |
-| `mohaa-stats-api/smf-plugins/mohaa_players/` | Main player stats plugin |
-| `mohaa-stats-api/smf-plugins/mohaa_achievements/` | Achievements plugin |
-| `mohaa-stats-api/smf-plugins/mohaa_servers/` | Server browser plugin |
-| `mohaa-stats-api/smf-plugins/mohaa_tournaments/` | Tournament plugin |
+| `smf-mohaa/Sources/` | All PHP source files |
+| `smf-mohaa/Themes/default/` | All template files |
+| `smf-mohaa/Themes/default/languages/` | Language files |
+| `smf/docker-compose.yml` | Docker services |
+| `smf/entrypoint.sh` | Creates symlinks on startup |
+| `global/` | Game tracker scripts |
+| `cmd/api/` | Go API entry point |
+| `internal/` | Go API handlers/logic |
+
+### Container Paths (symlinked from /mohaa)
+
+| Path | Description |
+|------|-------------|
+| `/var/www/html/` | SMF root directory |
+| `/var/www/html/Sources/` | PHP source files (symlinked) |
+| `/var/www/html/Themes/default/` | Template files (symlinked) |
+| `/mohaa/` | Mount point for smf-mohaa/ |
+| `/var/log/apache2/error.log` | Apache error log |
 
 ---
 

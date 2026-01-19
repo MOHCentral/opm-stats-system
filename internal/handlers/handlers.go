@@ -16,9 +16,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"github.com/openmohaa/stats-api/internal/logic"
 	"github.com/openmohaa/stats-api/internal/models"
 	"github.com/openmohaa/stats-api/internal/worker"
-	"github.com/openmohaa/stats-api/internal/logic"
 )
 
 type Config struct {
@@ -31,30 +31,30 @@ type Config struct {
 }
 
 type Handler struct {
-	pool        *worker.Pool
-	pg          *pgxpool.Pool
-	ch          driver.Conn
-	redis       *redis.Client
-	logger      *zap.SugaredLogger
-	playerStats *logic.PlayerStatsService
-	serverStats *logic.ServerStatsService
+	pool         *worker.Pool
+	pg           *pgxpool.Pool
+	ch           driver.Conn
+	redis        *redis.Client
+	logger       *zap.SugaredLogger
+	playerStats  *logic.PlayerStatsService
+	serverStats  *logic.ServerStatsService
 	gamification *logic.GamificationService
 	matchReport  *logic.MatchReportService
-	jwtSecret   []byte
+	jwtSecret    []byte
 }
 
 func New(cfg Config) *Handler {
 	return &Handler{
-		pool:        cfg.WorkerPool,
-		pg:          cfg.Postgres,
-		ch:          cfg.ClickHouse,
-		redis:       cfg.Redis,
-		logger:      cfg.Logger.Sugar(),
-		playerStats: logic.NewPlayerStatsService(cfg.ClickHouse),
-		serverStats: logic.NewServerStatsService(cfg.ClickHouse),
+		pool:         cfg.WorkerPool,
+		pg:           cfg.Postgres,
+		ch:           cfg.ClickHouse,
+		redis:        cfg.Redis,
+		logger:       cfg.Logger.Sugar(),
+		playerStats:  logic.NewPlayerStatsService(cfg.ClickHouse),
+		serverStats:  logic.NewServerStatsService(cfg.ClickHouse),
 		gamification: logic.NewGamificationService(cfg.ClickHouse),
 		matchReport:  logic.NewMatchReportService(cfg.ClickHouse),
-		jwtSecret:   []byte(cfg.JWTSecret),
+		jwtSecret:    []byte(cfg.JWTSecret),
 	}
 }
 
@@ -320,7 +320,7 @@ func (h *Handler) GetMatches(w http.ResponseWriter, r *http.Request) {
 		ORDER BY start_time DESC
 		LIMIT ? OFFSET ?
 	`, limit, offset)
-	
+
 	if err != nil {
 		h.logger.Errorw("Failed to fetch matches", "error", err)
 		h.errorResponse(w, http.StatusInternalServerError, "Query failed")
@@ -392,7 +392,7 @@ func (h *Handler) GetGlobalWeaponStats(w http.ResponseWriter, r *http.Request) {
 // GetLeaderboard returns rankings based on various criteria
 func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Parameters
 	period := r.URL.Query().Get("period")
 	stat := r.URL.Query().Get("stat")
@@ -425,25 +425,42 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Determine sort column
-	orderBy := "kills" 
+	orderBy := "kills"
 	switch stat {
-	case "deaths": orderBy = "deaths"
-	case "headshots": orderBy = "headshots"
-	case "accuracy": orderBy = "accuracy"
-	case "playtime": orderBy = "playtime"
-	case "kd": orderBy = "kd"
-	case "wins": orderBy = "wins"
-	case "rounds": orderBy = "rounds"
-	case "objectives": orderBy = "objectives"
-	case "suicides": orderBy = "suicides"
-	case "teamkills": orderBy = "teamkills"
-	case "roadkills": orderBy = "roadkills"
-	case "bash_kills": orderBy = "bash_kills"
-	case "grenades": orderBy = "grenades"
-	case "damage": orderBy = "damage"
-	case "distance": orderBy = "distance"
-	case "jumps": orderBy = "jumps"
-	default: orderBy = "kills"
+	case "deaths":
+		orderBy = "deaths"
+	case "headshots":
+		orderBy = "headshots"
+	case "accuracy":
+		orderBy = "accuracy"
+	case "playtime":
+		orderBy = "playtime"
+	case "kd":
+		orderBy = "kd"
+	case "wins":
+		orderBy = "wins"
+	case "rounds":
+		orderBy = "rounds"
+	case "objectives":
+		orderBy = "objectives"
+	case "suicides":
+		orderBy = "suicides"
+	case "teamkills":
+		orderBy = "teamkills"
+	case "roadkills":
+		orderBy = "roadkills"
+	case "bash_kills":
+		orderBy = "bash_kills"
+	case "grenades":
+		orderBy = "grenades"
+	case "damage":
+		orderBy = "damage"
+	case "distance":
+		orderBy = "distance"
+	case "jumps":
+		orderBy = "jumps"
+	default:
+		orderBy = "kills"
 	}
 
 	// MEGA Stats Query - aggregates ALL event types
@@ -591,14 +608,14 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var entry models.LeaderboardEntry
 		var kd, accuracy float64
-		
+
 		if err := rows.Scan(
-			&entry.PlayerID, 
-			&entry.PlayerName, 
-			&entry.Kills, 
-			&entry.Deaths, 
-			&entry.Headshots, 
-			&entry.ShotsFired, 
+			&entry.PlayerID,
+			&entry.PlayerName,
+			&entry.Kills,
+			&entry.Deaths,
+			&entry.Headshots,
+			&entry.ShotsFired,
 			&entry.ShotsHit,
 			&entry.Playtime,
 			&entry.Suicides,
@@ -621,7 +638,7 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		}
 		entry.Rank = rank
 		entry.Accuracy = accuracy
-		
+
 		entries = append(entries, entry)
 		rank++
 	}
@@ -854,38 +871,34 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, http.StatusOK, stats)
 }
 
-// GetPlayerAchievements returns unlocked achievements for a player
+// GetPlayerAchievements returns player achievements
+// Player achievement unlocks are tracked in SMF database (smf_mohaa_player_achievements)
+// This endpoint could query player stats from ClickHouse if needed for batch checking
 func (h *Handler) GetPlayerAchievements(w http.ResponseWriter, r *http.Request) {
-	guid := chi.URLParam(r, "guid")
-	ctx := r.Context()
-
-	svc := logic.NewAchievementService(h.ch)
-	achievements, err := svc.CheckAchievements(ctx, guid)
-	if err != nil {
-		h.logger.Errorw("Failed to check achievements", "error", err)
-		h.errorResponse(w, http.StatusInternalServerError, "Failed to check achievements")
-		return
-	}
-
-	h.jsonResponse(w, http.StatusOK, achievements)
+	// Achievement definitions and unlocks are stored in SMF database
+	// Go API provides player stats; SMF handles achievement logic
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"message":      "Player achievements are managed in SMF database",
+		"source":       "smf_database",
+		"achievements": []interface{}{},
+	})
 }
 
-// ListAchievements returns all defined achievements
+// ListAchievements returns a message directing to SMF database
+// Achievement definitions are stored in SMF MariaDB, not Go
 func (h *Handler) ListAchievements(w http.ResponseWriter, r *http.Request) {
-	h.jsonResponse(w, http.StatusOK, models.AllAchievements)
+	h.jsonResponse(w, http.StatusOK, map[string]string{
+		"message": "Achievement definitions are stored in SMF database (smf_mohaa_achievement_defs). Use the SMF forum to view achievements.",
+		"source":  "smf_database",
+	})
 }
 
-// GetAchievement returns a single achievement definition
+// GetAchievement returns a message directing to SMF database
 func (h *Handler) GetAchievement(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	for _, ach := range models.AllAchievements {
-		if ach.ID == id {
-			h.jsonResponse(w, http.StatusOK, ach)
-			return
-		}
-	}
-	h.errorResponse(w, http.StatusNotFound, "Achievement not found")
+	h.jsonResponse(w, http.StatusOK, map[string]string{
+		"message": "Achievement definitions are stored in SMF database. Use the SMF forum to view achievements.",
+		"source":  "smf_database",
+	})
 }
 
 // GetRecentAchievements returns a global feed of recent unlocks
@@ -894,13 +907,13 @@ func (h *Handler) GetRecentAchievements(w http.ResponseWriter, r *http.Request) 
 	// Mock implementation until ClickHouse 'unlocks' table is ready
 	// Retrieve recent 'achievement_unlocked' events from raw_events?
 	// For now, return empty or mock
-	
+
 	// Real implementation would look like:
 	/*
-	rows, err := h.ch.Query(ctx, "SELECT ... FROM achievement_unlocks ORDER BY timestamp DESC LIMIT 50")
+		rows, err := h.ch.Query(ctx, "SELECT ... FROM achievement_unlocks ORDER BY timestamp DESC LIMIT 50")
 	*/
-	
-	h.jsonResponse(w, http.StatusOK, []interface{}{}) 
+
+	h.jsonResponse(w, http.StatusOK, []interface{}{})
 }
 
 // GetAchievementLeaderboard returns players ranked by achievement points
@@ -1452,11 +1465,11 @@ func (h *Handler) GetServerStats(w http.ResponseWriter, r *http.Request) {
 	`, serverID)
 
 	if err := row.Scan(
-		&response.TotalKills, 
-		&response.TotalDeaths, 
-		&response.TotalMatches, 
-		&response.UniquePlayers, 
-		&response.TotalPlaytime, 
+		&response.TotalKills,
+		&response.TotalDeaths,
+		&response.TotalMatches,
+		&response.UniquePlayers,
+		&response.TotalPlaytime,
 		&response.LastActivity,
 	); err != nil {
 		h.logger.Errorw("Failed to query server totals", "error", err)
@@ -1505,8 +1518,6 @@ func (h *Handler) GetServerStats(w http.ResponseWriter, r *http.Request) {
 
 	h.jsonResponse(w, http.StatusOK, response)
 }
-
-
 
 // GetDynamicStats handles flexible stats queries
 func (h *Handler) GetDynamicStats(w http.ResponseWriter, r *http.Request) {
@@ -1709,147 +1720,7 @@ func (h *Handler) GetMatchAdvancedDetails(w http.ResponseWriter, r *http.Request
 	h.jsonResponse(w, http.StatusOK, details)
 }
 
-// GetLeaderboardCards returns the Stat Cards for the dashboard
-func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	dashboard := models.LeaderboardDashboard{
-		Combat:   make(map[string]models.LeaderboardCard),
-		GameFlow: make(map[string]models.LeaderboardCard),
-		Niche:    make(map[string]models.LeaderboardCard),
-	}
-
-	// Helper to fetch a single card
-	fetchCard := func(title, metric, icon, query string) models.LeaderboardCard {
-		card := models.LeaderboardCard{
-			Title:  title,
-			Metric: metric,
-			Icon:   icon,
-			Top:    make([]models.LeaderboardCardEntry, 0),
-		}
-		
-		rows, err := h.ch.Query(ctx, query)
-		if err != nil {
-			h.logger.Errorw("Failed to fetch card", "metric", metric, "error", err)
-			return card
-		}
-		defer rows.Close()
-
-		rank := 1
-		for rows.Next() {
-			var e models.LeaderboardCardEntry
-			if err := rows.Scan(&e.PlayerID, &e.PlayerName, &e.Value); err != nil {
-				continue
-			}
-			e.Rank = rank
-			card.Top = append(card.Top, e)
-			rank++
-		}
-		return card
-	}
-
-	// Combat Metrics
-	// ----------------
-	dashboard.Combat["accuracy"] = fetchCard("Most Accurate", "accuracy", "🎯", `
-		SELECT 
-			actor_id, 
-			any(actor_name), 
-			sumIf(event_type='weapon_hit') / NULLIF(sumIf(event_type='weapon_fire'), 0) * 100 as val 
-		FROM raw_events 
-		WHERE event_type IN ('weapon_hit','weapon_fire') AND actor_id != ''
-		GROUP BY actor_id 
-		HAVING sumIf(event_type='weapon_fire') > 50
-		ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.Combat["headhunter"] = fetchCard("Headhunter", "headshots", "🤯", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type='player_headshot' AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.Combat["kd_ratio"] = fetchCard("K/D Ratio", "kd_ratio", "⚖️", `
-		SELECT actor_id, any(actor_name), 
-			countIf(event_type='player_kill') / NULLIF(countIf(event_type='player_death'), 1) as val 
-		FROM raw_events WHERE actor_id != ''
-		GROUP BY actor_id 
-		HAVING countIf(event_type='player_kill') > 10
-		ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.Combat["executioner"] = fetchCard("Executioner", "bash_kills", "🔨", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type='player_bash' AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.Combat["road_rage"] = fetchCard("Road Rage", "roadkills", "🚗", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type='player_roadkill' AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.Combat["the_carry"] = fetchCard("The Carry", "kills", "💪", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type='player_kill' AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	// Game Flow
-	// ----------------
-	dashboard.GameFlow["grand_champion"] = fetchCard("Grand Champion", "wins", "🏆", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type='team_win' AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.GameFlow["objective_specialist"] = fetchCard("Objective Specialist", "captures", "🚩", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type='player_use_object_finish' AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.GameFlow["ironman"] = fetchCard("Ironman", "rounds", "🛡️", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type='round_end' AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	// Niche
-	// ----------------
-	dashboard.Niche["glass_cannon"] = fetchCard("Glass Cannon", "violence", "💥", `
-		SELECT actor_id, any(actor_name), (countIf(event_type='player_kill') + countIf(event_type='player_death')) as val 
-		FROM raw_events WHERE event_type IN ('player_kill', 'player_death') AND actor_id != ''
-		GROUP BY actor_id 
-		HAVING countIf(event_type='player_kill') > 10 AND countIf(event_type='player_death') > 10
-		ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.Niche["humiliation"] = fetchCard("Humiliation", "crushed", "😂", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type IN ('player_telefragged', 'player_crushed') AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.Niche["trigger_happy"] = fetchCard("Trigger Happy", "shots", "🔫", `
-		SELECT actor_id, any(actor_name), count() as val 
-		FROM raw_events WHERE event_type='weapon_fire' AND actor_id != ''
-		GROUP BY actor_id ORDER BY val DESC LIMIT 3
-	`)
-
-	dashboard.Niche["survivor"] = fetchCard("Survivor", "survival_rate", "🆘", `
-		SELECT 
-			actor_id, 
-			any(actor_name), 
-			(1 - (countIf(event_type='player_death') / NULLIF(countIf(event_type='round_end'), 0))) * 100 as val 
-		FROM raw_events 
-		WHERE actor_id != ''
-		GROUP BY actor_id 
-		HAVING countIf(event_type='round_end') > 5
-		ORDER BY val DESC LIMIT 3
-	`)
-
-	h.jsonResponse(w, http.StatusOK, dashboard)
-}
+// GetLeaderboardCards was moved to cards.go to support the massive dashboard
 
 // ============================================================================
 // HELPERS

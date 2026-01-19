@@ -137,6 +137,34 @@ fi
 mkdir -p /var/www/html/custom
 chown www-data:www-data /var/www/html/custom
 
+# =========================================================================
+# MOHAA Plugin Symlinks - single mount at /mohaa, symlink to SMF locations
+# =========================================================================
+if [ -d /mohaa ]; then
+    echo "Creating MOHAA plugin symlinks..."
+    
+    # Symlink Sources
+    for f in /mohaa/Sources/*.php; do
+        [ -f "$f" ] && ln -sf "$f" /var/www/html/Sources/$(basename "$f") 2>/dev/null
+    done
+    
+    # Remove old MohaaStats dir and symlink the whole directory
+    rm -rf /var/www/html/Sources/MohaaStats 2>/dev/null
+    ln -sfn /mohaa/Sources/MohaaStats /var/www/html/Sources/MohaaStats
+    
+    # Symlink Templates
+    for f in /mohaa/Themes/default/*.php; do
+        [ -f "$f" ] && ln -sf "$f" /var/www/html/Themes/default/$(basename "$f") 2>/dev/null
+    done
+    
+    # Symlink language files
+    for f in /mohaa/Themes/default/languages/*.php; do
+        [ -f "$f" ] && ln -sf "$f" /var/www/html/Themes/default/languages/$(basename "$f") 2>/dev/null
+    done
+    
+    echo "MOHAA symlinks created!"
+fi
+
 # Copy custom files if available
 if [ -f /entrypoint.sh ] && [ -d /var/www/html/custom ]; then
     # Link custom dashboard as the main page if SMF is not installed

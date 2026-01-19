@@ -32,32 +32,40 @@ docker compose logs -f smf
 5. Complete installation
 6. Delete `install.php` when prompted
 
-## Installing MOHAA Plugins
+## MOHAA Plugin Development
 
-The plugins are automatically mounted at `/var/www/html/Packages/mohaa/`.
+All MOHAA plugin files are in `smf-mohaa/` directory:
 
-To install them:
+```
+smf-mohaa/
+├── Sources/                    # PHP source files
+│   ├── MohaaAchievements.php
+│   ├── MohaaPlayers.php
+│   ├── MohaaServers.php
+│   ├── MohaaTeams.php
+│   ├── MohaaTournaments.php
+│   └── MohaaStats/             # Core stats module
+│       ├── MohaaStats.php
+│       ├── MohaaStatsAPI.php
+│       └── MohaaStatsAdmin.php
+└── Themes/default/             # Template files
+    ├── *.template.php          # All templates
+    └── languages/              # Language files
+```
 
-1. Go to **Admin** → **Packages** → **Browse Packages**
-2. Upload each plugin in this order:
-   1. `mohaa_stats_core` (required first!)
-   2. `mohaa_players`
-   3. `mohaa_servers`
-   4. `mohaa_achievements`
-   5. `mohaa_teams`
-   6. `mohaa_tournaments`
-   7. `mohaa_login_tokens`
+### How It Works
 
-Or use the Package Manager to install from `Packages/mohaa/` directory.
+1. `smf-mohaa/` is mounted at `/mohaa` in the container
+2. Entrypoint script creates symlinks to SMF directories
+3. **Edit files locally → Changes are instant** (no docker cp!)
 
 ## Directory Structure
 
 ```
 smf/
-├── docker-compose.yml    # Docker services
-├── Dockerfile            # SMF image build
+├── docker-compose.yml    # Docker services (mounts ../smf-mohaa)
+├── entrypoint.sh         # Creates symlinks on startup
 ├── custom/               # Custom PHP files
-│   └── mohaa_api.php     # API integration layer
 └── README.md             # This file
 ```
 

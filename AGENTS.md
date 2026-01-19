@@ -43,14 +43,15 @@ This file contains instructions for any AI assistant (Claude, Copilot, Gemini, e
 | Component | Location | Notes |
 |-----------|----------|-------|
 | Game Scripts | `global/tracker.scr` | Morpheus scripting |
-| Go API | `mohaa-stats-api/` | Main API project |
+| Go API | `cmd/api/` | Main API project |
+| **SMF Plugin Sources** | `smf-mohaa/Sources/` | Single source of truth |
+| **SMF Templates** | `smf-mohaa/Themes/default/` | All templates here |
 | SMF Container | `smf-smf-1` | localhost:8888 |
 | SMF Database | `smf-smf-db-1` | MariaDB, root/root_password |
-| SMF Sources | `/var/www/html/Sources/` | In container |
-| SMF Templates | `/var/www/html/Themes/default/` | In container |
+| SMF Docker | `smf/` | docker-compose.yml |
 | Documentation | `docs/` | Organized docs |
-| Stats Spec | `MASSIVE_STATS.md` | Full taxonomy |
-| Events Spec | `EVENT_DOCUMENTATION.md` | 30 events |
+| Stats Spec | `docs/design/MASSIVE_STATS.md` | Full taxonomy |
+| Events Spec | `docs/EVENT_DOCUMENTATION.md` | 30 events |
 
 ---
 
@@ -135,7 +136,7 @@ end
 
 ### Docker Commands
 ```bash
-# PHP syntax check
+# PHP syntax check (files are symlinked from smf-mohaa/)
 docker exec smf-smf-1 php -l /var/www/html/Sources/MohaaPlayers.php
 
 # Apache errors
@@ -143,6 +144,24 @@ docker exec smf-smf-1 tail -n 100 /var/log/apache2/error.log
 
 # MySQL access
 docker exec smf-smf-db-1 mysql -uroot -proot_password smf
+
+# Restart SMF container
+cd smf && docker compose restart smf
+```
+
+### Development Workflow
+```bash
+# All PHP files are in smf-mohaa/ - edit locally, changes are instant via symlinks
+# No docker cp needed!
+
+# Structure:
+# smf-mohaa/
+# ├── Sources/           ← PHP source files (symlinked to container)
+# │   ├── Mohaa*.php
+# │   └── MohaaStats/    ← Subdirectory (symlinked as directory)
+# └── Themes/default/    ← Templates (symlinked to container)
+#     ├── *.template.php
+#     └── languages/
 ```
 
 ---
