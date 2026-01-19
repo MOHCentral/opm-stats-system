@@ -2,4 +2,24 @@
 .genkit/
 
 # Node
+node_modules/
 api-server/node_modules/
+
+# Go
+bin/
+*.exe
+*.test
+*.out
+go-api/go-api
+tools/seeder/seeder
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.DS_Store
+

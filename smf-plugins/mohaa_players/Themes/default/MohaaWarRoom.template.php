@@ -330,10 +330,11 @@ function template_mohaa_war_room()
         function initWarRoomCharts() {
             const data = window.mohaaData;
             const player = data.player_stats || {};
-            const perf = player.performance || [];
+            const perf = player.performance || []; // Expecting array of {kd: float, played_at: timestamp}
             
             // 1. Performance Trend (Area Chart)
-            if (perf.length > 0) {
+            const perfCtx = document.querySelector("#chart-performance");
+            if (perfCtx && perf.length > 0) {
                 const options = {
                     series: [{
                         name: "K/D Ratio",
@@ -343,7 +344,8 @@ function template_mohaa_war_room()
                         type: "area",
                         height: 250,
                         toolbar: { show: false },
-                        background: "transparent"
+                        background: "transparent",
+                        animations: { enabled: true, easing: "easeinout", speed: 800 }
                     },
                     colors: ["#4a6b8a"],
                     fill: {
@@ -354,72 +356,104 @@ function template_mohaa_war_room()
                     stroke: { curve: "smooth", width: 2 },
                     xaxis: {
                         categories: perf.map(m => new Date(m.played_at * 1000).toLocaleDateString()),
-                        labels: { style: { colors: "#888" } }
+                        labels: { style: { colors: "#888", fontSize: "10px" } }
                     },
                     yaxis: {
                         labels: { style: { colors: "#888" } },
                         title: { text: "K/D Ratio", style: { color: "#888" } }
                     },
                     theme: { mode: "dark" },
-                    grid: { borderColor: "#444", strokeDashArray: 4 }
+                    grid: { borderColor: "#444", strokeDashArray: 4 },
+                    tooltip: { theme: "dark" }
                 };
-                new ApexCharts(document.querySelector("#chart-performance"), options).render();
-            } else {
-                document.querySelector("#chart-performance").innerHTML = "<p class=\'centertext\'>Play more matches to see your trend!</p>";
+                new ApexCharts(perfCtx, options).render();
+            } else if (perfCtx) {
+                perfCtx.innerHTML = "<p class=\'centertext\' style=\'padding-top: 80px; opacity: 0.6;\'>Play more matches to see your trend!</p>";
             }
             
             // 2. Weapon Distribution (Donut)
+            const weapCtx = document.querySelector("#chart-weapons");
             const weapons = player.weapons || {}; // Object: name -> stats
             // Convert object to array for sorting
-            const weaponArr = Object.entries(weapons)
+            const weaponArr = Array.isArray(weapons) ? weapons : Object.entries(weapons)
                 .map(([k, v]) => ({name: k, kills: v.kills}))
                 .filter(w => w.kills > 0)
                 .sort((a, b) => b.kills - a.kills)
                 .slice(0, 8); // Top 8
                 
-            if (weaponArr.length > 0) {
+            if (weapCtx && weaponArr.length > 0) {
                 const options = {
-                    series: weaponArr.map(w => w.kills),
+                    series: weaponArr.map(w => parseInt(w.kills)),
                     labels: weaponArr.map(w => w.name),
                     chart: { type: "donut", height: 300, background: "transparent" },
-                    plotOptions: { pie: { donut: { size: "70%" } } },
+                    plotOptions: { 
+                        pie: { 
+                            donut: { 
+                                size: "70%",
+                                labels: {
+                                    show: true,
+                                    total: {
+                                        show: true,
+                                        label: "Total Kills",
+                                        color: "#fff",
+                                        formatter: function (w) {
+                                            return w.globals.seriesTotals.reduce((a, b) => a + b, 0)
+                                        }
+                                    }
+                                }
+                            } 
+                        } 
+                    },
                     stroke: { show: false },
-                    theme: { mode: "dark", palette: "palette1" },
-                    legend: { position: "bottom" },
+                    theme: { mode: "dark", palette: "palette2" }, // Using palette2 for variety
+                    legend: { position: "bottom", labels: { colors: "#fff" } },
                     dataLabels: { enabled: false }
                 };
-                new ApexCharts(document.querySelector("#chart-weapons"), options).render();
+                new ApexCharts(weapCtx, options).render();
+            } else if (weapCtx) {
+                 weapCtx.innerHTML = "<p class=\'centertext\' style=\'padding-top: 100px; opacity: 0.6;\'>No weapon data recorded yet.</p>";
             }
             
             // 3. Map Analysis (Radar)
+            const mapCtx = document.querySelector("#chart-maps");
             const maps = player.maps || {};
             // Filter maps with data
-            const mapArr = Object.entries(maps)
+            const mapArr = Array.isArray(maps) ? maps : Object.entries(maps)
                 .map(([name, stats]) => ({
-                    name: name.split("/").pop(), 
+                    name: name.split("/").pop().replace(/^obj_|dm_/, ''), 
                     winRate: ((stats.wins || 0) / Math.max(1, (stats.matches || stats.kills/10))) * 100, // Approx matches if missing
                     kills: stats.kills || 0
                 }))
-                .filter(m => m.kills > 10) // Only maps with some activity
+                .filter(m => m.kills > 5) // Lower threshold
+                .sort((a, b) => b.kills - a.kills)
                 .slice(0, 6);
                 
-            if (mapArr.length > 0) {
+            if (mapCtx && mapArr.length > 0) {
                 const options = {
                     series: [{
                         name: "Win Rate %",
-                        data: mapArr.map(m => Math.min(100, m.winRate.toFixed(1)))
+                        data: mapArr.map(m => Math.min(100, parseFloat(m.winRate).toFixed(1)))
                     }],
                     chart: { type: "radar", height: 350, background: "transparent", toolbar: { show: false } },
-                    xaxis: { categories: mapArr.map(m => m.name), Labels: { style: { colors: ["#fff"] } } },
+                    xaxis: { 
+                        categories: mapArr.map(m => m.name), 
+                        labels: { 
+                            style: { 
+                                colors: ["#fff", "#fff", "#fff", "#fff", "#fff", "#fff"],
+                                fontSize: "11px"
+                            } 
+                        } 
+                    },
                     stroke: { width: 2, colors: ["#4caf50"] },
                     fill: { opacity: 0.2, colors: ["#4caf50"] },
                     markers: { size: 4, colors: ["#fff"], strokeColors: "#4caf50", strokeWidth: 2 },
                     theme: { mode: "dark" },
-                    yaxis: { max: 100, tickAmount: 4 }
+                    yaxis: { max: 100, tickAmount: 4, labels: { style: { colors: "#888" } } },
+                    tooltip: { theme: 'dark' }
                 };
-                new ApexCharts(document.querySelector("#chart-maps"), options).render();
-            } else {
-                 document.querySelector("#chart-maps").innerHTML = "<p class=\'centertext\'>Not enough map data yet.</p>";
+                new ApexCharts(mapCtx, options).render();
+            } else if (mapCtx) {
+                 mapCtx.innerHTML = "<p class=\'centertext\' style=\'padding-top: 100px; opacity: 0.6;\'>Not enough map data yet.</p>";
             }
         }
         

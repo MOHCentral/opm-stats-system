@@ -105,6 +105,7 @@ main:
     event_subscribe "item_pickup" "on_item_pickup"
     event_subscribe "health_pickup" "tracker_items_ext.scr::on_health_pickup"
     event_subscribe "ammo_pickup" "tracker_items_ext.scr::on_ammo_pickup"
+    event_subscribe "armor_pickup" "tracker_items_ext.scr::on_armor_pickup"
     event_subscribe "item_drop" "on_item_drop"
     event_subscribe "player_use" "on_player_use"
     event_subscribe "player_use_object_start" "tracker_interaction_ext.scr::on_player_use_object_start"
@@ -679,7 +680,7 @@ on_player_prone local.dummy:
     thread send_to_api local.payload "on_http_callback"
 end
 
-on_player_distance local.walked local.sprinted local.driven:
+on_player_distance local.walked local.sprinted local.swam local.driven:
     local.payload = "type=distance"
     local.payload = local.payload + "&match_id=" + level.match_id
     local.payload = local.payload + "&timestamp=" + level.time
@@ -687,6 +688,7 @@ on_player_distance local.walked local.sprinted local.driven:
     local.payload = local.payload + "&player_guid=" + self.dmteam
     local.payload = local.payload + "&walked=" + local.walked
     local.payload = local.payload + "&sprinted=" + local.sprinted
+    local.payload = local.payload + "&swam=" + local.swam
     local.payload = local.payload + "&driven=" + local.driven
     
     thread send_to_api local.payload "on_http_callback"
