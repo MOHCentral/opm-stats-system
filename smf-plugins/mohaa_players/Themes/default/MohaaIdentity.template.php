@@ -3,9 +3,10 @@
  * MOHAA Identity Linking Template
  * 
  * Displays the token for linking in-game identity to forum account.
+ * Refactored to use "Hybrid Design" (CSS Grid + SMF Native Classes).
  *
  * @package MohaaPlayers
- * @version 1.1.0
+ * @version 1.2.0
  */
 
 function template_mohaaidentity()
@@ -13,252 +14,216 @@ function template_mohaaidentity()
     global $context, $scripturl, $txt;
     
     $pendingCount = count($context['mohaa_pending_ips'] ?? []);
-    $trustedCount = count($context['mohaa_trusted_ips'] ?? []);
 
+    // Helper for safe time formatting
+    $safeTime = function($t) {
+        if (empty($t)) return 'never';
+        // If string (e.g. ISO8601), convert to int
+        if (is_string($t) && !is_numeric($t)) $t = strtotime($t);
+        // If conversion failed or still invalid
+        if (!$t) return 'invalid date';
+        return timeformat($t);
+    };
+
+    // 1. Header
     echo '
-    <style>
-        .mohaa-tabs { display: flex; border-bottom: 2px solid #ccc; margin-bottom: 0; }
-        .mohaa-tab { padding: 12px 24px; cursor: pointer; border: 1px solid transparent; border-bottom: none; margin-bottom: -2px; background: #f5f5f5; border-radius: 4px 4px 0 0; margin-right: 4px; font-weight: bold; }
-        .mohaa-tab:hover { background: #e8e8e8; }
-        .mohaa-tab.active { background: #fff; border-color: #ccc; border-bottom-color: #fff; }
-        .mohaa-tab .badge { background: #dc3545; color: white; border-radius: 50%; padding: 2px 8px; font-size: 11px; margin-left: 6px; }
-        .mohaa-tab .badge-info { background: #17a2b8; }
-        .mohaa-tab-content { display: none; padding: 20px; border: 1px solid #ccc; border-top: none; background: #fff; }
-        .mohaa-tab-content.active { display: block; }
-        .token-box { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #8bc34a; padding: 20px; border-radius: 8px; text-align: center; margin: 15px 0; }
-        .token-box .token { font-family: "Courier New", monospace; font-size: 28px; letter-spacing: 4px; font-weight: bold; }
-        .token-box .command { background: #000; color: #0f0; padding: 10px 15px; border-radius: 4px; margin-top: 15px; font-family: monospace; }
-        .security-alert { background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-        .security-alert h4 { color: #856404; margin: 0 0 10px 0; }
-        .ip-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .ip-card.website { border-left: 4px solid #17a2b8; }
-        .ip-card.game { border-left: 4px solid #28a745; }
-        .ip-card.manual { border-left: 4px solid #6c757d; }
-        .ip-info { flex-grow: 1; }
-        .ip-address { font-family: monospace; font-size: 16px; font-weight: bold; }
-        .ip-label { color: #666; font-size: 13px; margin-top: 4px; }
-        .ip-meta { color: #999; font-size: 12px; margin-top: 4px; }
-        .btn-approve { background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 5px; }
-        .btn-deny { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
-        .btn-remove { background: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-        .btn-remove:hover { background: #dc3545; }
-        .status-success { color: #155724; background: #d4edda; padding: 3px 10px; border-radius: 4px; font-size: 12px; }
-        .status-reconnect { color: #0c5460; background: #d1ecf1; padding: 3px 10px; border-radius: 4px; font-size: 12px; }
-        .status-pending { color: #856404; background: #fff3cd; padding: 3px 10px; border-radius: 4px; font-size: 12px; }
-        .status-failed { color: #721c24; background: #f8d7da; padding: 3px 10px; border-radius: 4px; font-size: 12px; }
-        .empty-state { text-align: center; padding: 40px; color: #666; }
-        .empty-state .icon { font-size: 48px; margin-bottom: 15px; }
-    </style>
-    
     <div class="cat_bar">
         <h3 class="catbg">
             <span class="main_icons members"></span> Game Identity & Security
         </h3>
     </div>';
 
-    // Security Alert - Always show if there are pending IPs
+    // 2. Alert Box for Pending requests (Only if any)
     if ($pendingCount > 0) {
         echo '
-    <div class="security-alert">
-        <h4>⚠️ Action Required: ', $pendingCount, ' Pending IP Approval', ($pendingCount > 1 ? 's' : ''), '</h4>
-        <p style="margin: 0;">Someone tried to login from a new location. Review the <strong>Pending IPs</strong> tab to approve or deny.</p>
-    </div>';
+        <div class="warningbox" style="margin: 10px 0;">
+            <strong style="font-size: 1.1em; display: block; margin-bottom: 5px;">⚠️ Action Required: ', $pendingCount, ' Pending Login Request', ($pendingCount > 1 ? 's' : ''), '</strong>
+            <span class="smalltext">New connections detected. Please ensure you approve only your own connection attempts below.</span>
+        </div>';
     }
 
+    // 3. Main Dashboard Grid
     echo '
-    <div class="mohaa-tabs">
-        <div class="mohaa-tab active" onclick="switchTab(this, \'token\')">🎫 Login Token</div>
-        <div class="mohaa-tab" onclick="switchTab(this, \'pending\')">⏳ Pending IPs', ($pendingCount > 0 ? '<span class="badge">' . $pendingCount . '</span>' : ''), '</div>
-        <div class="mohaa-tab" onclick="switchTab(this, \'trusted\')">🛡️ Trusted IPs<span class="badge badge-info">', $trustedCount, '</span></div>
-        <div class="mohaa-tab" onclick="switchTab(this, \'history\')">📋 Login History</div>
-    </div>
-    
-    <!-- Token Tab -->
-    <div id="tab-token" class="mohaa-tab-content active">
-        <h3 style="margin-top: 0;">Your Login Token</h3>
-        <p>Use this token to link your in-game soldier to your forum account.</p>
-        
-        <div class="token-box">
-            <div class="token">', $context['mohaa_token'], '</div>
-            <div class="command">', $context['mohaa_console_command'], '</div>
-            <p style="margin: 15px 0 0 0; font-size: 12px; color: #aaa;">Open console with ~ and enter the command above</p>
-        </div>
-        
-        <div style="background: #e8f5e9; border-radius: 8px; padding: 15px; margin-top: 20px;">
-            <h4 style="margin: 0 0 10px 0; color: #2e7d32;">✓ Your current IP is auto-trusted</h4>
-            <p style="margin: 0; color: #666;">The IP address you are using to view this page has been automatically added to your trusted list.</p>
-        </div>
-        
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-            <h4 style="color: #dc3545;">🔐 Emergency: Regenerate Token</h4>
-            <p style="color: #666;">If you believe your token has been compromised, regenerate it. This will:</p>
-            <ul style="color: #666;">
-                <li>Create a new unique token</li>
-                <li>Invalidate your old token</li>
-                <li>Remove ALL trusted IPs</li>
-            </ul>
-            <form action="', $scripturl, '?action=profile;area=mohaaidentity" method="post" style="display: inline;">
-                <input type="hidden" name="regenerate_token" value="1">
-                <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '">
-                <button type="submit" class="btn-deny" onclick="return confirm(\'Are you sure? This will invalidate your token and remove ALL trusted IPs.\');">
-                    🔄 Regenerate Token
-                </button>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Pending IPs Tab -->
-    <div id="tab-pending" class="mohaa-tab-content">';
-    
+    <div style="display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 10px;">';
+
+    // --- SECTION A: TOKEN & LINKING ---
+    echo '
+        <div class="windowbg" style="padding: 15px; border-top: 3px solid #ff9800; border-radius: 4px;">
+            <div style="text-align: center;">
+                <h4 style="margin: 0 0 10px 0;">Link Your Account</h4>
+                <p class="smalltext" style="margin: 0;">Enter this command in your game console (~ top left key) to link your player:</p>
+                
+                <div style="background: #1e1e1e; color: #4caf50; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 1.2em; margin: 15px 0; display: inline-block; border: 1px solid #333;">
+                    ', $context['mohaa_console_command'], '
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                     <span class="smalltext">Token: <strong>', $context['mohaa_token'], '</strong> (Never Expire)</span>
+                </div>
+                
+                 <form id="regenForm" action="', $scripturl, '?action=profile;area=mohaaidentity" method="post">
+                    <input type="hidden" name="regenerate_token" value="1">
+                    <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '">
+                    <button type="button" class="button" onclick="showConfirm(\'Generate new token?\', \'This will invalidate your current token.\', function() { document.getElementById(\'regenForm\').submit(); });">
+                        🔄 Regenerate Token
+                    </button>
+                </form>
+            </div>
+        </div>';
+
+    // --- SECTION B: PENDING APPROVALS (Conditional) ---
     if ($pendingCount > 0) {
         echo '
-        <h3 style="margin-top: 0;">Pending IP Approval Requests</h3>
-        <p>These IPs tried to login but are not trusted yet. Approve if it was you, deny if suspicious.</p>';
-        
+        <div>
+            <div class="title_bar">
+                <h3 class="titlebg">Pending Approvals</h3>
+            </div>
+            <div class="windowbg">
+                <table class="table_grid" style="width: 100%">
+                    <thead>
+                        <tr class="title_bar">
+                            <th>Date</th>
+                            <th>Server</th>
+                            <th>IP Address</th>
+                            <th style="text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
         foreach ($context['mohaa_pending_ips'] as $pending) {
             echo '
-        <div class="ip-card" style="border-left: 4px solid #ffc107;">
-            <div class="ip-info">
-                <div class="ip-address">', $pending['ip_address'], '</div>
-                <div class="ip-label">Server: ', htmlspecialchars($pending['server_name']), '</div>
-                <div class="ip-meta">Requested: ', timeformat($pending['requested_at']), ' - Expires: ', timeformat($pending['expires_at']), '</div>
-            </div>
-            <div>
-                <form action="', $scripturl, '?action=profile;area=mohaaidentity" method="post" style="display: inline;">
-                    <input type="hidden" name="resolve_pending_ip" value="1">
-                    <input type="hidden" name="approval_id" value="', $pending['id'], '">
-                    <input type="hidden" name="action_type" value="approve">
-                    <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '">
-                    <button type="submit" class="btn-approve">✓ Approve</button>
-                </form>
-                <form action="', $scripturl, '?action=profile;area=mohaaidentity" method="post" style="display: inline;">
-                    <input type="hidden" name="resolve_pending_ip" value="1">
-                    <input type="hidden" name="approval_id" value="', $pending['id'], '">
-                    <input type="hidden" name="action_type" value="deny">
-                    <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '">
-                    <button type="submit" class="btn-deny">✗ Deny</button>
-                </form>
-            </div>
-        </div>';
+                <tr class="windowbg">
+                    <td>', $safeTime($pending['requested_at'] ?? 0), '</td>
+                    <td>', htmlspecialchars($pending['server_name']), '</td>
+                    <td>', $pending['ip_address'], '</td>
+                    <td style="text-align: right;">
+                        <form action="', $scripturl, '?action=profile;area=mohaaidentity" method="post" style="display: inline;">
+                            <input type="hidden" name="resolve_pending_ip" value="1">
+                            <input type="hidden" name="approval_id" value="', $pending['id'], '">
+                            <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '">
+                            
+                            <button type="submit" name="action_type" value="approve" class="button_submit" style="color: green; font-weight: bold; margin-right: 5px;">✓ Allow</button>
+                            <button type="submit" name="action_type" value="deny" class="button_submit" style="color: red;">✗ Deny</button>
+                        </form>
+                    </td>
+                </tr>';
         }
-    } else {
-        echo '
-        <div class="empty-state">
-            <div class="icon">✅</div>
-            <h3>No Pending Approvals</h3>
-            <p>All login attempts have been handled. You are all set!</p>
+        echo '      </tbody>
+                </table>
+            </div>
         </div>';
     }
+
+    // --- SECTION C: TRUSTED DEVICES & HISTORY (2 Columns) ---
     
+    echo '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
+    
+    // 1. Trusted Devices
     echo '
-    </div>
-    
-    <!-- Trusted IPs Tab -->
-    <div id="tab-trusted" class="mohaa-tab-content">
-        <h3 style="margin-top: 0;">Trusted IP Addresses</h3>
-        <p>These IPs can automatically login without needing your token each time. Remove any you do not recognize.</p>';
-    
-    if ($trustedCount > 0) {
+        <div>
+            <div class="title_bar"><h3 class="titlebg">Trusted Devices</h3></div>
+            <div class="windowbg">
+                <ul style="list-style: none; padding: 0; margin: 0;">';
+                
+    if (empty($context['mohaa_trusted_ips'])) {
+        echo '<li style="padding: 15px; text-align: center; opacity: 0.6;">No trusted devices yet. Login in-game to add one.</li>';
+    } else {
         foreach ($context['mohaa_trusted_ips'] as $trusted) {
-            $cardClass = 'game';
-            $sourceIcon = '🎮';
-            $sourceText = 'Game login';
-            
-            if ($trusted['source'] === 'website') {
-                $cardClass = 'website';
-                $sourceIcon = '🌐';
-                $sourceText = 'Website';
-            } elseif ($trusted['source'] === 'manual_approval') {
-                $cardClass = 'manual';
-                $sourceIcon = '👤';
-                $sourceText = 'Manually approved';
-            }
+             $formId = 'removeTrusted_' . $trusted['id'];
+             echo '
+                <li style="padding: 10px; border-bottom: 1px solid rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: bold;">', $trusted['ip_address'], '</div>
+                        <div class="smalltext">Last used: ', $safeTime($trusted['last_used_at'] ?? 0), '</div>
+                    </div>
+                    <form id="', $formId, '" action="', $scripturl, '?action=profile;area=mohaaidentity" method="post">
+                        <input type="hidden" name="remove_trusted_ip" value="1">
+                        <input type="hidden" name="ip_id" value="', $trusted['id'], '">
+                        <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '">
+                        <button type="button" class="button_submit" style="min-height: auto; padding: 4px 8px; font-size: 0.8em;" onclick="showConfirm(\'Remove IP?\', \'This device will need a token to login again.\', function() { document.getElementById(\'', $formId, '\').submit(); });">Remove</button>
+                    </form>
+                </li>';
+        }
+    }
+    echo '      </ul>
+            </div>
+        </div>';
+
+    // 2. Recent History
+    echo '
+        <div>
+           <div class="title_bar"><h3 class="titlebg">Recent Activity</h3></div>
+            <table class="table_grid" style="width: 100%">
+                 <thead>
+                    <tr class="title_bar">
+                        <th>Date</th>
+                        <th>Server</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>';
+                
+    if (!empty($context['mohaa_login_history'])) {
+        foreach ($context['mohaa_login_history'] as $login) {
+            // Clean status string
+            $rawStatus = $login['status'] ?? '-';
+            $statusColor = (strpos($rawStatus, 'Success') !== false) ? 'green' : 'red';
+            $statusText = $rawStatus;
+            if (strpos($rawStatus, 'Failed: ') !== false) $statusText = str_replace('Failed: ', '', $rawStatus);
             
             echo '
-        <div class="ip-card ', $cardClass, '">
-            <div class="ip-info">
-                <div class="ip-address">', $trusted['ip_address'], '</div>
-                <div class="ip-label">', $sourceIcon, ' ', !empty($trusted['label']) ? htmlspecialchars($trusted['label']) : $sourceText, '</div>
-                <div class="ip-meta">Added: ', timeformat($trusted['created_at']), ' - Last used: ', timeformat($trusted['last_used_at']), '</div>
-            </div>
-            <div>
-                <form action="', $scripturl, '?action=profile;area=mohaaidentity" method="post" style="display: inline;">
-                    <input type="hidden" name="remove_trusted_ip" value="1">
-                    <input type="hidden" name="ip_id" value="', $trusted['id'], '">
-                    <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '">
-                    <button type="submit" class="btn-remove" onclick="return confirm(\'Remove this trusted IP?\');">Remove</button>
-                </form>
-            </div>
-        </div>';
+                <tr class="windowbg">
+                    <td class="smalltext">', $safeTime($login['date'] ?? 0), '</td>
+                    <td class="smalltext">', htmlspecialchars($login['server'] ?? 'Unknown'), '</td>
+                    <td style="color: ', $statusColor, '; font-weight: bold;">', $statusText, '</td>
+                </tr>';
         }
     } else {
-        echo '
-        <div class="empty-state">
-            <div class="icon">🔒</div>
-            <h3>No Trusted IPs Yet</h3>
-            <p>When you login from a game server, that IP will be automatically trusted.</p>
+        echo '<tr class="windowbg"><td colspan="3" style="text-align:center; opacity:0.6;">No activity recorded.</td></tr>';
+    }
+    
+    echo '      </tbody>
+            </table>
         </div>';
-    }
-    
+        
+    echo '</div>'; // End 2-col grid
+
+    echo '</div>'; // End Main Grid
+
+    // Custom Modal Script & HTML
     echo '
+    <div id="mohaaModal" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+        <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 300px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center;">
+            <h4 id="modalTitle" style="margin-top:0;">Confirm</h4>
+            <p id="modalText">Are you sure?</p>
+            <div style="margin-top: 20px; display: flex; justify-content: center; gap: 10px;">
+                <button id="modalConfirmBtn" class="button_submit" style="background:#dc3545; color:white;">Confirm</button>
+                <button onclick="closeModal()" class="button_submit">Cancel</button>
+            </div>
+        </div>
     </div>
-    
-    <!-- Login History Tab -->
-    <div id="tab-history" class="mohaa-tab-content">
-        <h3 style="margin-top: 0;">Recent Login Attempts</h3>
-        <p>All login attempts to your account from game servers.</p>
-        
-        <table class="table_grid" style="width: 100%;">
-            <thead>
-                <tr class="title_bar">
-                    <th>Date</th>
-                    <th>Server</th>
-                    <th>IP Address</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>';
-    
-    foreach ($context['mohaa_login_history'] as $login) {
-        $statusClass = 'status-failed';
-        if (strpos($login['status'], 'Success') !== false) {
-            $statusClass = 'status-success';
-        } elseif (strpos($login['status'], 'trusted_ip_reconnect') !== false) {
-            $statusClass = 'status-reconnect';
-        } elseif (strpos($login['status'], 'new_ip_pending') !== false) {
-            $statusClass = 'status-pending';
-        }
-        
-        $displayStatus = $login['status'];
-        $displayStatus = str_replace('Failed: ', '', $displayStatus);
-        $displayStatus = str_replace('_', ' ', $displayStatus);
-        $displayStatus = ucfirst($displayStatus);
-        
-        echo '
-                <tr class="windowbg">
-                    <td>', timeformat($login['date']), '</td>
-                    <td>', htmlspecialchars($login['server']), '</td>
-                    <td><code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">', $login['ip'], '</code></td>
-                    <td><span class="', $statusClass, '">', $displayStatus, '</span></td>
-                </tr>';
-    }
-    
-    echo '
-            </tbody>
-        </table>
-    </div>
-    
     <script>
-    function switchTab(element, tabName) {
-        document.querySelectorAll(".mohaa-tab-content").forEach(function(tab) {
-            tab.classList.remove("active");
-        });
-        document.querySelectorAll(".mohaa-tab").forEach(function(tab) {
-            tab.classList.remove("active");
-        });
-        document.getElementById("tab-" + tabName).classList.add("active");
-        element.classList.add("active");
-    }
+        var confirmCallback = null;
+        function showConfirm(title, text, callback) {
+            document.getElementById("modalTitle").innerText = title;
+            document.getElementById("modalText").innerText = text;
+            confirmCallback = callback;
+            document.getElementById("mohaaModal").style.display = "flex";
+        }
+        function closeModal() {
+            document.getElementById("mohaaModal").style.display = "none";
+            confirmCallback = null;
+        }
+        document.getElementById("modalConfirmBtn").onclick = function() {
+            if (confirmCallback) confirmCallback();
+            closeModal();
+        };
+        // Close on outside click
+        window.onclick = function(event) {
+            var modal = document.getElementById("mohaaModal");
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
     </script>';
 }
 ?>
