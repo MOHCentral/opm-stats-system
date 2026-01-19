@@ -349,6 +349,14 @@ function MohaaPlayers_ProfileIdentity(int $memID): void
             $_SESSION['mohaa_token_expires'] = time() + ($result['expires_in'] ?? 600);
         }
         redirectexit('action=profile;area=mohaaidentity');
+    } elseif (isset($_POST['remove_trusted_ip']) && isset($_POST['ip_id'])) {
+        checkSession();
+        $api->deleteTrustedIP($memID, $_POST['ip_id']);
+        redirectexit('action=profile;area=mohaaidentity');
+    } elseif (isset($_POST['resolve_pending_ip']) && isset($_POST['approval_id']) && isset($_POST['action_type'])) {
+        checkSession();
+        $api->resolvePendingIP($memID, $_POST['approval_id'], $_POST['action_type']);
+        redirectexit('action=profile;area=mohaaidentity');
     } elseif (isset($_GET['regenerate'])) {
         checkSession('get');  // GET session check
         $result = $api->initDeviceAuth($memID, true);  // Force regenerate
