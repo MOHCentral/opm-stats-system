@@ -1,10 +1,10 @@
-{"level":"info","ts":1768836297.5703409,"caller":"api/main.go:42","msg":"OpenMOHAA Stats API starting up..."}
-{"level":"info","ts":1768836297.5703967,"caller":"api/main.go:46","msg":"Configuration loaded","port":8080,"workers":8,"queueSize":10000}
-{"level":"info","ts":1768836297.5744092,"caller":"api/main.go:61","msg":"PostgreSQL connection established"}
-{"level":"info","ts":1768836297.5749755,"caller":"api/main.go:69","msg":"ClickHouse connection established"}
-{"level":"info","ts":1768836297.5762324,"caller":"api/main.go:77","msg":"Redis connection established"}
-{"level":"info","ts":1768836297.5762906,"caller":"worker/pool.go:124","msg":"Worker pool started","workers":8,"queueSize":10000,"batchSize":500}
-{"level":"info","ts":1768836297.5763073,"caller":"api/main.go:91","msg":"Worker pool started","workers":8,"queueSize":10000}
-{"level":"info","ts":1768836297.577009,"caller":"api/main.go:300","msg":"Server listening on port 8080"}
-{"level":"info","ts":1768836297.577043,"caller":"api/main.go:301","msg":"Workers: 8 | Queue Size: 10000 | CPUs: 32"}
-{"level":"fatal","ts":1768836297.5771475,"caller":"api/main.go:305","msg":"Server failed","error":"listen tcp :8080: bind: address already in use","stacktrace":"main.main.func4\n\t/home/elgan/dev/opm-stats-system/cmd/api/main.go:305"}
+{"level":"info","ts":1768839065.3279166,"caller":"api/main.go:42","msg":"OpenMOHAA Stats API starting up..."}
+{"level":"info","ts":1768839065.3279579,"caller":"api/main.go:46","msg":"Configuration loaded","port":8080,"workers":8,"queueSize":10000}
+{"level":"info","ts":1768839065.332177,"caller":"api/main.go:61","msg":"PostgreSQL connection established"}
+{"level":"info","ts":1768839065.333291,"caller":"api/main.go:69","msg":"ClickHouse connection established"}
+{"level":"info","ts":1768839065.3341005,"caller":"api/main.go:77","msg":"Redis connection established"}
+{"level":"info","ts":1768839065.3341408,"caller":"worker/pool.go:124","msg":"Worker pool started","workers":8,"queueSize":10000,"batchSize":500}
+{"level":"info","ts":1768839065.3341575,"caller":"api/main.go:91","msg":"Worker pool started","workers":8,"queueSize":10000}
+{"level":"info","ts":1768839065.3349128,"caller":"api/main.go:281","msg":"Server listening on port 8080"}
+{"level":"info","ts":1768839065.3349602,"caller":"api/main.go:282","msg":"Workers: 8 | Queue Size: 10000 | CPUs: 32"}
+{"level":"fatal","ts":1768839065.3350668,"caller":"api/main.go:286","msg":"Server failed","error":"listen tcp :8080: bind: address already in use","stacktrace":"main.main.func4\n\t/home/elgan/dev/opm-stats-system/cmd/api/main.go:286"}

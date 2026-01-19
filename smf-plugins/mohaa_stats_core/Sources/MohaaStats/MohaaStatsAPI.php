@@ -112,6 +112,7 @@ class MohaaStatsAPIClient
     public function getLeaderboard(string $stat = 'kills', int $limit = 25, int $offset = 0, string $period = 'all'): ?array { return $this->get('/stats/leaderboard/global', ['stat'=>$stat,'limit'=>$limit,'offset'=>$offset,'period'=>$period]); }
     public function getLeaderboardCount(string $stat = 'kills', string $period = 'all'): int { $data = $this->get('/stats/leaderboard/global', ['stat'=>$stat,'period'=>$period,'count_only'=>true]); return $data['total'] ?? 0; }
     public function getPlayerStats(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid)); }
+    public function getPlayerDeepStats(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/deep'); }
     public function getPlayerWeapons(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/weapons'); }
     public function getPlayerMatches(string $guid, int $limit = 10, int $offset = 0): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/matches', ['limit'=>$limit,'offset'=>$offset]); }
     public function getPlayerAchievements(string $guid): ?array { return $this->get('/achievements/player/' . urlencode($guid)); }
@@ -127,6 +128,10 @@ class MohaaStatsAPIClient
     public function getWeaponStats(string $weaponId): ?array { return $this->get('/stats/weapon/' . urlencode($weaponId)); }
     public function initClaim(int $forumUserId): ?array { return $this->post('/auth/claim/init', ['forum_user_id'=>$forumUserId]); }
     public function initDeviceAuth(int $forumUserId): ?array { return $this->post('/auth/device', ['forum_user_id'=>$forumUserId]); }
+
+    // Server Stats
+    public function getGlobalActivity(): ?array { return $this->get('/stats/global/activity'); }
+    public function getMapPopularity(): ?array { return $this->get('/stats/maps/popularity'); }
     
     // Stubs
     public function getAchievements(): ?array { return $this->get('/achievements/'); }
@@ -138,6 +143,9 @@ class MohaaStatsAPIClient
     public function getPlayerRank(string $guid): ?int { return null; }
     public function getPlayerPerformance(string $guid, int $days): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/performance'); }
     public function getPlayerHistory(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/performance'); }
+    public function getPlayerPlaystyle(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/playstyle'); }
+    public function getMatchReport(string $matchId): ?array { return $this->get('/stats/match/' . urlencode($matchId) . '/advanced'); }
+
     public function getPlayerMapStats(string $guid): ?array { return []; }
     public function getPlayerComparisons(string $guid): ?array { return []; }
     public function getHeadToHead(string $guid1, string $guid2): ?array { return []; }

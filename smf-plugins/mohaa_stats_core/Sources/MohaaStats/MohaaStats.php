@@ -86,7 +86,7 @@ function MohaaStats_MenuButtons(array &$buttons): void
             ],
             'servers' => [
                 'title' => $txt['mohaa_servers'] ?? 'Servers',
-                'href' => $scripturl . '?action=mohaaservers',
+                'href' => $scripturl . '?action=mohaastats;sa=servers',
                 'show' => true,
             ],
             'maps' => [
@@ -185,6 +185,7 @@ function MohaaStats_Main(): void
         'match' => 'MohaaStatsMatch',
         'maps' => 'MohaaStatsLeaderboard',
         'map' => 'MohaaStatsLeaderboard',
+        'servers' => 'MohaaServerStats', // New template
         'live' => 'MohaaStats',
         'link' => 'MohaaStatsPlayer',
         'token' => 'MohaaStatsPlayer',
@@ -202,6 +203,7 @@ function MohaaStats_Main(): void
         'match' => 'MohaaStats_MatchDetail',
         'maps' => 'MohaaStats_MapLeaderboard',
         'map' => 'MohaaStats_MapDetail',
+        'servers' => 'MohaaStats_ServerDashboard', // New function
         'live' => 'MohaaStats_Live',
         'link' => 'MohaaStats_LinkIdentity',
         'token' => 'MohaaStats_GenerateToken',
@@ -238,15 +240,12 @@ function MohaaStats_MainPage(): void
     ];
 }
 
-/**
- * Leaderboards page
- */
 function MohaaStats_Leaderboards(): void
 {
-    global $context, $txt;
+    global $context, $txt, $scripturl;
     
-    $context['page_title'] = $txt['mohaa_leaderboards'];
-    $context['sub_template'] = 'mohaa_leaderboards';
+    $context['page_title'] = $txt['mohaa_leaderboards'] ?? 'Leaderboards';
+    $context['sub_template'] = 'mohaa_stats_leaderboard';
     
     $stat = isset($_GET['stat']) ? $_GET['stat'] : 'kills';
     $period = isset($_GET['period']) ? $_GET['period'] : 'all';
@@ -255,11 +254,14 @@ function MohaaStats_Leaderboards(): void
     
     $api = new MohaaStatsAPIClient();
     
+    // API returns {"players": [...], "total": N, "page": N}
+    $apiResponse = $api->getLeaderboard($stat, $limit, $page, $period);
+    
     $context['mohaa_leaderboard'] = [
         'stat' => $stat,
         'period' => $period,
-        'players' => $api->getLeaderboard($stat, $limit, $page, $period),
-        'total' => $api->getLeaderboardCount($stat, $period),
+        'players' => $apiResponse['players'] ?? [],
+        'total' => $apiResponse['total'] ?? 0,
     ];
     
     // Pagination
@@ -271,6 +273,9 @@ function MohaaStats_Leaderboards(): void
     );
 }
 
+/**
+ * Player stats page
+ */
 /**
  * Player stats page
  */
@@ -286,7 +291,19 @@ function MohaaStats_Player(): void
     }
     
     $api = new MohaaStatsAPIClient();
-    $player = $api->getPlayerStats($guid);
+    
+    // Parallel Fetching for Speed
+    $requests = [
+        'info' => ['endpoint' => '/stats/player/' . urlencode($guid)],
+        'deep' => ['endpoint' => '/stats/player/' . urlencode($guid) . '/deep'],
+        'playstyle' => ['endpoint' => '/stats/player/' . urlencode($guid) . '/playstyle'],
+        'weapons' => ['endpoint' => '/stats/player/' . urlencode($guid) . '/weapons'],
+        'matches' => ['endpoint' => '/stats/player/' . urlencode($guid) . '/matches', 'params' => ['limit' => 10]],
+        'achievements' => ['endpoint' => '/achievements/player/' . urlencode($guid)],
+    ];
+    
+    $results = $api->getMultiple($requests);
+    $player = $results['info'];
     
     if (empty($player)) {
         fatal_lang_error('mohaa_player_not_found', false);
@@ -294,17 +311,36 @@ function MohaaStats_Player(): void
     }
     
     $context['page_title'] = sprintf($txt['mohaa_player_title'], $player['name']);
-    $context['sub_template'] = 'mohaa_player';
+    $context['sub_template'] = 'mohaa_war_room'; // Use Unified War Room Template
     
-    $context['mohaa_player'] = [
-        'info' => $player,
-        'weapons' => $api->getPlayerWeapons($guid),
-        'matches' => $api->getPlayerMatches($guid, 10),
-        'achievements' => $api->getPlayerAchievements($guid),
+    // Flatten Deep Stats for Template Compatibility
+    $deep = $results['deep'] ?? [];
+    $flatStats = array_merge(
+        $player,
+        $deep['combat'] ?? [],
+        $deep['movement'] ?? [],
+        $deep['accuracy'] ?? [],
+        $deep['session'] ?? [],
+        $deep['rivals'] ?? [],
+        $deep['stance'] ?? []
+    );
+    
+    // Add Structured Data
+    $flatStats['weapons'] = $results['weapons'] ?? []; // Template handles array/object
+    $flatStats['matches'] = $results['matches']['list'] ?? [];
+    $flatStats['recent_matches'] = $results['matches']['list'] ?? [];
+    $flatStats['playstyle'] = $results['playstyle'] ?? [];
+    $flatStats['achievements'] = $results['achievements'] ?? [];
+    
+    $context['mohaa_dashboard'] = [
+        'player_stats' => $flatStats,
+        'member' => [
+            'member_name' => $player['name'],
+            'real_name' => $player['name'],
+            'id' => 0 // External player
+        ],
+        'is_own' => MohaaStats_IsLinkedToUser($guid)
     ];
-    
-    // Check if this player is linked to current user
-    $context['mohaa_player']['is_own'] = MohaaStats_IsLinkedToUser($guid);
 }
 
 /**
@@ -350,14 +386,20 @@ function MohaaStats_MatchDetail(): void
     }
     
     $api = new MohaaStatsAPIClient();
-    $match = $api->getMatchDetails($matchId);
+    $match = $api->getMatchReport($matchId);
     
     if (empty($match)) {
         fatal_lang_error('mohaa_match_not_found', false);
         return;
     }
     
-    $context['page_title'] = sprintf($txt['mohaa_match_title'], $match['map_name']);
+    // Fetch visual heatmap data separately
+    $match['heatmap_data'] = [
+        'kills' => $api->getMatchHeatmap($matchId, 'kills'),
+        'deaths' => $api->getMatchHeatmap($matchId, 'deaths')
+    ];
+    
+    $context['page_title'] = sprintf($txt['mohaa_match_title'], $match['info']['map_name'] ?? 'Unknown');
     $context['sub_template'] = 'mohaa_match_detail';
     
     $context['mohaa_match'] = $match;
@@ -647,5 +689,33 @@ function MohaaStats_HandleToken(): void
     $context['mohaa_identity_linked'] = !empty(MohaaStats_GetUserIdentities($user_info['id']));
     $context['mohaa_token'] = $result['user_code'] ?? null;
     $context['mohaa_token_expires'] = time() + ($result['expires_in'] ?? 600);
+}
+
+/**
+ * Server Dashboard page
+ */
+function MohaaStats_ServerDashboard(): void
+{
+    global $context, $txt;
+    
+    $context['page_title'] = $txt['mohaa_servers'] ?? 'Server Dashboard';
+    $context['sub_template'] = 'mohaa_server_stats';
+    
+    $api = new MohaaStatsAPIClient();
+    
+    // Fetch parallel
+    $requests = [
+        'activity' => ['endpoint' => '/stats/global/activity'],
+        'maps' => ['endpoint' => '/stats/maps/popularity'],
+        'recent_matches' => ['endpoint' => '/stats/matches', 'params' => ['limit' => 10]],
+    ];
+    
+    $results = $api->getMultiple($requests);
+    
+    $context['mohaa_server_stats'] = [
+        'activity' => $results['activity'] ?? [],
+        'maps' => $results['maps'] ?? [],
+        'recent_matches' => $results['recent_matches'] ?? [],
+    ];
 }
 

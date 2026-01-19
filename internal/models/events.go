@@ -276,10 +276,18 @@ type MapStats struct {
 // LeaderboardEntry for leaderboard display
 type LeaderboardEntry struct {
 	Rank       int     `json:"rank"`
-	PlayerID   string  `json:"player_id"`
-	PlayerName string  `json:"player_name"`
-	Value      int64   `json:"value"`
-	Secondary  float64 `json:"secondary,omitempty"`
+	PlayerID   string  `json:"id"` // Use 'id' for frontend compatibility
+	PlayerName string  `json:"name"`
+	Kills      int64   `json:"kills"`
+	Deaths     int64   `json:"deaths"`
+	Headshots  int64   `json:"headshots"`
+	Accuracy   float64 `json:"accuracy"`
+	Playtime   int64   `json:"playtime_seconds"`
+	ShotsFired int64   `json:"shots_fired"`
+	ShotsHit   int64   `json:"shots_hit"`
+	
+	// Deprecated but kept for compatibility if needed
+	Value      int64   `json:"value,omitempty"`
 }
 
 // HeatmapData for spatial analysis

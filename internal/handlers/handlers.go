@@ -37,6 +37,9 @@ type Handler struct {
 	redis       *redis.Client
 	logger      *zap.SugaredLogger
 	playerStats *logic.PlayerStatsService
+	serverStats *logic.ServerStatsService
+	gamification *logic.GamificationService
+	matchReport  *logic.MatchReportService
 	jwtSecret   []byte
 }
 
@@ -48,6 +51,9 @@ func New(cfg Config) *Handler {
 		redis:       cfg.Redis,
 		logger:      cfg.Logger.Sugar(),
 		playerStats: logic.NewPlayerStatsService(cfg.ClickHouse),
+		serverStats: logic.NewServerStatsService(cfg.ClickHouse),
+		gamification: logic.NewGamificationService(cfg.ClickHouse),
+		matchReport:  logic.NewMatchReportService(cfg.ClickHouse),
 		jwtSecret:   []byte(cfg.JWTSecret),
 	}
 }
@@ -388,13 +394,13 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	
 	// Parameters
-	period := r.URL.Query().Get("period") // all, month, week, day
-	stat := r.URL.Query().Get("stat")     // kills, deaths, kd, accuracy...
-	limit := 100
+	period := r.URL.Query().Get("period")
+	stat := r.URL.Query().Get("stat")
+	limit := 25
 	page := 1
 
 	if l := r.URL.Query().Get("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 500 {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
 			limit = parsed
 		}
 	}
@@ -418,37 +424,65 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		timeFilter = ""
 	}
 
-	// Determine sort column and aggregation
-	orderBy := "kills DESC"
-	metric := "count() as kills" // Default
-
+	// Determine sort column
+	orderBy := "kills" 
 	switch stat {
-	case "deaths":
-		orderBy = "deaths DESC"
-		metric = "count() as deaths" // This is wrong, event_type=kill counts kills. For deaths we need event_type=kill AND target_id matches?
-		// For simplicity in this unified query, we just support kills for now.
-		// To support deaths, we'd need to query WHERE target_id != '' etc. 
-		// Let's stick to kills for now and ignore 'stat' param safely.
+	case "deaths": orderBy = "deaths"
+	case "headshots": orderBy = "headshots"
+	case "accuracy": orderBy = "accuracy"
+	case "playtime": orderBy = "playtime"
+	case "kd": orderBy = "kd" // Calculated column
+	default: orderBy = "kills"
 	}
-	_ = stat // Silence unused variable error
-	
-	// Determine count for pagination
-	// This would be a separate query usually, but for now we focus on the list
 
+	// Comprehensive Stats Query
+	// We aggregate kills, deaths, headshots, shots fired/hit to calculate accuracy & K/D
 	query := fmt.Sprintf(`
 		SELECT 
-			actor_id,
-			any(actor_name) as name,
-			%s
-		FROM raw_events
-		WHERE event_type = 'kill' 
-		  AND actor_id != 'world'
-		  AND actor_id != ''
-		  %s
-		GROUP BY actor_id
-		ORDER BY %s
+			player_id,
+			anyLast(name) as name,
+			sum(k) as kills,
+			sum(d) as deaths,
+			sum(hs) as headshots,
+			sum(sf) as shots_fired,
+			sum(sh) as shots_hit,
+			sum(pt) as playtime,
+			if(deaths > 0, kills/deaths, kills) as kd,
+			if(shots_fired > 0, (shots_hit/shots_fired)*100, 0) as accuracy
+		FROM (
+			SELECT actor_id as player_id, actor_name as name, 1 as k, 0 as d, 0 as hs, 0 as sf, 0 as sh, 0 as pt
+			FROM raw_events WHERE event_type='kill' AND actor_id != 'world' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			SELECT victim_id as player_id, victim_name as name, 0 as k, 1 as d, 0 as hs, 0 as sf, 0 as sh, 0 as pt
+			FROM raw_events WHERE (event_type='kill' OR event_type='death') AND victim_id != '' %s
+			
+			UNION ALL
+			
+			SELECT actor_id as player_id, actor_name as name, 0 as k, 0 as d, 1 as hs, 0 as sf, 0 as sh, 0 as pt
+			FROM raw_events WHERE event_type='headshot' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			SELECT actor_id as player_id, actor_name as name, 0 as k, 0 as d, 0 as hs, 1 as sf, 0 as sh, 0 as pt
+			FROM raw_events WHERE event_type='weapon_fire' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			SELECT actor_id as player_id, actor_name as name, 0 as k, 0 as d, 0 as hs, 0 as sf, 1 as sh, 0 as pt
+			FROM raw_events WHERE event_type='weapon_hit' AND actor_id != '' %s
+
+			UNION ALL
+			
+			SELECT actor_id as player_id, actor_name as name, 0 as k, 0 as d, 0 as hs, 0 as sf, 0 as sh, toInt64OrZero(extract(extra, 'duration')) as pt
+			FROM raw_events WHERE event_type='session_end' AND actor_id != '' %s
+		)
+		GROUP BY player_id
+		HAVING kills > 0 OR deaths > 0 OR playtime > 0
+		ORDER BY %s DESC
 		LIMIT ? OFFSET ?
-	`, metric, timeFilter, orderBy)
+	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
 
 	rows, err := h.ch.Query(ctx, query, limit, offset)
 	if err != nil {
@@ -462,24 +496,38 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	rank := offset + 1
 	for rows.Next() {
 		var entry models.LeaderboardEntry
-		var name string
-		// Scanning logic tailored to the query above
-		if err := rows.Scan(&entry.PlayerID, &name, &entry.Value); err != nil {
+		var kd float64 
+		
+		// Scans must match SELECT columns: id, name, kills, deaths, headshots, shots_fired, shots_hit, playtime, kd, accuracy
+		if err := rows.Scan(
+			&entry.PlayerID, 
+			&entry.PlayerName, 
+			&entry.Kills, 
+			&entry.Deaths, 
+			&entry.Headshots, 
+			&entry.ShotsFired, 
+			&entry.ShotsHit,
+			&entry.Playtime,
+			&kd,
+			&entry.Accuracy,
+		); err != nil {
+			h.logger.Warnw("Failed to scan leaderboard row", "error", err)
 			continue
 		}
 		entry.Rank = rank
-		entry.PlayerName = name
+		// We can assign KD if we added it to struct, otherwise frontend calculates it too
+		// entry.KDRatio = kd 
+		
 		entries = append(entries, entry)
 		rank++
 	}
 
-	// Wrapper for pagination info if needed, but keeping it simple as array for now
-	// to match assumed frontend expectations (which looked for {players: [], total: ...})
-	// Actually frontend expects {players: [...], total: ...}
+	// Note: Total count query omitted for speed in this iteration, usually requires separate count query
+	// Ideally we'd run a separate count query or cache the total
 	
 	response := map[string]interface{}{
 		"players": entries,
-		"total":   1000, // Placeholder, normally a COUNT(*) query
+		"total":   1000, // Placeholder
 		"page":    page,
 	}
 
@@ -1511,6 +1559,52 @@ func (h *Handler) AdminAuthMiddleware(next http.Handler) http.Handler {
 		// TODO: Check admin role from JWT claims
 		next.ServeHTTP(w, r)
 	})
+}
+
+// GetGlobalActivity returns heat map data for server activity
+func (h *Handler) GetGlobalActivity(w http.ResponseWriter, r *http.Request) {
+	activity, err := h.serverStats.GetGlobalActivity(r.Context())
+	if err != nil {
+		h.logger.Errorw("Failed to get global activity", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	h.jsonResponse(w, http.StatusOK, activity)
+}
+
+// GetMapPopularity returns stats for map usage
+func (h *Handler) GetMapPopularity(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.serverStats.GetMapPopularity(r.Context())
+	if err != nil {
+		h.logger.Errorw("Failed to get map popularity", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	h.jsonResponse(w, http.StatusOK, stats)
+}
+
+// GetPlayerPlaystyle returns the calculated playstyle badge
+func (h *Handler) GetPlayerPlaystyle(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	badge, err := h.gamification.GetPlaystyle(r.Context(), guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get playstyle", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal error")
+		return
+	}
+	h.jsonResponse(w, http.StatusOK, badge)
+}
+
+// GetMatchAdvancedDetails returns deep analysis for a match
+func (h *Handler) GetMatchAdvancedDetails(w http.ResponseWriter, r *http.Request) {
+	matchID := chi.URLParam(r, "matchId")
+	details, err := h.matchReport.GetMatchDetails(r.Context(), matchID)
+	if err != nil {
+		h.logger.Errorw("Failed to get match details", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal error")
+		return
+	}
+	h.jsonResponse(w, http.StatusOK, details)
 }
 
 // ============================================================================

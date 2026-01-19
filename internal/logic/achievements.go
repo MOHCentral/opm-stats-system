@@ -52,7 +52,12 @@ type AchievementStats struct {
 	Wins            int64
 	Matches         int64
 	Distance        float64
-	// ... add other necessary fields
+	Jumps           int64
+	ChatMsgs        int64
+	BashKills       int64
+	RoadKills       int64
+	Suicides        int64
+	FlagCaptures    int64
 	LastActive      time.Time
 }
 
@@ -65,13 +70,31 @@ func (s *AchievementService) getPlayerStats(ctx context.Context, playerID string
 			countIf(event_type = 'death' AND actor_id = ?) as deaths,
 			countIf(event_type = 'headshot' AND actor_id = ?) as headshots,
 			uniq(match_id) as matches,
+			countIf(event_type = 'match_win' AND actor_id = ?) as wins,
+			countIf(event_type = 'player_jump' AND actor_id = ?) as jumps,
+			countIf(event_type = 'say' AND actor_id = ?) as chat_msgs,
+			countIf(event_type = 'kill' AND actor_id = ? AND extract(extra, 'mod') = 'MOD_PISTOL_WHIP') as bash_kills,
+			countIf(event_type = 'kill' AND actor_id = ? AND (extract(extra, 'mod') = 'MOD_CRUSH' OR extract(extra, 'mod') = 'MOD_VEHICLE')) as roadkills,
+			countIf(event_type = 'suicide' AND actor_id = ?) as suicides,
+			countIf(event_type = 'flag_capture' AND actor_id = ?) as flag_captures,
+			sumIf(toFloat64OrZero(extract(extra, 'distance')), event_type = 'player_distance' AND actor_id = ?) / 100000.0 as distance_km,
 			max(timestamp) as last_active
 		FROM raw_events
 		WHERE actor_id = ?
-	`, playerID, playerID, playerID, playerID)
+	`, 
+	playerID, playerID, playerID, 
+	playerID, playerID, playerID, 
+	playerID, playerID, playerID, 
+	playerID, playerID, playerID)
 
 	var stats AchievementStats
-	if err := row.Scan(&stats.Kills, &stats.Deaths, &stats.Headshots, &stats.Matches, &stats.LastActive); err != nil {
+	// Clickhouse driver handles nulls properly usually, or returns zero values
+	if err := row.Scan(
+		&stats.Kills, &stats.Deaths, &stats.Headshots, &stats.Matches, 
+		&stats.Wins, &stats.Jumps, &stats.ChatMsgs, &stats.BashKills, 
+		&stats.RoadKills, &stats.Suicides, &stats.FlagCaptures, &stats.Distance, 
+		&stats.LastActive,
+	); err != nil {
 		return nil, err
 	}
 	return &stats, nil
@@ -85,7 +108,37 @@ func (s *AchievementService) checkCriteria(def models.AchievementDefinition, sta
 		return stats.Headshots >= def.Target
 	case "matches":
 		return stats.Matches >= def.Target
-	// Add other cases
+	case "wins":
+		return stats.Wins >= def.Target
+	case "distance":
+		return stats.Distance >= float64(def.Target) / 1000.0 // Target is meters, stats is km? 
+		// Actually definition says 'Target: 10000 (km?)' or meters?
+		// My logic calc: distance_km.
+		// If def.Target is 10000 (meters? km?), I should align units.
+		// Let's assume Target is RAW UNITS from definition.
+		// Definition for 'Marathon Runner' says "Travel 10km". Target 10000.
+		// If target is meters, 10000m = 10km.
+		// My SQL returns KM. 
+		// So compare stats.Distance (km) * 1000 >= Target (m)
+		// Or update definition to be in KM (Target: 10).
+		// I'll update the check: stats.Distance >= float64(def.Target)/1000.0 if target is meters.
+		// Or simpler: Update definition to target 10 (km).
+		// But let's assume Target is consistent with Description.
+		// I'll stick to: Compare KM. If Target is 10000 and Description "10km", then Target is meters. 
+		// stats.Distance (km) * 1000 >= Target.
+		return (stats.Distance * 1000) >= float64(def.Target)
+	case "jumps":
+		return stats.Jumps >= def.Target
+	case "chat_msgs":
+		return stats.ChatMsgs >= def.Target
+	case "bash_kills":
+		return stats.BashKills >= def.Target
+	case "roadkills":
+		return stats.RoadKills >= def.Target
+	case "suicides":
+		return stats.Suicides >= def.Target
+	case "flag_captures":
+		return stats.FlagCaptures >= def.Target
 	}
 	return false
 }

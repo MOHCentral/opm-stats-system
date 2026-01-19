@@ -47,6 +47,12 @@ const (
 	CategoryHidden       AchievementCategory = "Hidden & Secret"
 	CategoryTournament   AchievementCategory = "Tournament"
 	CategoryCommunity    AchievementCategory = "Special & Community"
+	
+	// New Categories
+	CategoryMovement     AchievementCategory = "Movement & Agility"
+	CategoryVehicles     AchievementCategory = "Vehicle Warfare"
+	CategorySocial       AchievementCategory = "Social Butterfly"
+	CategoryObjective    AchievementCategory = "Objective & Teamwork"
 )
 
 // AchievementDefinition holds the static data for an achievement
@@ -116,8 +122,62 @@ var AllAchievements = []AchievementDefinition{
 		Name:        "Marathon Runner",
 		Description: "Travel 10km total",
 		Tier:        2,
+		Category:    CategoryMovement,
+		Target:      10000,
+		Metric:      "distance",
+	},
+	{
+		ID:          "basher",
+		Name:        "Basher",
+		Description: "Get 25 pistol whip kills",
+		Tier:        2,
 		Category:    CategoryCombat,
-		Target:      10000, // assuming meters
-		Metric:      "distance", // needs support in logic
+		Target:      25,
+		Metric:      "bash_kills",
+	},
+	{
+		ID:          "road_rage",
+		Name:        "Road Rage",
+		Description: "Run over 10 enemies with a vehicle",
+		Tier:        3,
+		Category:    CategoryVehicles,
+		Target:      10,
+		Metric:      "roadkills",
+	},
+	{
+		ID:          "chatterbox",
+		Name:        "Chatterbox",
+		Description: "Send 500 chat messages",
+		Tier:        1,
+		Category:    CategorySocial,
+		Target:      500,
+		Metric:      "chat_msgs",
+	},
+	{
+		ID:          "bunny_hopper",
+		Name:        "Bunny Hopper",
+		Description: "Jump 1000 times",
+		Tier:        1,
+		Category:    CategoryMovement,
+		Target:      1000,
+		Metric:      "jumps",
+	},
+	{
+		ID:          "oops",
+		Name:        "Oops!",
+		Description: "Commit suicide 10 times",
+		Tier:        1,
+		Category:    CategoryHallOfShame,
+		Target:      10,
+		Metric:      "suicides",
+	},
+	{
+		ID:          "flag_runner",
+		Name:        "Flag Runner",
+		Description: "Capture 5 flags",
+		Tier:        3,
+		Category:    CategoryObjective,
+		Target:      5,
+		Metric:      "flag_captures",
 	},
 }

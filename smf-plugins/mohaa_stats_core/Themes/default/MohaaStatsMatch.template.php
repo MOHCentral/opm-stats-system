@@ -69,6 +69,7 @@ function template_mohaa_stats_match()
     echo '
     <div class="mohaa-tabs">
         <button class="tab-button active" data-tab="scoreboard">', $txt['mohaa_scoreboard'], '</button>
+        <button class="tab-button" data-tab="versus">⚔️ Versus</button>
         <button class="tab-button" data-tab="heatmap">', $txt['mohaa_heatmap'], '</button>
         <button class="tab-button" data-tab="timeline">', $txt['mohaa_timeline'], '</button>
         <button class="tab-button" data-tab="weapons">', $txt['mohaa_weapons'], '</button>
@@ -81,6 +82,13 @@ function template_mohaa_stats_match()
     template_match_scoreboard($match);
     
     echo '
+    </div>';
+
+    // Versus Tab
+    echo '
+    <div id="tab-versus" class="mohaa-tab-content windowbg" style="display: none;">
+        <h4>Versus Matrix (Who killed Who)</h4>
+        <div id="chart-versus" style="min-height: 500px;"></div>
     </div>';
 
     // Heatmap Tab
@@ -128,10 +136,64 @@ function template_mohaa_stats_match()
     <div id="tab-weapons" class="mohaa-tab-content windowbg" style="display: none;">
         <h4>', $txt['mohaa_weapon_breakdown'], '</h4>';
     
-    template_match_weapons($match['weapon_stats'] ?? []);
+    template_match_weapons($match['top_weapons'] ?? []);
     
     echo '
     </div>';
+
+    // Inject Scripts for Versus
+    $versusData = [];
+    if (!empty($match['versus'])) {
+        foreach ($match['versus'] as $killer => $victims) {
+            $dataPoints = [];
+            foreach ($victims as $v) {
+                // Ensure unique x,y pair?
+                 $dataPoints[] = ['x' => $v['opponent_name'], 'y' => $v['kills']];
+            }
+            $versusData[] = ['name' => $killer, 'data' => $dataPoints];
+        }
+    }
+
+    echo '
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Helper for tabs
+            document.querySelectorAll(".tab-button").forEach(b => {
+                b.addEventListener("click", e => {
+                    document.querySelectorAll(".mohaa-tab-content").forEach(c => c.style.display = "none");
+                    document.querySelectorAll(".tab-button").forEach(btn => btn.classList.remove("active"));
+                    document.getElementById("tab-" + e.target.getAttribute("data-tab")).style.display = "block";
+                    e.target.classList.add("active");
+                    
+                    // Trigger map resize if needed
+                    window.dispatchEvent(new Event("resize"));
+                });
+            });
+
+            // Versus Heatmap
+            const versusData = ', json_encode($versusData), ';
+            if(versusData.length > 0) {
+                 const options = {
+                    series: versusData,
+                    chart: { type: "heatmap", height: 600, toolbar: {show:false}, background: "transparent" },
+                    dataLabels: { enabled: true, style: { colors: ["#000"] } }, // Show numbers
+                    colors: ["#008FFB"],
+                    title: { text: "Killer (Y) vs Victim (X)", style: { color: "#fff" } },
+                    theme: { mode: "dark" },
+                    xaxis: { labels: { style: { colors: "#fff" } } },
+                    yaxis: { labels: { style: { colors: "#fff" } } },
+                    tooltip: { theme: "dark" },
+                    plotOptions: { heatmap: { shadeIntensity: 0.5, colorScale: { ranges: [{from:0, to:0, color:"transparent"}] } } }
+                };
+                new ApexCharts(document.querySelector("#chart-versus"), options).render();
+            } else {
+                 document.querySelector("#chart-versus").innerHTML = "<p class=\'centertext\'>No versus data available.</p>";
+            }
+
+            // Existing Map Heatmap
+            // ...
+        });
+    </script>';
 }
 
 /**
@@ -268,20 +330,35 @@ function template_match_timeline($events)
     <div class="mohaa-timeline">';
 
     foreach ($events as $event) {
-        $icon = match($event['type'] ?? 'default') {
+        $type = $event['type'] ?? 'default';
+        $actor = htmlspecialchars($event['actor'] ?? 'Unknown');
+        $target = htmlspecialchars($event['target'] ?? '');
+        $detail = htmlspecialchars($event['detail'] ?? '');
+        
+        // Construct Description
+        $desc = match($type) {
+            'kill' => "<strong>$actor</strong> killed <strong>$target</strong>" . ($detail ? " with $detail" : ""),
+            'headshot' => "<strong>$actor</strong> headshotted <strong>$target</strong>" . ($detail ? " with $detail" : ""),
+            'flag_capture' => "<strong>$actor</strong> captured the flag!",
+            'match_start' => "Match Started on " . ($detail ?: "Map"),
+            'match_end' => "Match Ended",
+            default => "$actor - $type"
+        };
+        
+        $icon = match($type) {
             'kill' => '💀',
             'headshot' => '🎯',
-            'objective' => '🎯',
-            'round_start' => '🏁',
-            'round_end' => '🏆',
+            'flag_capture' => '🚩',
+            'match_start' => '🏁',
+            'match_end' => '🏆',
             default => '•'
         };
         
         echo '
         <div class="timeline-event">
-            <span class="event-time">', gmdate('i:s', $event['timestamp'] ?? 0), '</span>
+            <span class="event-time">', isset($event['timestamp']) ? gmdate('i:s', (int)$event['timestamp']) : '--:--', '</span>
             <span class="event-icon">', $icon, '</span>
-            <span class="event-text">', htmlspecialchars($event['description'] ?? ''), '</span>
+            <span class="event-text">', $desc, '</span>
         </div>';
     }
 

@@ -258,6 +258,42 @@ function template_mohaa_war_room()
                         ', template_war_room_special_stats_content($player), '
                     </div>
                 </div>
+                
+                <!-- Skill Spider (Radar Chart) -->
+                <div class="windowbg stat-card">
+                    <h3>🕷️ Skill Profile</h3>
+                    <div id="chart-skill-spider" style="min-height: 280px;"></div>
+                </div>
+                
+                <!-- Recent Achievements (Horizontal Scroll) -->
+                <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+                    <h3>🏆 Recent Achievements</h3>
+                    <div class="achievements-scroll" style="display: flex; gap: 15px; overflow-x: auto; padding: 10px 0;">
+                        ';
+                        
+                $achievements = $player['achievements'] ?? [];
+                if (empty($achievements)) {
+                    echo '<div style="opacity: 0.6; padding: 20px; text-align: center; width: 100%;">No achievements yet. Keep playing!</div>';
+                } else {
+                    foreach (array_slice($achievements, 0, 10) as $ach) {
+                        $tierIcon = match($ach['tier'] ?? 1) {
+                            1 => '🟫', 2 => '⬜', 3 => '🟨', 4 => '💎', 5 => '💠',
+                            default => '🏅'
+                        };
+                        echo '
+                        <div style="min-width: 120px; text-align: center; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px; flex-shrink: 0;">
+                            <div style="font-size: 2em;">', $tierIcon, '</div>
+                            <div style="font-weight: bold; margin-top: 5px; font-size: 0.9em;">', htmlspecialchars($ach['name'] ?? 'Unknown'), '</div>
+                            <div style="font-size: 0.7em; opacity: 0.7;">', htmlspecialchars($ach['description'] ?? ''), '</div>
+                        </div>';
+                    }
+                }
+                echo '
+                    </div>
+                    <div style="text-align: right; margin-top: 10px;">
+                        <a href="', $scripturl, '?action=medals" style="font-size: 0.9em;">View All Medals →</a>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -287,6 +323,12 @@ function template_mohaa_war_room()
                 <div class="windowbg stat-card">
                     <h3>Rivals</h3>
                     ', template_war_room_rivals_content($player), '
+                </div>
+                
+                 <!-- Playstyle Widget -->
+                <div class="windowbg stat-card">
+                    <h3>Playstyle Analysis</h3>
+                    ', template_war_room_playstyle_content($player['playstyle'] ?? []), '
                 </div>
             </div>
         </div>
@@ -454,6 +496,47 @@ function template_mohaa_war_room()
                 new ApexCharts(mapCtx, options).render();
             } else if (mapCtx) {
                  mapCtx.innerHTML = "<p class=\'centertext\' style=\'padding-top: 100px; opacity: 0.6;\'>Not enough map data yet.</p>";
+            }
+            
+            // 4. Skill Spider (Radar) - NEW
+            const spiderCtx = document.querySelector("#chart-skill-spider");
+            if (spiderCtx) {
+                // Calculate skill values from player stats (0-100 scale)
+                const accuracy = Math.min(100, (player.accuracy || 0) * 2.5); // 40% acc = 100 score
+                const aggression = Math.min(100, ((player.kills || 0) / Math.max(1, player.playtime_hours || 1)) * 10); // Kills per hour
+                const survival = Math.min(100, (player.kd_ratio || 1) * 30); // 3.0 KD = 90
+                const movement = Math.min(100, ((player.distance_km || 0) / Math.max(1, player.playtime_hours || 1)) * 5); // KM per hour
+                const clutch = Math.min(100, ((player.clutch_wins || 0) / Math.max(1, (player.clutch_total || 1))) * 100); // Clutch win %
+                
+                const options = {
+                    series: [{
+                        name: "You",
+                        data: [accuracy, aggression, survival, movement, clutch]
+                    }],
+                    chart: { 
+                        type: "radar", 
+                        height: 280, 
+                        background: "transparent", 
+                        toolbar: { show: false }
+                    },
+                    xaxis: { 
+                        categories: ["Accuracy", "Aggression", "Survival", "Movement", "Clutch"],
+                        labels: { 
+                            style: { 
+                                colors: ["#4caf50", "#ff9800", "#2196f3", "#9c27b0", "#f44336"],
+                                fontSize: "12px",
+                                fontWeight: "bold"
+                            } 
+                        }
+                    },
+                    stroke: { width: 2, colors: ["#4a6b8a"] },
+                    fill: { opacity: 0.3, colors: ["#4a6b8a"] },
+                    markers: { size: 4, colors: ["#fff"], strokeColors: "#4a6b8a", strokeWidth: 2 },
+                    theme: { mode: "dark" },
+                    yaxis: { max: 100, tickAmount: 4, labels: { style: { colors: "#888" } } },
+                    tooltip: { theme: "dark", y: { formatter: (val) => Math.round(val) + "%" } }
+                };
+                new ApexCharts(spiderCtx, options).render();
             }
         }
         
@@ -724,7 +807,7 @@ function template_war_room_rivals_content($player) {
             <div>
                 <div style="font-size: 0.8em; color: #f44336; font-weight: bold;">NEMESIS</div>
                 <div style="font-weight: bold;">'.htmlspecialchars($player['nemesis_name'] ?? 'None').'</div>
-                <div style="font-size: 0.8em; opacity: 0.7;">Result: '.($player['nemesis_deaths'] ?? 0).' deaths</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">Result: '.($player['nemesis_kills'] ?? 0).' deaths</div>
             </div>
         </div>
          <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-left: 3px solid #4caf50; background: rgba(76, 175, 80, 0.05);">
@@ -821,9 +904,30 @@ function template_war_room_achievements_content($achievements) {
     
     $html .= '</div>
     <div style="margin-top: 20px; text-align: center;">
-        <a href="' . $GLOBALS['scripturl'] . '?action=mohaachievements" class="button">View Full Medal Case</a>
+        <a href="' . $GLOBALS['scripturl'] . '?action=mohaaachievements" class="button">View Full Medal Case</a>
     </div>';
     return $html;
+}
+
+function template_war_room_playstyle_content($playstyle) {
+    if (empty($playstyle) || empty($playstyle['style'])) return '<p class="centertext" style="opacity: 0.6; padding: 20px;">Analysis requires more data.</p>';
+    
+    // Icon mapping
+    $iconMap = [
+        'running' => '🏃',
+        'crosshair' => '🎯',
+        'rifle' => '🎖️',
+        'recruit' => '👶',
+    ];
+    $iconChar = $iconMap[$playstyle['icon'] ?? 'rifle'] ?? '🎖️';
+    
+    return '
+    <div style="text-align: center; padding: 10px;">
+        <div style="font-size: 3em; margin-bottom: 5px;">'.$iconChar.'</div>
+        <div style="font-size: 1.5em; font-weight: bold; color: #fff;">'.($playstyle['style'] ?? 'Soldier').'</div>
+        <div style="font-size: 0.9em; opacity: 0.7; max-width: 250px; margin: 10px auto;">'.($playstyle['description'] ?? '').'</div>
+        <div style="margin-top: 10px; font-size: 0.8em; opacity: 0.5;">Confidence: '.number_format($playstyle['confidence'] ?? 0).'%</div>
+    </div>';
 }
 
 function template_war_room_rank_icon(int $kills): string

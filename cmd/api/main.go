@@ -52,7 +52,7 @@ func main() {
 	// Initialize database connections
 	ctx := context.Background()
 
-	// PostgreSQL (OLTP - users, tournaments, matches)
+	// PostgreSQL (OLTP - auth tokens, user mappings)
 	pgPool, err := db.NewPostgresPool(ctx, cfg.PostgresURL)
 	if err != nil {
 		sugar.Fatalw("Failed to connect to PostgreSQL", "error", err)
@@ -141,8 +141,10 @@ func main() {
 		// Stats endpoints (for frontend)
 		r.Route("/stats", func(r chi.Router) {
 			r.Get("/global", h.GetGlobalStats)
+			r.Get("/global/activity", h.GetGlobalActivity) // [NEW]
 			r.Get("/matches", h.GetMatches)
 			r.Get("/weapons", h.GetGlobalWeaponStats)
+			r.Get("/maps/popularity", h.GetMapPopularity)  // [NEW]
 
 			r.Get("/leaderboard", h.GetLeaderboard)        // [UPDATED] Unified handler
 			r.Get("/leaderboard/global", h.GetLeaderboard) // Redirect to unified handler
@@ -162,38 +164,20 @@ func main() {
 			r.Get("/player/{guid}/weapons", h.GetPlayerWeaponStats)
 			r.Get("/player/{guid}/heatmap/{map}", h.GetPlayerHeatmap)
 			r.Get("/player/{guid}/deaths/{map}", h.GetPlayerDeathHeatmap)
-			r.Get("/player/{guid}/heatmap/body", h.GetPlayerBodyHeatmap)       // [NEW] Body Heatmap
-			r.Get("/player/{guid}/performance", h.GetPlayerPerformanceHistory) // [NEW] Performance Graph
+			r.Get("/player/{guid}/heatmap/body", h.GetPlayerBodyHeatmap)       
+			r.Get("/player/{guid}/performance", h.GetPlayerPerformanceHistory)
+			r.Get("/player/{guid}/playstyle", h.GetPlayerPlaystyle) // [NEW]
 
 			r.Get("/map/{map}/heatmap", h.GetMapHeatmap)
 
 			r.Get("/match/{matchId}", h.GetMatchDetails)
+			r.Get("/match/{matchId}/advanced", h.GetMatchAdvancedDetails) // [NEW]
 			r.Get("/match/{matchId}/timeline", h.GetMatchTimeline)
 			r.Get("/match/{matchId}/heatmap", h.GetMatchHeatmap)
 
 			r.Get("/query", h.GetDynamicStats)
 			r.Get("/server/{serverId}/stats", h.GetServerStats)
 			r.Get("/live/matches", h.GetLiveMatches)
-		})
-
-		// Tournament endpoints
-		r.Route("/tournaments", func(r chi.Router) {
-			r.Get("/", h.ListTournaments)
-			r.Get("/{id}", h.GetTournament)
-			r.Get("/{id}/bracket", h.GetTournamentBracket)
-			r.Get("/{id}/standings", h.GetTournamentStandings)
-
-			// Protected tournament management
-			r.Group(func(r chi.Router) {
-				r.Use(h.UserAuthMiddleware)
-				r.Post("/", h.CreateTournament)
-				r.Put("/{id}", h.UpdateTournament)
-				r.Post("/{id}/register", h.RegisterForTournament)
-				r.Post("/{id}/checkin", h.CheckinTournament)
-
-				// Match reporting
-				r.Post("/matches/{matchID}/report", h.ReportMatchResult)
-			})
 		})
 
 		// Auth endpoints
@@ -233,19 +217,6 @@ func main() {
 			r.Delete("/me/identities/{id}", h.UnlinkIdentity)
 		})
 
-		// Server management
-		r.Route("/servers", func(r chi.Router) {
-			r.Get("/", h.ListServers)
-			r.Get("/{id}", h.GetServer)
-
-			r.Group(func(r chi.Router) {
-				r.Use(h.AdminAuthMiddleware)
-				r.Post("/", h.RegisterServer)
-				r.Put("/{id}", h.UpdateServer)
-				r.Post("/{id}/rotate-token", h.RotateServerToken)
-			})
-		})
-
 		// Achievement endpoints
 		r.Route("/achievements", func(r chi.Router) {
 			r.Get("/", h.ListAchievements)
@@ -263,7 +234,6 @@ func main() {
 		r.Get("/recent-matches", h.PartialRecentMatches)
 		r.Get("/player-card/{guid}", h.PartialPlayerCard)
 		r.Get("/player/{guid}/matches", h.PartialPlayerMatches)
-		r.Get("/bracket/{tournamentId}", h.PartialBracket)
 	})
 
 	// Frontend routes (SSR HTML pages)
@@ -276,8 +246,6 @@ func main() {
 		r.Get("/stats", h.PageStats)
 		r.Get("/maps", h.PageMaps)
 		r.Get("/maps/{mapId}", h.PageMapDetail)
-		r.Get("/tournaments", h.PageTournaments)
-		r.Get("/tournaments/{id}", h.PageTournamentDetail)
 	})
 
 	// Static files for frontend

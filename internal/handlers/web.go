@@ -303,29 +303,8 @@ func (h *Handler) PageMapDetail(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PageTournaments renders the tournaments listing
-func (h *Handler) PageTournaments(w http.ResponseWriter, r *http.Request) {
-	h.render(w, "tournaments.html", map[string]interface{}{
-		"Title": "Tournaments",
-	})
-}
-
-// PageTournamentDetail renders a specific tournament
-func (h *Handler) PageTournamentDetail(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	id := chi.URLParam(r, "id")
-
-	tournament, err := h.getTournamentDetails(ctx, id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	h.render(w, "tournament-detail.html", map[string]interface{}{
-		"Title":      tournament.Name,
-		"Tournament": tournament,
-	})
-}
+// NOTE: Tournament page handlers removed - SMF MariaDB is the source of truth
+// See: smf-plugins/mohaa_tournaments/ for tournament management
 
 // ====== Partial Handlers (HTMX) ======
 
@@ -396,17 +375,7 @@ func (h *Handler) PartialPlayerMatches(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PartialBracket returns HTML fragment of tournament bracket
-func (h *Handler) PartialBracket(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	tournamentID := chi.URLParam(r, "tournamentId")
-
-	bracket, _ := h.getTournamentBracket(ctx, tournamentID)
-
-	h.renderPartial(w, "partials/bracket.html", map[string]interface{}{
-		"Bracket": bracket,
-	})
-}
+// NOTE: PartialBracket removed - tournaments are managed by SMF
 
 // ====== Helper types for pages ======
 
@@ -525,8 +494,4 @@ type RecordHolder struct {
 	Value      float64
 }
 
-type Tournament struct {
-	ID     string
-	Name   string
-	Status string
-}
+// Tournament struct removed - SMF MariaDB is the source of truth

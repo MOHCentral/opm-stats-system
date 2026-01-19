@@ -93,6 +93,8 @@ $txt['mohaa_uptime'] = 'Uptime';
 // Tournaments
 $txt['mohaa_tournaments'] = 'Tournaments';
 $txt['mohaa_tournaments_admin'] = 'Tournament Admin';
+$txt['mohaa_init_tournaments'] = 'Init Tournaments (Seed Demo)';
+$txt['mohaa_tournament_seeded'] = 'Demo tournaments created.';
 $txt['mohaa_tournament_not_found'] = 'Tournament not found.';
 $txt['mohaa_create_tournament'] = 'Create Tournament';
 $txt['mohaa_active_tournaments'] = 'Active Tournaments';
@@ -141,6 +143,14 @@ $txt['mohaa_start_confirm'] = 'Start this tournament and generate the bracket? T
 $txt['mohaa_not_tournament_admin'] = 'You do not have permission to manage this tournament.';
 $txt['mohaa_not_enough_participants'] = 'Not enough participants to start the tournament.';
 $txt['mohaa_registration_closed'] = 'Registration is closed for this tournament.';
+$txt['mohaa_match'] = 'Match';
+$txt['mohaa_match_not_found'] = 'Match not found.';
+$txt['mohaa_report_score'] = 'Report Score';
+$txt['mohaa_submit_score'] = 'Submit Score';
+$txt['mohaa_no_ties'] = 'Scores cannot be tied. There must be a winner.';
+$txt['mohaa_completed'] = 'Completed';
+$txt['mohaa_scheduled'] = 'Scheduled';
+$txt['mohaa_not_allowed'] = 'You do not have permission to perform this action.';
 
 // Teams
 $txt['mohaa_teams'] = 'Teams';

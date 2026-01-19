@@ -470,3 +470,159 @@ function template_mohaa_tournament_manage()
         </table>
     </div>';
 }
+
+/**
+ * Tournaments admin (init/status)
+ */
+function template_mohaa_tournaments_admin()
+{
+    global $context, $txt;
+
+    echo '
+    <div class="cat_bar">
+        <h3 class="catbg">', $txt['mohaa_tournaments_admin'], '</h3>
+    </div>';
+
+    if (!empty($context['mohaa_admin_notice'])) {
+        echo '
+        <div class="infobox">', $context['mohaa_admin_notice'], '</div>';
+    }
+
+    echo '
+    <div class="windowbg">
+        <h4>', $txt['mohaa_tournament_status'], '</h4>
+        <ul>';
+
+    foreach ($context['mohaa_admin']['tables'] as $table => $exists) {
+        echo '
+            <li><strong>', $table, ':</strong> ', $exists ? 'OK' : 'MISSING', '</li>';
+    }
+
+    echo '
+        </ul>
+        <p>', $txt['mohaa_tournaments'], ': <strong>', $context['mohaa_admin']['tournament_count'], '</strong></p>
+    </div>
+
+    <div class="windowbg" style="margin-top: 15px;">
+        <form method="post">
+            <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '" />
+            <button type="submit" class="button" name="mohaa_action" value="seed_demo">', $txt['mohaa_init_tournaments'], '</button>
+        </form>
+    </div>';
+}
+
+/**
+ * Individual match view/report template
+ */
+function template_mohaa_tournament_match()
+{
+    global $context, $txt, $scripturl;
+    
+    $match = $context['mohaa_match']['info'];
+    $p1 = $context['mohaa_match']['player1'];
+    $p2 = $context['mohaa_match']['player2'];
+    
+    echo '
+    <div class="cat_bar">
+        <h3 class="catbg">', htmlspecialchars($match['tournament_name']), ' - ', $txt['mohaa_round'], ' ', $match['round_number'], '</h3>
+    </div>';
+    
+    if (!empty($context['mohaa_error'])) {
+        echo '<div class="errorbox">', $context['mohaa_error'], '</div>';
+    }
+    
+    echo '
+    <div class="windowbg">
+        <div class="match-detail-card" style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; text-align: center; padding: 30px;">
+            <div class="player-side">
+                <div class="player-avatar" style="font-size: 48px;">👤</div>';
+    
+    if ($p1['id']) {
+        echo '
+                <h3><a href="', $scripturl, '?action=profile;u=', $p1['id'], '">', htmlspecialchars($p1['name']), '</a></h3>';
+    } else {
+        echo '
+                <h3 class="tbd">TBD</h3>';
+    }
+    
+    if ($match['status'] === 'completed') {
+        $p1Class = $match['id_winner'] == $p1['id'] ? 'winner' : 'loser';
+        echo '
+                <div class="score ', $p1Class, '" style="font-size: 48px; font-weight: bold;">', (int)$match['team1_score'], '</div>';
+    }
+    
+    echo '
+            </div>
+            
+            <div class="vs-divider" style="display: flex; align-items: center;">
+                <span style="font-size: 24px; font-weight: bold; color: #888;">VS</span>
+            </div>
+            
+            <div class="player-side">
+                <div class="player-avatar" style="font-size: 48px;">👤</div>';
+    
+    if ($p2['id']) {
+        echo '
+                <h3><a href="', $scripturl, '?action=profile;u=', $p2['id'], '">', htmlspecialchars($p2['name']), '</a></h3>';
+    } else {
+        echo '
+                <h3 class="tbd">TBD</h3>';
+    }
+    
+    if ($match['status'] === 'completed') {
+        $p2Class = $match['id_winner'] == $p2['id'] ? 'winner' : 'loser';
+        echo '
+                <div class="score ', $p2Class, '" style="font-size: 48px; font-weight: bold;">', (int)$match['team2_score'], '</div>';
+    }
+    
+    echo '
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <p><strong>', $txt['mohaa_status'], ':</strong> ', ucfirst($match['status']), '</p>';
+    
+    if ($match['status'] === 'completed' && !empty($match['completed_time'])) {
+        echo '
+            <p><strong>', $txt['mohaa_completed'], ':</strong> ', timeformat($match['completed_time']), '</p>';
+    }
+    
+    if (!empty($match['scheduled_time'])) {
+        echo '
+            <p><strong>', $txt['mohaa_scheduled'], ':</strong> ', timeformat($match['scheduled_time']), '</p>';
+    }
+    
+    echo '
+        </div>
+    </div>';
+    
+    // Score report form (only if allowed and match is pending)
+    if ($context['mohaa_match']['can_report']) {
+        echo '
+    <div class="cat_bar"><h4 class="catbg">', $txt['mohaa_report_score'], '</h4></div>
+    <div class="windowbg">
+        <form method="post" style="text-align: center;">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin: 20px 0;">
+                <div>
+                    <label>', htmlspecialchars($p1['name']), '</label><br>
+                    <input type="number" name="score1" min="0" value="0" style="width: 80px; font-size: 24px; text-align: center;" />
+                </div>
+                <span style="font-size: 20px;">-</span>
+                <div>
+                    <label>', htmlspecialchars($p2['name']), '</label><br>
+                    <input type="number" name="score2" min="0" value="0" style="width: 80px; font-size: 24px; text-align: center;" />
+                </div>
+            </div>
+            <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '" />
+            <button type="submit" name="report_score" value="1" class="button">', $txt['mohaa_submit_score'], '</button>
+        </form>
+    </div>';
+    }
+    
+    echo '
+    <style>
+        .match-detail-card .winner { color: #4ade80; }
+        .match-detail-card .loser { color: #888; }
+        .match-detail-card .tbd { color: #666; font-style: italic; }
+    </style>';
+}

@@ -13,54 +13,45 @@ function template_mohaa_stats_leaderboard()
 {
     global $context, $scripturl, $txt;
 
-    $leaderboard = $context['mohaa_leaderboard'] ?? [];
-    $current_mode = $context['mohaa_mode'] ?? 'all';
-    $current_sort = $context['mohaa_sort'] ?? 'kills';
-    $current_period = $context['mohaa_period'] ?? 'all';
+    // Fix: Access players from nested structure
+    $leaderboardData = $context['mohaa_leaderboard'] ?? [];
+    $leaderboard = $leaderboardData['players'] ?? [];
+    $current_stat = $leaderboardData['stat'] ?? 'kills';
+    $current_period = $leaderboardData['period'] ?? 'all';
     
     echo '
     <div class="cat_bar">
-        <h3 class="catbg">', $txt['mohaa_leaderboard'], '</h3>
+        <h3 class="catbg">', $txt['mohaa_leaderboards'] ?? 'Leaderboards', '</h3>
     </div>';
 
-    // Filters
+    // Filters - Using stat chips for quick switching
     echo '
-    <div class="windowbg mohaa-filters">
-        <form action="', $scripturl, '?action=mohaastats;sa=leaderboard" method="get">
-            <input type="hidden" name="action" value="mohaastats" />
-            <input type="hidden" name="sa" value="leaderboard" />
-            
-            <label>
-                ', $txt['mohaa_mode'], ':
-                <select name="mode" onchange="this.form.submit()">
-                    <option value="all"', $current_mode === 'all' ? ' selected' : '', '>', $txt['mohaa_all_modes'], '</option>
-                    <option value="ffa"', $current_mode === 'ffa' ? ' selected' : '', '>Free For All</option>
-                    <option value="tdm"', $current_mode === 'tdm' ? ' selected' : '', '>Team Deathmatch</option>
-                    <option value="obj"', $current_mode === 'obj' ? ' selected' : '', '>Objective</option>
-                </select>
-            </label>
-            
-            <label>
-                ', $txt['mohaa_sort_by'], ':
-                <select name="sort" onchange="this.form.submit()">
-                    <option value="kills"', $current_sort === 'kills' ? ' selected' : '', '>', $txt['mohaa_kills'], '</option>
-                    <option value="kd"', $current_sort === 'kd' ? ' selected' : '', '>', $txt['mohaa_kd'], '</option>
-                    <option value="score"', $current_sort === 'score' ? ' selected' : '', '>', $txt['mohaa_score'], '</option>
-                    <option value="headshots"', $current_sort === 'headshots' ? ' selected' : '', '>', $txt['mohaa_headshots'], '</option>
-                    <option value="playtime"', $current_sort === 'playtime' ? ' selected' : '', '>', $txt['mohaa_playtime'], '</option>
-                </select>
-            </label>
-            
-            <label>
-                ', $txt['mohaa_period'], ':
-                <select name="period" onchange="this.form.submit()">
-                    <option value="all"', $current_period === 'all' ? ' selected' : '', '>', $txt['mohaa_all_time'], '</option>
-                    <option value="month"', $current_period === 'month' ? ' selected' : '', '>', $txt['mohaa_this_month'], '</option>
-                    <option value="week"', $current_period === 'week' ? ' selected' : '', '>', $txt['mohaa_this_week'], '</option>
-                    <option value="today"', $current_period === 'today' ? ' selected' : '', '>', $txt['mohaa_today'], '</option>
-                </select>
-            </label>
-        </form>
+    <div class="windowbg mohaa-filters" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 15px;">
+        <span style="font-weight: bold;">Sort:</span>
+        <div class="mohaa-filter-chips" style="display: flex; gap: 5px;">';
+    
+    $stats = ['kills' => 'Kills', 'kd' => 'K/D', 'headshots' => 'Headshots', 'accuracy' => 'Accuracy', 'playtime' => 'Playtime'];
+    foreach ($stats as $key => $label) {
+        $active = ($current_stat === $key) ? 'background: #4a6b8a; color: #fff;' : 'background: rgba(0,0,0,0.1);';
+        echo '
+            <a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" 
+               style="padding: 6px 12px; border-radius: 20px; text-decoration: none; ', $active, '">', $label, '</a>';
+    }
+    echo '
+        </div>
+        
+        <span style="margin-left: 20px; font-weight: bold;">Period:</span>
+        <div class="mohaa-filter-chips" style="display: flex; gap: 5px;">';
+    
+    $periods = ['all' => 'All Time', 'month' => 'This Month', 'week' => 'This Week', 'today' => 'Today'];
+    foreach ($periods as $key => $label) {
+        $active = ($current_period === $key) ? 'background: #4a6b8a; color: #fff;' : 'background: rgba(0,0,0,0.1);';
+        echo '
+            <a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $current_stat, ';period=', $key, '" 
+               style="padding: 6px 12px; border-radius: 20px; text-decoration: none; ', $active, '">', $label, '</a>';
+    }
+    echo '
+        </div>
     </div>';
 
     // Leaderboard table
@@ -69,13 +60,13 @@ function template_mohaa_stats_leaderboard()
         <thead>
             <tr class="title_bar">
                 <th class="rank">#</th>
-                <th>', $txt['mohaa_player'], '</th>
-                <th>', $txt['mohaa_kills'], '</th>
-                <th>', $txt['mohaa_deaths'], '</th>
-                <th>', $txt['mohaa_kd'], '</th>
-                <th>', $txt['mohaa_headshots'], '</th>
-                <th>', $txt['mohaa_accuracy'], '</th>
-                <th>', $txt['mohaa_playtime'], '</th>
+                <th>', $txt['mohaa_player'] ?? 'Player', '</th>
+                <th>', $txt['mohaa_kills'] ?? 'Kills', '</th>
+                <th>', $txt['mohaa_deaths'] ?? 'Deaths', '</th>
+                <th>', $txt['mohaa_kd'] ?? 'K/D', '</th>
+                <th>', $txt['mohaa_headshots'] ?? 'HS', '</th>
+                <th>', $txt['mohaa_accuracy'] ?? 'Acc%', '</th>
+                <th>', $txt['mohaa_playtime'] ?? 'Time', '</th>
             </tr>
         </thead>
         <tbody>';
@@ -83,7 +74,10 @@ function template_mohaa_stats_leaderboard()
     if (empty($leaderboard)) {
         echo '
             <tr class="windowbg">
-                <td colspan="8" class="centertext">', $txt['mohaa_no_data'], '</td>
+                <td colspan="8" class="centertext" style="padding: 40px;">
+                    <div style="font-size: 2em; margin-bottom: 10px;">📊</div>
+                    <div>', $txt['mohaa_no_data'] ?? 'No player data available. Play some matches!', '</div>
+                </td>
             </tr>';
     } else {
         foreach ($leaderboard as $rank => $player) {
@@ -135,10 +129,10 @@ function template_mohaa_stats_leaderboard()
     </table>';
 
     // Pagination
-    if (!empty($context['mohaa_page_index'])) {
+    if (!empty($context['page_index'])) {
         echo '
     <div class="pagesection">
-        <div class="pagelinks">', $context['mohaa_page_index'], '</div>
+        <div class="pagelinks">', $context['page_index'], '</div>
     </div>';
     }
 }

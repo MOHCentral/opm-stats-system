@@ -33,11 +33,11 @@ func (h *Handler) getDashboardStats(ctx context.Context) (*stubDashboardStats, e
 		h.logger.Errorw("Failed to get dashboard stats", "error", err)
 		return &stubDashboardStats{}, err
 	}
-	
+
 	// Live matches from Redis
 	vals, _ := h.redis.HVals(ctx, "live_matches").Result()
 	stats.LiveMatches = len(vals)
-	
+
 	return &stats, nil
 }
 
@@ -57,7 +57,7 @@ func (h *Handler) getPlayerProfile(ctx context.Context, guid string) (*PlayerPro
 	err := h.ch.QueryRow(ctx, `
 		SELECT any(actor_name) FROM raw_events WHERE actor_id = ?
 	`, guid).Scan(&name)
-	
+
 	if err != nil || name == "" {
 		name = "Unknown Soldier"
 	}
@@ -66,7 +66,7 @@ func (h *Handler) getPlayerProfile(ctx context.Context, guid string) (*PlayerPro
 		GUID:       guid,
 		Name:       name,
 		Verified:   false,
-		Rank:       0, // To be implemented
+		Rank:       0,          // To be implemented
 		LastActive: time.Now(), // Placeholder
 	}, nil
 }
@@ -136,7 +136,6 @@ func (h *Handler) getPlayerTopWeapons(ctx context.Context, guid string, limit in
 	return weapons, nil
 }
 
-
 func (h *Handler) getPlayerAchievements(ctx context.Context, guid string) ([]Achievement, error) {
 	// Query the new player_achievements table
 	// For now, return empty or implement full query if table is populated
@@ -154,7 +153,7 @@ func (h *Handler) getMatchDetails(ctx context.Context, matchID string) (*MatchDe
 
 func (h *Handler) getGlobalRecords(ctx context.Context) (*GlobalRecords, error) {
 	records := &GlobalRecords{}
-	
+
 	// Max Kills in a match
 	h.ch.QueryRow(ctx, `
 		SELECT any(actor_name), max(kills) 
@@ -209,7 +208,7 @@ func (h *Handler) getMapDetails(ctx context.Context, mapID string) (*MapInfo, er
 	// Re-use list logic for now, but filtered
 	// Ideally this would be a specific detailed query
 	m := &MapInfo{ID: mapID, Name: mapID}
-	
+
 	err := h.ch.QueryRow(ctx, `
 		SELECT 
 			countIf(event_type = 'match_start') as matches,
@@ -217,20 +216,15 @@ func (h *Handler) getMapDetails(ctx context.Context, mapID string) (*MapInfo, er
 		FROM raw_events
 		WHERE map_name = ?
 	`, mapID).Scan(&m.TotalMatches, &m.TotalKills)
-	
+
 	if err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (h *Handler) getTournamentDetails(ctx context.Context, id string) (*Tournament, error) {
-	return &Tournament{
-		ID:     id,
-		Name:   "Tournament " + id,
-		Status: "active",
-	}, nil
-}
+// NOTE: Tournament helpers removed - SMF MariaDB is the source of truth
+// See: smf-plugins/mohaa_tournaments/ for tournament management
 
 func (h *Handler) getLiveMatches(ctx context.Context) ([]interface{}, error) {
 	matchData, err := h.redis.HGetAll(ctx, "live_matches").Result()
@@ -298,10 +292,4 @@ func (h *Handler) getRecentMatches(ctx context.Context, offset, limit int) ([]in
 
 func (h *Handler) getPlayerMatchHistory(ctx context.Context, guid string, offset, limit int) ([]interface{}, bool) {
 	return []interface{}{}, false
-}
-
-func (h *Handler) getTournamentBracket(ctx context.Context, tournamentID string) (interface{}, error) {
-	return map[string]interface{}{
-		"rounds": []interface{}{},
-	}, nil
 }

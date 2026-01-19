@@ -37,6 +37,56 @@ function MohaaTournaments_AdminAreas(array &$admin_areas): void
 }
 
 /**
+ * Admin page (Init/Status)
+ */
+function MohaaTournaments_Admin(): void
+{
+    global $context, $txt, $smcFunc, $db_prefix;
+
+    isAllowedTo('admin_forum');
+
+    loadLanguage('MohaaStats');
+    loadTemplate('MohaaTournaments');
+
+    // Handle actions
+    if (!empty($_POST['mohaa_action'])) {
+        checkSession();
+
+        if ($_POST['mohaa_action'] === 'seed_demo') {
+            MohaaTournaments_SeedDemo();
+            $context['mohaa_admin_notice'] = $txt['mohaa_tournament_seeded'];
+        }
+    }
+
+    // Table status
+    $tables = [
+        'mohaa_tournaments',
+        'mohaa_tournament_registrations',
+        'mohaa_tournament_matches',
+        'mohaa_tournament_admins',
+    ];
+
+    $statuses = [];
+    foreach ($tables as $table) {
+        $request = $smcFunc['db_query']('', 'SHOW TABLES LIKE {string:table}', ['table' => $db_prefix . $table]);
+        $statuses[$table] = $smcFunc['db_num_rows']($request) > 0;
+        $smcFunc['db_free_result']($request);
+    }
+
+    // Counts
+    $count = $smcFunc['db_query']('', 'SELECT COUNT(*) AS total FROM {db_prefix}mohaa_tournaments');
+    $row = $smcFunc['db_fetch_assoc']($count);
+    $smcFunc['db_free_result']($count);
+
+    $context['page_title'] = $txt['mohaa_tournaments_admin'];
+    $context['sub_template'] = 'mohaa_tournaments_admin';
+    $context['mohaa_admin'] = [
+        'tables' => $statuses,
+        'tournament_count' => (int)($row['total'] ?? 0),
+    ];
+}
+
+/**
  * Main dispatcher
  */
 function MohaaTournaments_Main(): void
@@ -218,7 +268,10 @@ function MohaaTournaments_Create(): void
     }
     
     // Check permission (could require specific group)
-    isAllowedTo('mohaa_create_tournament');
+    if (!allowedTo('mohaa_create_tournament') && !allowedTo('admin_forum')) {
+        fatal_lang_error('mohaa_not_allowed', false);
+        return;
+    }
     
     $context['page_title'] = $txt['mohaa_create_tournament'];
     $context['sub_template'] = 'mohaa_tournament_create';
@@ -301,6 +354,65 @@ function MohaaTournaments_Create(): void
         'url' => $scripturl . '?action=mohaatournaments;sa=create',
         'name' => $txt['mohaa_create_tournament'],
     ];
+}
+
+/**
+ * Seed demo tournaments (admin action)
+ */
+function MohaaTournaments_SeedDemo(): void
+{
+    global $smcFunc, $user_info;
+
+    // Avoid duplicates
+    $request = $smcFunc['db_query']('', 'SELECT COUNT(*) AS total FROM {db_prefix}mohaa_tournaments');
+    $row = $smcFunc['db_fetch_assoc']($request);
+    $smcFunc['db_free_result']($request);
+    if (!empty($row['total'])) {
+        return;
+    }
+
+    $now = time();
+    $start = $now + 86400;
+    $regEnd = $now + 43200;
+
+    $smcFunc['db_insert']('insert',
+        '{db_prefix}mohaa_tournaments',
+        [
+            'id_creator' => 'int',
+            'name' => 'string',
+            'description' => 'string',
+            'tournament_type' => 'string',
+            'team_size' => 'int',
+            'max_teams' => 'int',
+            'game_mode' => 'string',
+            'maps' => 'string',
+            'rules' => 'string',
+            'prize_info' => 'string',
+            'status' => 'string',
+            'registration_start' => 'int',
+            'registration_end' => 'int',
+            'tournament_start' => 'int',
+            'created_date' => 'int',
+        ],
+        [
+            $user_info['id'] ?? 1,
+            'OpenMOHAA Winter Cup',
+            'Official community tournament. Single elimination, BO3 finals.',
+            'single_elim',
+            1,
+            16,
+            'tdm',
+            'v2_rocket,stalingrad,omaha_beach',
+            'Standard rules. No exploits. Good luck.',
+            '1st: $100, 2nd: $50, 3rd: $25',
+            'registration',
+            $now,
+            $regEnd,
+            $start,
+            $now,
+        ],
+        ['id_tournament']
+    );
 }
 
 /**
@@ -699,6 +811,126 @@ function MohaaTournaments_AdvanceWinner(int $tournamentId, int $round, int $matc
         WHERE id_tournament = {int:id} AND round_number = {int:round} AND match_number = {int:match}',
         ['id' => $tournamentId, 'round' => $nextRound, 'match' => $nextMatch, 'winner' => $winnerId]
     );
+}
+
+/**
+ * Register tournament permissions
+ */
+function MohaaTournaments_Permissions(array &$permissionGroups, array &$permissionList): void
+{
+    // Add permission group
+    $permissionGroups['membergroup']['simple'][] = 'mohaa_tournaments';
+    $permissionGroups['membergroup']['classic'][] = 'mohaa_tournaments';
+    
+    // Register permissions
+    $permissionList['membergroup']['mohaa_create_tournament'] = [false, 'mohaa_tournaments', 'mohaa_tournaments'];
+    $permissionList['membergroup']['mohaa_join_tournament'] = [true, 'mohaa_tournaments', 'mohaa_tournaments'];
+}
+
+/**
+ * View/Report individual match
+ */
+function MohaaTournaments_Match(): void
+{
+    global $context, $txt, $scripturl, $smcFunc, $user_info;
+    
+    $matchId = isset($_GET['match']) ? (int)$_GET['match'] : 0;
+    
+    if (empty($matchId)) {
+        redirectexit('action=mohaatournaments');
+        return;
+    }
+    
+    // Get match details
+    $request = $smcFunc['db_query']('', '
+        SELECT m.*, t.name as tournament_name, t.id_tournament,
+               p1.member_name as player1_name, p1.real_name as player1_real,
+               p2.member_name as player2_name, p2.real_name as player2_real,
+               w.member_name as winner_name
+        FROM {db_prefix}mohaa_tournament_matches AS m
+        LEFT JOIN {db_prefix}mohaa_tournaments AS t ON m.id_tournament = t.id_tournament
+        LEFT JOIN {db_prefix}members AS p1 ON m.id_player1 = p1.id_member
+        LEFT JOIN {db_prefix}members AS p2 ON m.id_player2 = p2.id_member
+        LEFT JOIN {db_prefix}members AS w ON m.id_winner = w.id_member
+        WHERE m.id_match = {int:match_id}',
+        ['match_id' => $matchId]
+    );
+    
+    $match = $smcFunc['db_fetch_assoc']($request);
+    $smcFunc['db_free_result']($request);
+    
+    if (!$match) {
+        fatal_lang_error('mohaa_match_not_found', false);
+        return;
+    }
+    
+    // Check if user can report scores (is tournament admin or one of the players)
+    $canReport = MohaaTournaments_IsAdmin($match['id_tournament'], $user_info['id'])
+        || $match['id_player1'] == $user_info['id']
+        || $match['id_player2'] == $user_info['id'];
+    
+    // Handle score submission
+    if ($canReport && isset($_POST['report_score']) && $match['status'] === 'pending') {
+        checkSession();
+        
+        $score1 = max(0, (int)$_POST['score1']);
+        $score2 = max(0, (int)$_POST['score2']);
+        
+        if ($score1 !== $score2) { // No ties
+            $winnerId = $score1 > $score2 ? $match['id_player1'] : $match['id_player2'];
+            
+            $smcFunc['db_query']('', '
+                UPDATE {db_prefix}mohaa_tournament_matches
+                SET team1_score = {int:s1}, team2_score = {int:s2}, id_winner = {int:winner}, status = {string:completed}, completed_time = {int:time}
+                WHERE id_match = {int:match_id}',
+                [
+                    'match_id' => $matchId,
+                    's1' => $score1,
+                    's2' => $score2,
+                    'winner' => $winnerId,
+                    'completed' => 'completed',
+                    'time' => time(),
+                ]
+            );
+            
+            // Advance winner to next round
+            MohaaTournaments_AdvanceWinner($match['id_tournament'], $match['round_number'], $match['match_number'], $winnerId);
+            
+            redirectexit('action=mohaatournaments;sa=bracket;id=' . $match['id_tournament']);
+            return;
+        } else {
+            $context['mohaa_error'] = $txt['mohaa_no_ties'];
+        }
+    }
+    
+    $context['page_title'] = $txt['mohaa_match'] . ' - ' . $match['tournament_name'];
+    $context['sub_template'] = 'mohaa_tournament_match';
+    
+    $context['mohaa_match'] = [
+        'info' => $match,
+        'can_report' => $canReport && $match['status'] === 'pending',
+        'player1' => [
+            'id' => $match['id_player1'],
+            'name' => $match['player1_real'] ?: $match['player1_name'] ?: 'TBD',
+        ],
+        'player2' => [
+            'id' => $match['id_player2'],
+            'name' => $match['player2_real'] ?: $match['player2_name'] ?: 'TBD',
+        ],
+    ];
+    
+    $context['linktree'][] = [
+        'url' => $scripturl . '?action=mohaatournaments',
+        'name' => $txt['mohaa_tournaments'],
+    ];
+    $context['linktree'][] = [
+        'url' => $scripturl . '?action=mohaatournaments;sa=bracket;id=' . $match['id_tournament'],
+        'name' => $match['tournament_name'],
+    ];
+    $context['linktree'][] = [
+        'url' => $scripturl . '?action=mohaatournaments;sa=match;match=' . $matchId,
+        'name' => $txt['mohaa_round'] . ' ' . $match['round_number'] . ' - ' . $txt['mohaa_match'] . ' ' . $match['match_number'],
+    ];
 }
 
 /**
