@@ -205,7 +205,48 @@ func TestLoginFlow(t *testing.T) {
 		}
 
 		t.Log("Invalid token correctly rejected")
+		// Step 6: Test login with Trusted IP (No token required)
+	t.Run("LoginWithTrustedIP", func(t *testing.T) {
+		// Uses the same IP "192.168.1.100" which should now be trusted from Step 3
+		payload := map[string]interface{}{
+			"token":          "", // Empty token
+			"player_guid":    playerGUID,
+			"server_name":    "Test Server",
+			"server_address": "127.0.0.1:12203",
+			"player_ip":      "192.168.1.100",
+		}
+		body, _ := json.Marshal(payload)
+
+		resp, err := http.Post(
+			apiURL+"/api/v1/auth/verify",
+			"application/json",
+			bytes.NewBuffer(body),
+		)
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200 OK for trusted IP login, got %d", resp.StatusCode)
+		}
+
+		var verifyResp VerifyResponse
+		if err := json.NewDecoder(resp.Body).Decode(&verifyResp); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if !verifyResp.Valid {
+			t.Fatal("Trusted IP login should be valid")
+		}
+
+		if verifyResp.ForumUserID != forumUserID {
+			t.Fatalf("Forum user ID mismatch: got %d, want %d", verifyResp.ForumUserID, forumUserID)
+		}
+
+		t.Log("Trusted IP login successful")
 	})
+})
 }
 
 // TestTokenGeneration tests various token generation scenarios
