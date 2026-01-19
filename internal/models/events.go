@@ -273,21 +273,40 @@ type MapStats struct {
 	WinRate       float64 `json:"win_rate"`
 }
 
-// LeaderboardEntry for leaderboard display
+// LeaderboardEntry for leaderboard display with ALL stats
 type LeaderboardEntry struct {
 	Rank       int     `json:"rank"`
-	PlayerID   string  `json:"id"` // Use 'id' for frontend compatibility
+	PlayerID   string  `json:"id"`
 	PlayerName string  `json:"name"`
+	
+	// Combat Stats
 	Kills      int64   `json:"kills"`
 	Deaths     int64   `json:"deaths"`
 	Headshots  int64   `json:"headshots"`
 	Accuracy   float64 `json:"accuracy"`
-	Playtime   int64   `json:"playtime_seconds"`
 	ShotsFired int64   `json:"shots_fired"`
 	ShotsHit   int64   `json:"shots_hit"`
+	Damage     int64   `json:"damage"`
 	
-	// Deprecated but kept for compatibility if needed
-	Value      int64   `json:"value,omitempty"`
+	// Special Kills
+	Suicides   int64   `json:"suicides"`
+	TeamKills  int64   `json:"teamkills"`
+	Roadkills  int64   `json:"roadkills"`
+	BashKills  int64   `json:"bash_kills"`
+	Grenades   int64   `json:"grenades_thrown"`
+	
+	// Game Flow
+	Wins       int64   `json:"wins"`
+	Losses     int64   `json:"losses"`
+	Rounds     int64   `json:"rounds"`
+	Objectives int64   `json:"objectives"`
+	
+	// Movement
+	Distance   float64 `json:"distance_km"`
+	Jumps      int64   `json:"jumps"`
+	
+	// Time
+	Playtime   int64   `json:"playtime_seconds"`
 }
 
 // HeatmapData for spatial analysis

@@ -13,60 +13,111 @@ function template_mohaa_stats_leaderboard()
 {
     global $context, $scripturl, $txt;
 
-    // Fix: Access players from nested structure
     $leaderboardData = $context['mohaa_leaderboard'] ?? [];
     $leaderboard = $leaderboardData['players'] ?? [];
     $current_stat = $leaderboardData['stat'] ?? 'kills';
     $current_period = $leaderboardData['period'] ?? 'all';
     
     echo '
+    <style>
+        .mohaa-lb-wrap { font-family: "Segoe UI", sans-serif; }
+        .mohaa-filter-section { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+        .mohaa-filter-section strong { min-width: 60px; }
+        .mohaa-chip { padding: 5px 12px; border-radius: 16px; text-decoration: none; font-size: 0.85em; transition: all 0.2s; }
+        .mohaa-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .mohaa-chip.active { background: linear-gradient(135deg, #4a6b8a, #5d7d9a); color: #fff; }
+        .mohaa-chip.inactive { background: rgba(0,0,0,0.1); }
+        .mohaa-lb-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .mohaa-lb-table th { padding: 10px 8px; text-align: center; font-weight: bold; white-space: nowrap; }
+        .mohaa-lb-table td { padding: 8px; text-align: center; }
+        .mohaa-lb-table tr:hover { background: rgba(74, 107, 138, 0.1); }
+        .rank-1 { background: linear-gradient(90deg, rgba(255,215,0,0.3), transparent) !important; }
+        .rank-2 { background: linear-gradient(90deg, rgba(192,192,192,0.3), transparent) !important; }
+        .rank-3 { background: linear-gradient(90deg, rgba(205,127,50,0.3), transparent) !important; }
+        .stat-positive { color: #4caf50; font-weight: bold; }
+        .stat-negative { color: #f44336; }
+        .stat-highlight { background: rgba(74, 107, 138, 0.15); font-weight: bold; }
+    </style>
+    
     <div class="cat_bar">
-        <h3 class="catbg">', $txt['mohaa_leaderboards'] ?? 'Leaderboards', '</h3>
-    </div>';
+        <h3 class="catbg">🏆 Global Leaderboards</h3>
+    </div>
+    
+    <div class="windowbg mohaa-lb-wrap" style="padding: 20px;">';
 
-    // Filters - Using stat chips for quick switching
+    // COMBAT Stats Group
     echo '
-    <div class="windowbg mohaa-filters" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 15px;">
-        <span style="font-weight: bold;">Sort:</span>
-        <div class="mohaa-filter-chips" style="display: flex; gap: 5px;">';
-    
-    $stats = ['kills' => 'Kills', 'kd' => 'K/D', 'headshots' => 'Headshots', 'accuracy' => 'Accuracy', 'playtime' => 'Playtime'];
-    foreach ($stats as $key => $label) {
-        $active = ($current_stat === $key) ? 'background: #4a6b8a; color: #fff;' : 'background: rgba(0,0,0,0.1);';
-        echo '
-            <a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" 
-               style="padding: 6px 12px; border-radius: 20px; text-decoration: none; ', $active, '">', $label, '</a>';
+        <div class="mohaa-filter-section">
+            <strong>⚔️ Combat:</strong>';
+    $combatStats = ['kills' => 'Kills', 'deaths' => 'Deaths', 'kd' => 'K/D', 'headshots' => 'Headshots', 'accuracy' => 'Accuracy', 'damage' => 'Damage'];
+    foreach ($combatStats as $key => $label) {
+        $class = ($current_stat === $key) ? 'active' : 'inactive';
+        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" class="mohaa-chip ', $class, '">', $label, '</a>';
     }
+    echo '</div>';
+
+    // SPECIAL KILLS Stats Group
     echo '
-        </div>
-        
-        <span style="margin-left: 20px; font-weight: bold;">Period:</span>
-        <div class="mohaa-filter-chips" style="display: flex; gap: 5px;">';
-    
-    $periods = ['all' => 'All Time', 'month' => 'This Month', 'week' => 'This Week', 'today' => 'Today'];
+        <div class="mohaa-filter-section">
+            <strong>💀 Special:</strong>';
+    $specialStats = ['suicides' => 'Suicides', 'teamkills' => 'Team Kills', 'roadkills' => 'Roadkills', 'bash_kills' => 'Bash Kills', 'grenades' => 'Grenades'];
+    foreach ($specialStats as $key => $label) {
+        $class = ($current_stat === $key) ? 'active' : 'inactive';
+        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" class="mohaa-chip ', $class, '">', $label, '</a>';
+    }
+    echo '</div>';
+
+    // GAME FLOW Stats Group
+    echo '
+        <div class="mohaa-filter-section">
+            <strong>🎮 Game:</strong>';
+    $gameStats = ['wins' => 'Wins', 'rounds' => 'Rounds', 'objectives' => 'Objectives', 'playtime' => 'Playtime'];
+    foreach ($gameStats as $key => $label) {
+        $class = ($current_stat === $key) ? 'active' : 'inactive';
+        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" class="mohaa-chip ', $class, '">', $label, '</a>';
+    }
+    echo '</div>';
+
+    // MOVEMENT Stats Group
+    echo '
+        <div class="mohaa-filter-section">
+            <strong>🏃 Move:</strong>';
+    $moveStats = ['distance' => 'Distance', 'jumps' => 'Jumps'];
+    foreach ($moveStats as $key => $label) {
+        $class = ($current_stat === $key) ? 'active' : 'inactive';
+        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" class="mohaa-chip ', $class, '">', $label, '</a>';
+    }
+    echo '</div>';
+
+    // PERIOD Filters
+    echo '
+        <div class="mohaa-filter-section" style="margin-top: 15px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 15px;">
+            <strong>📅 Period:</strong>';
+    $periods = ['all' => 'All Time', 'month' => 'This Month', 'week' => 'This Week', 'day' => 'Today'];
     foreach ($periods as $key => $label) {
-        $active = ($current_period === $key) ? 'background: #4a6b8a; color: #fff;' : 'background: rgba(0,0,0,0.1);';
-        echo '
-            <a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $current_stat, ';period=', $key, '" 
-               style="padding: 6px 12px; border-radius: 20px; text-decoration: none; ', $active, '">', $label, '</a>';
+        $class = ($current_period === $key) ? 'active' : 'inactive';
+        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $current_stat, ';period=', $key, '" class="mohaa-chip ', $class, '">', $label, '</a>';
     }
-    echo '
-        </div>
+    echo '</div>
     </div>';
 
-    // Leaderboard table
+    // LEADERBOARD TABLE
     echo '
-    <table class="table_grid mohaa-leaderboard" style="width: 100%;">
+    <table class="table_grid mohaa-lb-table">
         <thead>
             <tr class="title_bar">
-                <th class="rank">#</th>
-                <th>', $txt['mohaa_player'] ?? 'Player', '</th>
-                <th>', $txt['mohaa_kills'] ?? 'Kills', '</th>
-                <th>', $txt['mohaa_deaths'] ?? 'Deaths', '</th>
-                <th>', $txt['mohaa_kd'] ?? 'K/D', '</th>
-                <th>', $txt['mohaa_headshots'] ?? 'HS', '</th>
-                <th>', $txt['mohaa_accuracy'] ?? 'Acc%', '</th>
-                <th>', $txt['mohaa_playtime'] ?? 'Time', '</th>
+                <th>#</th>
+                <th style="text-align:left;">Player</th>
+                <th>Kills</th>
+                <th>Deaths</th>
+                <th>K/D</th>
+                <th>HS</th>
+                <th>Acc%</th>
+                <th>Wins</th>
+                <th>Rounds</th>
+                <th>Obj</th>
+                <th>Dist</th>
+                <th>Time</th>
             </tr>
         </thead>
         <tbody>';
@@ -74,52 +125,49 @@ function template_mohaa_stats_leaderboard()
     if (empty($leaderboard)) {
         echo '
             <tr class="windowbg">
-                <td colspan="8" class="centertext" style="padding: 40px;">
-                    <div style="font-size: 2em; margin-bottom: 10px;">📊</div>
-                    <div>', $txt['mohaa_no_data'] ?? 'No player data available. Play some matches!', '</div>
+                <td colspan="12" class="centertext" style="padding: 50px;">
+                    <div style="font-size: 3em; margin-bottom: 15px;">🎮</div>
+                    <div style="font-size: 1.2em;">No player data available yet.</div>
+                    <div style="opacity: 0.7;">Get playing to climb the ranks!</div>
                 </td>
             </tr>';
     } else {
         foreach ($leaderboard as $rank => $player) {
             $rankNum = $rank + 1;
             $rankClass = match($rankNum) {
-                1 => 'rank-1',
-                2 => 'rank-2',
-                3 => 'rank-3',
-                default => ''
+                1 => 'rank-1', 2 => 'rank-2', 3 => 'rank-3', default => ''
+            };
+            $rankIcon = match($rankNum) {
+                1 => '🥇', 2 => '🥈', 3 => '🥉', default => ''
             };
             
             $kd = $player['deaths'] > 0 ? round($player['kills'] / $player['deaths'], 2) : $player['kills'];
-            $kdClass = $kd >= 1 ? 'kd-positive' : 'kd-negative';
-            $accuracy = $player['shots_fired'] > 0 
-                ? round(($player['shots_hit'] / $player['shots_fired']) * 100, 1) 
-                : 0;
+            $kdClass = $kd >= 1 ? 'stat-positive' : 'stat-negative';
+            $acc = round($player['accuracy'] ?? 0, 1);
+            $dist = round(($player['distance_km'] ?? 0) / 1000, 1); // Convert to KM
+            $time = format_playtime($player['playtime_seconds'] ?? 0);
+            
+            // Highlight column based on current sort
+            $highlightCol = $current_stat;
             
             echo '
-            <tr class="windowbg">
-                <td class="rank ', $rankClass, '">';
-            
-            if ($rankNum === 1) echo '🥇 ';
-            elseif ($rankNum === 2) echo '🥈 ';
-            elseif ($rankNum === 3) echo '🥉 ';
-            
-            echo $rankNum, '</td>
-                <td>
+            <tr class="windowbg ', $rankClass, '">
+                <td style="font-weight: bold;">', $rankIcon, ' ', $rankNum, '</td>
+                <td style="text-align: left;">
                     <a href="', $scripturl, '?action=mohaastats;sa=player;id=', $player['id'], '">
-                        <strong>', $player['name'], '</strong>
-                    </a>';
-            
-            if (!empty($player['verified'])) {
-                echo ' <span style="color: #4ade80;" title="Verified">✓</span>';
-            }
-            
-            echo '</td>
-                <td>', number_format($player['kills']), '</td>
-                <td>', number_format($player['deaths']), '</td>
-                <td class="', $kdClass, '">', $kd, '</td>
-                <td>', number_format($player['headshots']), '</td>
-                <td>', $accuracy, '%</td>
-                <td>', format_playtime($player['playtime_seconds'] ?? 0), '</td>
+                        <strong>', htmlspecialchars($player['name']), '</strong>
+                    </a>
+                </td>
+                <td class="', ($highlightCol === 'kills' ? 'stat-highlight' : ''), '">', number_format($player['kills']), '</td>
+                <td class="', ($highlightCol === 'deaths' ? 'stat-highlight' : ''), '">', number_format($player['deaths']), '</td>
+                <td class="', $kdClass, ' ', ($highlightCol === 'kd' ? 'stat-highlight' : ''), '">', $kd, '</td>
+                <td class="', ($highlightCol === 'headshots' ? 'stat-highlight' : ''), '">', number_format($player['headshots']), '</td>
+                <td class="', ($highlightCol === 'accuracy' ? 'stat-highlight' : ''), '">', $acc, '%</td>
+                <td class="', ($highlightCol === 'wins' ? 'stat-highlight' : ''), '">', number_format($player['wins'] ?? 0), '</td>
+                <td class="', ($highlightCol === 'rounds' ? 'stat-highlight' : ''), '">', number_format($player['rounds'] ?? 0), '</td>
+                <td class="', ($highlightCol === 'objectives' ? 'stat-highlight' : ''), '">', number_format($player['objectives'] ?? 0), '</td>
+                <td class="', ($highlightCol === 'distance' ? 'stat-highlight' : ''), '">', $dist, ' km</td>
+                <td class="', ($highlightCol === 'playtime' ? 'stat-highlight' : ''), '">', $time, '</td>
             </tr>';
         }
     }

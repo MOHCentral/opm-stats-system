@@ -210,6 +210,8 @@ function template_mohaa_war_room()
         <div class="mohaa-tabs">
             <a onclick="showTab(\'combat\')" class="mohaa-tab active">⚔️ Combat</a>
             <a onclick="showTab(\'weapons\')" class="mohaa-tab">🔫 Armoury</a>
+            <a onclick="showTab(\'movement\')" class="mohaa-tab">🏃 Movement</a>
+            <a onclick="showTab(\'gameflow\')" class="mohaa-tab">🎮 Game</a>
             <a onclick="showTab(\'tactical\')" class="mohaa-tab">🎯 Tactical</a>
             <a onclick="showTab(\'maps\')" class="mohaa-tab">🗺️ Maps</a>
             <a onclick="showTab(\'matches\')" class="mohaa-tab">📊 Matches</a>
@@ -306,6 +308,42 @@ function template_mohaa_war_room()
             <div class="windowbg stat-card">
                 <h3>Weapon Mastery</h3>
                 ', template_war_room_weapons_content($player['weapons'] ?? []), '
+            </div>
+        </div>
+        
+        <!-- ======================= MOVEMENT TAB ======================= -->
+        <div id="tab-movement" class="tab-content" style="display: none;">
+            <div class="mohaa-grid">
+                <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+                    <h3>🏃 Distance Stats</h3>
+                    ', template_war_room_distance_content($player), '
+                </div>
+                <div class="windowbg stat-card">
+                    <h3>🧍 Stance Analysis</h3>
+                    ', template_war_room_stance_content($player), '
+                </div>
+                <div class="windowbg stat-card">
+                    <h3>🦘 Jump Stats</h3>
+                    ', template_war_room_jumps_content($player), '
+                </div>
+            </div>
+        </div>
+        
+        <!-- ======================= GAME FLOW TAB ======================= -->
+        <div id="tab-gameflow" class="tab-content" style="display: none;">
+            <div class="mohaa-grid">
+                <div class="windowbg stat-card">
+                    <h3>🏆 Win/Loss Record</h3>
+                    ', template_war_room_winloss_content($player), '
+                </div>
+                <div class="windowbg stat-card">
+                    <h3>🔄 Rounds & Games</h3>
+                    ', template_war_room_rounds_content($player), '
+                </div>
+                <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+                    <h3>🎯 Objectives</h3>
+                    ', template_war_room_objectives_content($player), '
+                </div>
             </div>
         </div>
         
@@ -949,4 +987,145 @@ function template_war_room_weapon_icon(string $weapon): string
         'StG44' => '🔫', 'Grenade' => '💣', 'Knife' => '🔪', 'Pistol' => '🔫',
     ];
     return $icons[$weapon] ?? '🔫';
+}
+
+/**
+ * Distance breakdown stats
+ */
+function template_war_room_distance_content($player): string
+{
+    $walked = ($player['distance_walked'] ?? 0) / 1000;
+    $sprinted = ($player['distance_sprinted'] ?? 0) / 1000;
+    $swam = ($player['distance_swam'] ?? 0) / 1000;
+    $driven = ($player['distance_driven'] ?? 0) / 1000;
+    $total = $walked + $sprinted + $swam + $driven;
+    
+    return '
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0;">
+        <div style="text-align: center; padding: 20px; background: rgba(33, 150, 243, 0.1); border-radius: 8px;">
+            <div style="font-size: 2em; font-weight: bold; color: #2196f3;">'.number_format($walked, 1).'</div>
+            <div style="opacity: 0.7;">km Walked</div>
+        </div>
+        <div style="text-align: center; padding: 20px; background: rgba(255, 152, 0, 0.1); border-radius: 8px;">
+            <div style="font-size: 2em; font-weight: bold; color: #ff9800;">'.number_format($sprinted, 1).'</div>
+            <div style="opacity: 0.7;">km Sprinted</div>
+        </div>
+        <div style="text-align: center; padding: 20px; background: rgba(0, 188, 212, 0.1); border-radius: 8px;">
+            <div style="font-size: 2em; font-weight: bold; color: #00bcd4;">'.number_format($swam, 1).'</div>
+            <div style="opacity: 0.7;">km Swam</div>
+        </div>
+        <div style="text-align: center; padding: 20px; background: rgba(156, 39, 176, 0.1); border-radius: 8px;">
+            <div style="font-size: 2em; font-weight: bold; color: #9c27b0;">'.number_format($driven, 1).'</div>
+            <div style="opacity: 0.7;">km Driven</div>
+        </div>
+    </div>
+    <div style="text-align: center; font-size: 1.5em; font-weight: bold;">Total: '.number_format($total, 1).' km</div>';
+}
+
+/**
+ * Jump stats with badge
+ */
+function template_war_room_jumps_content($player): string
+{
+    $jumps = $player['jumps'] ?? 0;
+    $matches = max(1, $player['matches_played'] ?? 1);
+    $badge = $jumps > 1000 ? '<div style="margin-top: 15px; padding: 10px; background: rgba(76, 175, 80, 0.2); border-radius: 8px; font-weight: bold;">🐰 Bunny Hopper!</div>' : '';
+    
+    return '
+    <div style="text-align: center; padding: 30px;">
+        <div style="font-size: 4em; font-weight: bold; color: #4caf50;">'.number_format($jumps).'</div>
+        <div style="font-size: 1.2em; opacity: 0.8;">Total Jumps</div>
+        '.$badge.'
+        <div style="margin-top: 20px; font-size: 0.9em; opacity: 0.7;">Avg per match: '.number_format($jumps / $matches, 1).'</div>
+    </div>';
+}
+
+/**
+ * Win/Loss record
+ */
+function template_war_room_winloss_content($player): string
+{
+    $wins = $player['wins'] ?? 0;
+    $losses = $player['losses'] ?? 0;
+    $total = max(1, $wins + $losses);
+    $winRate = ($wins / $total) * 100;
+    
+    return '
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px;">
+        <div style="text-align: center; padding: 15px; background: rgba(76, 175, 80, 0.1); border-radius: 8px;">
+            <div style="font-size: 1.8em; font-weight: bold; color: #4caf50;">'.number_format($wins).'</div>
+            <div style="opacity: 0.7;">Wins</div>
+        </div>
+        <div style="text-align: center; padding: 15px; background: rgba(244, 67, 54, 0.1); border-radius: 8px;">
+            <div style="font-size: 1.8em; font-weight: bold; color: #f44336;">'.number_format($losses).'</div>
+            <div style="opacity: 0.7;">Losses</div>
+        </div>
+        <div style="text-align: center; padding: 15px; background: rgba(74, 107, 138, 0.1); border-radius: 8px;">
+            <div style="font-size: 1.8em; font-weight: bold; color: #4a6b8a;">'.number_format($winRate, 1).'%</div>
+            <div style="opacity: 0.7;">Win Rate</div>
+        </div>
+    </div>';
+}
+
+/**
+ * Rounds and games breakdown
+ */
+function template_war_room_rounds_content($player): string
+{
+    $games = $player['games_played'] ?? 0;
+    $rounds = $player['rounds'] ?? 0;
+    $playtime = $player['playtime_seconds'] ?? 0;
+    $avgLength = format_playtime($playtime / max(1, $games));
+    $roundsPerGame = number_format($rounds / max(1, $games), 1);
+    
+    return '
+    <div style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
+            <span>🎮 Games Played</span>
+            <strong>'.number_format($games).'</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
+            <span>🔁 Rounds Played</span>
+            <strong>'.number_format($rounds).'</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
+            <span>⏱️ Avg Game Length</span>
+            <strong>'.$avgLength.'</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 15px 0;">
+            <span>🎯 Rounds per Game</span>
+            <strong>'.$roundsPerGame.'</strong>
+        </div>
+    </div>';
+}
+
+/**
+ * Objectives breakdown
+ */
+function template_war_room_objectives_content($player): string
+{
+    $objectives = $player['objectives_completed'] ?? 0;
+    $flags = $player['flags_captured'] ?? 0;
+    $planted = $player['bombs_planted'] ?? 0;
+    $defused = $player['bombs_defused'] ?? 0;
+    
+    return '
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; padding: 20px;">
+        <div style="text-align: center; padding: 20px; background: rgba(33, 150, 243, 0.1); border-radius: 8px;">
+            <div style="font-size: 2em; font-weight: bold; color: #2196f3;">'.number_format($objectives).'</div>
+            <div style="opacity: 0.7;">Objectives Done</div>
+        </div>
+        <div style="text-align: center; padding: 20px; background: rgba(76, 175, 80, 0.1); border-radius: 8px;">
+            <div style="font-size: 2em; font-weight: bold; color: #4caf50;">'.number_format($flags).'</div>
+            <div style="opacity: 0.7;">Flags Captured</div>
+        </div>
+        <div style="text-align: center; padding: 20px; background: rgba(255, 152, 0, 0.1); border-radius: 8px;">
+            <div style="font-size: 2em; font-weight: bold; color: #ff9800;">'.number_format($planted).'</div>
+            <div style="opacity: 0.7;">Bombs Planted</div>
+        </div>
+        <div style="text-align: center; padding: 20px; background: rgba(156, 39, 176, 0.1); border-radius: 8px;">
+            <div style="font-size: 2em; font-weight: bold; color: #9c27b0;">'.number_format($defused).'</div>
+            <div style="opacity: 0.7;">Bombs Defused</div>
+        </div>
+    </div>';
 }

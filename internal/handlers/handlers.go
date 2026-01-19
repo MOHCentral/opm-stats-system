@@ -431,12 +431,22 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	case "headshots": orderBy = "headshots"
 	case "accuracy": orderBy = "accuracy"
 	case "playtime": orderBy = "playtime"
-	case "kd": orderBy = "kd" // Calculated column
+	case "kd": orderBy = "kd"
+	case "wins": orderBy = "wins"
+	case "rounds": orderBy = "rounds"
+	case "objectives": orderBy = "objectives"
+	case "suicides": orderBy = "suicides"
+	case "teamkills": orderBy = "teamkills"
+	case "roadkills": orderBy = "roadkills"
+	case "bash_kills": orderBy = "bash_kills"
+	case "grenades": orderBy = "grenades"
+	case "damage": orderBy = "damage"
+	case "distance": orderBy = "distance"
+	case "jumps": orderBy = "jumps"
 	default: orderBy = "kills"
 	}
 
-	// Comprehensive Stats Query
-	// We aggregate kills, deaths, headshots, shots fired/hit to calculate accuracy & K/D
+	// MEGA Stats Query - aggregates ALL event types
 	query := fmt.Sprintf(`
 		SELECT 
 			player_id,
@@ -447,42 +457,126 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			sum(sf) as shots_fired,
 			sum(sh) as shots_hit,
 			sum(pt) as playtime,
+			sum(suicide) as suicides,
+			sum(tk) as teamkills,
+			sum(roadkill) as roadkills,
+			sum(bash) as bash_kills,
+			sum(nade) as grenades,
+			sum(dmg) as damage,
+			sum(dist) as distance,
+			sum(jmp) as jumps,
+			sum(win) as wins,
+			sum(loss) as losses,
+			sum(rnd) as rounds,
+			sum(obj) as objectives,
 			if(deaths > 0, kills/deaths, kills) as kd,
 			if(shots_fired > 0, (shots_hit/shots_fired)*100, 0) as accuracy
 		FROM (
-			SELECT actor_id as player_id, actor_name as name, 1 as k, 0 as d, 0 as hs, 0 as sf, 0 as sh, 0 as pt
-			FROM raw_events WHERE event_type='kill' AND actor_id != 'world' AND actor_id != '' %s
+			-- Kills
+			SELECT actor_id as player_id, actor_name as name, 1 as k, 0 as d, 0 as hs, 0 as sf, 0 as sh, 0 as pt, 0 as suicide, 0 as tk, 0 as roadkill, 0 as bash, 0 as nade, 0 as dmg, 0.0 as dist, 0 as jmp, 0 as win, 0 as loss, 0 as rnd, 0 as obj
+			FROM raw_events WHERE event_type='player_kill' AND actor_id != 'world' AND actor_id != '' %s
 			
 			UNION ALL
 			
-			SELECT victim_id as player_id, victim_name as name, 0 as k, 1 as d, 0 as hs, 0 as sf, 0 as sh, 0 as pt
-			FROM raw_events WHERE (event_type='kill' OR event_type='death') AND victim_id != '' %s
+			-- Deaths
+			SELECT victim_id as player_id, victim_name as name, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('player_kill', 'player_death') AND victim_id != '' %s
 			
 			UNION ALL
 			
-			SELECT actor_id as player_id, actor_name as name, 0 as k, 0 as d, 1 as hs, 0 as sf, 0 as sh, 0 as pt
-			FROM raw_events WHERE event_type='headshot' AND actor_id != '' %s
+			-- Headshots
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='player_headshot' AND actor_id != '' %s
 			
 			UNION ALL
 			
-			SELECT actor_id as player_id, actor_name as name, 0 as k, 0 as d, 0 as hs, 1 as sf, 0 as sh, 0 as pt
+			-- Weapon Fire
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
 			FROM raw_events WHERE event_type='weapon_fire' AND actor_id != '' %s
 			
 			UNION ALL
 			
-			SELECT actor_id as player_id, actor_name as name, 0 as k, 0 as d, 0 as hs, 0 as sf, 1 as sh, 0 as pt
+			-- Weapon Hit
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
 			FROM raw_events WHERE event_type='weapon_hit' AND actor_id != '' %s
 
 			UNION ALL
 			
-			SELECT actor_id as player_id, actor_name as name, 0 as k, 0 as d, 0 as hs, 0 as sf, 0 as sh, toInt64OrZero(extract(extra, 'duration')) as pt
-			FROM raw_events WHERE event_type='session_end' AND actor_id != '' %s
+			-- Session End (playtime)
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, toInt64OrZero(JSONExtractString(extra, 'duration')), 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='client_disconnect' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Suicides
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='player_suicide' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Team Kills
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='player_teamkill' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Roadkills
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='player_roadkill' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Bash Kills
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='player_bash' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Grenades
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='grenade_throw' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Damage
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, toInt64OrZero(JSONExtractString(extra, 'damage')), 0.0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='player_damage' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Distance
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, toFloat64OrZero(JSONExtractString(extra, 'walked')) + toFloat64OrZero(JSONExtractString(extra, 'sprinted')), 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='player_distance' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Jumps
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 1, 0, 0, 0, 0
+			FROM raw_events WHERE event_type='player_jump' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Wins (team_win where player was on winning team)
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 1, 0, 0, 0
+			FROM raw_events WHERE event_type='team_win' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Rounds 
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 1, 0
+			FROM raw_events WHERE event_type='round_end' AND actor_id != '' %s
+			
+			UNION ALL
+			
+			-- Objectives
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 1
+			FROM raw_events WHERE event_type='objective_update' AND actor_id != '' %s
 		)
 		GROUP BY player_id
 		HAVING kills > 0 OR deaths > 0 OR playtime > 0
 		ORDER BY %s DESC
 		LIMIT ? OFFSET ?
-	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
+	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
 
 	rows, err := h.ch.Query(ctx, query, limit, offset)
 	if err != nil {
@@ -496,9 +590,8 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	rank := offset + 1
 	for rows.Next() {
 		var entry models.LeaderboardEntry
-		var kd float64 
+		var kd, accuracy float64
 		
-		// Scans must match SELECT columns: id, name, kills, deaths, headshots, shots_fired, shots_hit, playtime, kd, accuracy
 		if err := rows.Scan(
 			&entry.PlayerID, 
 			&entry.PlayerName, 
@@ -508,26 +601,35 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			&entry.ShotsFired, 
 			&entry.ShotsHit,
 			&entry.Playtime,
+			&entry.Suicides,
+			&entry.TeamKills,
+			&entry.Roadkills,
+			&entry.BashKills,
+			&entry.Grenades,
+			&entry.Damage,
+			&entry.Distance,
+			&entry.Jumps,
+			&entry.Wins,
+			&entry.Losses,
+			&entry.Rounds,
+			&entry.Objectives,
 			&kd,
-			&entry.Accuracy,
+			&accuracy,
 		); err != nil {
 			h.logger.Warnw("Failed to scan leaderboard row", "error", err)
 			continue
 		}
 		entry.Rank = rank
-		// We can assign KD if we added it to struct, otherwise frontend calculates it too
-		// entry.KDRatio = kd 
+		entry.Accuracy = accuracy
 		
 		entries = append(entries, entry)
 		rank++
 	}
 
-	// Note: Total count query omitted for speed in this iteration, usually requires separate count query
-	// Ideally we'd run a separate count query or cache the total
-	
+	// Note: Total count query omitted for speed
 	response := map[string]interface{}{
 		"players": entries,
-		"total":   1000, // Placeholder
+		"total":   1000, // Placeholder - would need separate count query
 		"page":    page,
 	}
 
@@ -562,7 +664,7 @@ func (h *Handler) GetWeeklyLeaderboard(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var entry models.LeaderboardEntry
 		var name string
-		if err := rows.Scan(&entry.PlayerID, &name, &entry.Value); err != nil {
+		if err := rows.Scan(&entry.PlayerID, &name, &entry.Kills); err != nil {
 			continue
 		}
 		entry.Rank = rank
@@ -603,7 +705,7 @@ func (h *Handler) GetWeaponLeaderboard(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var entry models.LeaderboardEntry
 		var name string
-		if err := rows.Scan(&entry.PlayerID, &name, &entry.Value); err != nil {
+		if err := rows.Scan(&entry.PlayerID, &name, &entry.Kills); err != nil {
 			continue
 		}
 		entry.Rank = rank
@@ -647,7 +749,7 @@ func (h *Handler) GetMapLeaderboard(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var entry models.LeaderboardEntry
 		var name string
-		if err := rows.Scan(&entry.PlayerID, &name, &entry.Value); err != nil {
+		if err := rows.Scan(&entry.PlayerID, &name, &entry.Kills); err != nil {
 			continue
 		}
 		entry.Rank = rank

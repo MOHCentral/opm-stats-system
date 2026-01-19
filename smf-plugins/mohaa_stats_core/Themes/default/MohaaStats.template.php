@@ -7,42 +7,77 @@
  */
 
 /**
- * Main dashboard template
+ * Main dashboard template - The War Room
  */
 function template_mohaa_stats_main()
 {
-    global $context, $txt, $scripturl;
+    global $context, $txt, $scripturl, $user_info;
+    
+    // Load achievement widget template
+    if (function_exists('template_mohaa_achievement_widget') === false) {
+        loadTemplate('MohaaAchievementsWidget');
+    }
     
     echo '
-    <div class="mohaa-stats-dashboard">
-        <div class="category_header" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>', $txt['mohaa_stats'], '</span>
-            <a href="', $scripturl, '?action=mohaadashboard" class="button">My War Room</a>
+    <div class="mohaa-war-room">
+        <div class="war-room-header">
+            <div class="header-title">
+                <h1>⚔️ THE WAR ROOM</h1>
+                <span class="header-subtitle">Medal of Honor Allied Assault - Live Combat Statistics</span>
+            </div>
+            <div class="header-actions">';
+    
+    if (!$user_info['is_guest']) {
+        echo '
+                <a href="', $scripturl, '?action=mohaastats;sa=link" class="button">🔗 Link Identity</a>';
+    }
+    
+    echo '
+            </div>
         </div>
         
         <div class="mohaa-stats-grid">';
     
-    // Global stats cards
+    // Global stats cards - Enhanced with icons and animations
     if (!empty($context['mohaa_stats']['global'])) {
         $stats = $context['mohaa_stats']['global'];
         
         echo '
-            <div class="mohaa-stat-cards">
-                <div class="mohaa-stat-card">
-                    <div class="stat-value">', number_format($stats['total_kills'] ?? 0), '</div>
-                    <div class="stat-label">', $txt['mohaa_kills'], '</div>
+            <div class="mohaa-stat-cards animated">
+                <div class="mohaa-stat-card kills">
+                    <div class="card-icon">💀</div>
+                    <div class="card-content">
+                        <div class="stat-value counter" data-target="', $stats['total_kills'] ?? 0, '">', number_format($stats['total_kills'] ?? 0), '</div>
+                        <div class="stat-label">', $txt['mohaa_kills'], '</div>
+                    </div>
                 </div>
-                <div class="mohaa-stat-card">
-                    <div class="stat-value">', number_format($stats['total_players'] ?? 0), '</div>
-                    <div class="stat-label">Players</div>
+                <div class="mohaa-stat-card players">
+                    <div class="card-icon">👥</div>
+                    <div class="card-content">
+                        <div class="stat-value counter" data-target="', $stats['total_players'] ?? 0, '">', number_format($stats['total_players'] ?? 0), '</div>
+                        <div class="stat-label">Soldiers</div>
+                    </div>
                 </div>
-                <div class="mohaa-stat-card">
-                    <div class="stat-value">', number_format($stats['total_matches'] ?? 0), '</div>
-                    <div class="stat-label">', $txt['mohaa_matches_played'], '</div>
+                <div class="mohaa-stat-card matches">
+                    <div class="card-icon">🎮</div>
+                    <div class="card-content">
+                        <div class="stat-value counter" data-target="', $stats['total_matches'] ?? 0, '">', number_format($stats['total_matches'] ?? 0), '</div>
+                        <div class="stat-label">', $txt['mohaa_matches_played'], '</div>
+                    </div>
                 </div>
-                <div class="mohaa-stat-card">
-                    <div class="stat-value">', number_format($stats['total_headshots'] ?? 0), '</div>
-                    <div class="stat-label">', $txt['mohaa_headshots'], '</div>
+                <div class="mohaa-stat-card headshots">
+                    <div class="card-icon">🎯</div>
+                    <div class="card-content">
+                        <div class="stat-value counter" data-target="', $stats['total_headshots'] ?? 0, '">', number_format($stats['total_headshots'] ?? 0), '</div>
+                        <div class="stat-label">', $txt['mohaa_headshots'], '</div>
+                    </div>
+                </div>
+                <div class="mohaa-stat-card achievements">
+                    <div class="card-icon">🏆</div>
+                    <div class="card-content">
+                        <div class="stat-value counter" data-target="', $stats['total_achievements_unlocked'] ?? 0, '">', number_format($stats['total_achievements_unlocked'] ?? 0), '</div>
+                        <div class="stat-label">Achievements Unlocked</div>
+                    </div>
                 </div>
             </div>';
     }
@@ -129,11 +164,37 @@ function template_mohaa_stats_main()
                     </div>
                 </div>';
     
-    // Right column - Live matches
+    // Right column - Live matches AND Achievement Widget
     echo '
-                <div class="mohaa-right-column">
+                <div class="mohaa-right-column">';
+    
+    // Achievement Widget - Link to achievements system
+    if (!$user_info['is_guest'] && !empty($context['mohaa_stats']['achievement_widget'])) {
+        echo '
+                    <div class="mohaa-panel">';
+        template_mohaa_achievement_widget();
+        echo '
+                    </div>';
+    } else {
+        // Show global achievement stats for guests
+        echo '
                     <div class="mohaa-panel">
-                        <h3 class="category_header">', $txt['mohaa_live'], '</h3>
+                        <h3 class="category_header">🏆 Achievements</h3>
+                        <div class="windowbg">
+                            <div class="achievement-promo">
+                                <div class="promo-icon">🎖️</div>
+                                <p>Over <strong>540+</strong> achievements to unlock!</p>
+                                <p class="promo-tiers">10 Tiers: Bronze → Immortal</p>
+                                <a href="', $scripturl, '?action=mohaachievements" class="button">Explore Achievements</a>
+                            </div>
+                        </div>
+                    </div>';
+    }
+    
+    // Live Matches Panel
+    echo '
+                    <div class="mohaa-panel">
+                        <h3 class="category_header">🔴 ', $txt['mohaa_live'], '</h3>
                         <div class="windowbg" id="mohaa-live-matches">';
     
     template_mohaa_live_matches_content();
