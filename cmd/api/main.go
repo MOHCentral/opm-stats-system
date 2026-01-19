@@ -204,6 +204,15 @@ func main() {
 			r.Post("/verify", h.VerifyToken)
 			r.Get("/history", h.GetLoginHistory)
 
+			// Trusted IP management
+			r.Get("/trusted-ips", h.GetTrustedIPs)
+			r.Delete("/trusted-ips/{id}", h.DeleteTrustedIP)
+
+			// Pending IP approvals
+			r.Get("/pending-ips", h.GetPendingIPApprovals)
+			r.Post("/pending-ips/{id}", h.ResolvePendingIPApproval)
+			r.Post("/pending-ips/mark-notified", h.MarkPendingIPsNotified)
+
 			// Web OAuth (Discord/Steam)
 			r.Get("/discord", h.DiscordAuth)
 			r.Get("/discord/callback", h.DiscordCallback)

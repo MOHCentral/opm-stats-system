@@ -338,13 +338,15 @@ func (h *Handler) CheckinTournament(w http.ResponseWriter, r *http.Request) {
 
 // InitDeviceAuth generates a unique login token for SMF forum users
 // POST /api/v1/auth/device
-// Body: {"forum_user_id": 123} or {"forum_user_id": 123, "regenerate": true}
+// Body: {"forum_user_id": 123, "client_ip": "1.2.3.4"} or {"forum_user_id": 123, "regenerate": true, "client_ip": "1.2.3.4"}
+// The client_ip is automatically added to trusted_ips so the user can login from the same IP they used to generate the token
 func (h *Handler) InitDeviceAuth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var req struct {
-		ForumUserID int  `json:"forum_user_id"`
-		Regenerate  bool `json:"regenerate"`
+		ForumUserID int    `json:"forum_user_id"`
+		Regenerate  bool   `json:"regenerate"`
+		ClientIP    string `json:"client_ip"` // IP of the user generating the token (auto-trusted)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.errorResponse(w, http.StatusBadRequest, "Invalid JSON")
@@ -356,7 +358,7 @@ func (h *Handler) InitDeviceAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If regenerating, revoke all existing tokens for this user
+	// If regenerating, revoke all existing tokens AND clear trusted IPs for this user
 	if req.Regenerate {
 		_, err := h.pg.Exec(ctx, `
 			UPDATE login_tokens 
@@ -365,6 +367,16 @@ func (h *Handler) InitDeviceAuth(w http.ResponseWriter, r *http.Request) {
 		`, req.ForumUserID)
 		if err != nil {
 			h.logger.Errorw("Failed to revoke old tokens", "error", err, "forum_user_id", req.ForumUserID)
+		}
+
+		// Also clear all trusted IPs when regenerating (security measure)
+		_, err = h.pg.Exec(ctx, `
+			UPDATE trusted_ips 
+			SET is_active = false, revoked_at = NOW() 
+			WHERE forum_user_id = $1 AND is_active = true
+		`, req.ForumUserID)
+		if err != nil {
+			h.logger.Errorw("Failed to revoke trusted IPs", "error", err, "forum_user_id", req.ForumUserID)
 		}
 	}
 
@@ -404,6 +416,23 @@ func (h *Handler) InitDeviceAuth(w http.ResponseWriter, r *http.Request) {
 		h.logger.Errorw("Failed to create login token", "error", err, "forum_user_id", req.ForumUserID)
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to generate token")
 		return
+	}
+
+	// Auto-trust the IP that was used to generate the token
+	if req.ClientIP != "" {
+		_, err = h.pg.Exec(ctx, `
+			INSERT INTO trusted_ips (forum_user_id, ip_address, source, label)
+			VALUES ($1, $2::inet, 'website', 'Auto-approved (website)')
+			ON CONFLICT (forum_user_id, ip_address) 
+			DO UPDATE SET 
+				is_active = true,
+				last_used_at = NOW(),
+				revoked_at = NULL
+		`, req.ForumUserID, req.ClientIP)
+		if err != nil {
+			h.logger.Errorw("Failed to auto-trust client IP", "error", err, "ip", req.ClientIP)
+			// Don't fail the request, just log it
+		}
 	}
 
 	// Also cache in Redis for quick game server lookups
@@ -465,6 +494,11 @@ func (h *Handler) PollDeviceToken(w http.ResponseWriter, r *http.Request) {
 // This is called when a player types /login <token> in-game
 // POST /api/v1/auth/verify
 // Body: {"token": "ABC12345", "player_guid": "xxx", "server_name": "My Server", "player_ip": "1.2.3.4"}
+//
+// Security model:
+// 1. First use: Token verified, IP becomes trusted
+// 2. Same IP reconnect: Token already used but IP is trusted → Allow
+// 3. New IP: Token already used, IP not trusted → Create pending approval request
 func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -490,13 +524,14 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 	var tokenID string
 	var expiresAt time.Time
 	var usedAt *time.Time
+	var usedFromIP *string
 	var isActive bool
 
 	err := h.pg.QueryRow(ctx, `
-		SELECT id, forum_user_id, expires_at, used_at, is_active
+		SELECT id, forum_user_id, expires_at, used_at, used_from_ip::text, is_active
 		FROM login_tokens
 		WHERE token = $1
-	`, req.Token).Scan(&tokenID, &forumUserID, &expiresAt, &usedAt, &isActive)
+	`, req.Token).Scan(&tokenID, &forumUserID, &expiresAt, &usedAt, &usedFromIP, &isActive)
 
 	// Log the attempt
 	logAttempt := func(success bool, reason string) {
@@ -531,12 +566,86 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 
 	// Check if token was already used
 	if usedAt != nil {
-		logAttempt(false, "token_already_used")
-		h.errorResponse(w, http.StatusUnauthorized, "Token has already been used")
+		// Token was used before - check if IP is trusted
+		var isTrusted bool
+		err := h.pg.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM trusted_ips 
+				WHERE forum_user_id = $1 
+				AND ip_address = $2::inet 
+				AND is_active = true
+			)
+		`, forumUserID, req.PlayerIP).Scan(&isTrusted)
+
+		if err != nil {
+			h.logger.Errorw("Failed to check trusted IP", "error", err)
+		}
+
+		if isTrusted {
+			// IP is trusted! Allow the login
+			// Update last_used_at for this trusted IP
+			h.pg.Exec(ctx, `
+				UPDATE trusted_ips 
+				SET last_used_at = NOW() 
+				WHERE forum_user_id = $1 AND ip_address = $2::inet AND is_active = true
+			`, forumUserID, req.PlayerIP)
+
+			logAttempt(true, "trusted_ip_reconnect")
+
+			h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+				"valid":         true,
+				"forum_user_id": forumUserID,
+				"message":       "Reconnected from trusted IP",
+				"trusted_ip":    true,
+			})
+			return
+		}
+
+		// IP is NOT trusted - check if there's already a pending request
+		var pendingExists bool
+		h.pg.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM pending_ip_approvals 
+				WHERE forum_user_id = $1 
+				AND ip_address = $2::inet 
+				AND status = 'pending'
+				AND expires_at > NOW()
+			)
+		`, forumUserID, req.PlayerIP).Scan(&pendingExists)
+
+		if !pendingExists {
+			// Create a pending approval request
+			_, err := h.pg.Exec(ctx, `
+				INSERT INTO pending_ip_approvals 
+				(forum_user_id, ip_address, player_guid, server_name, server_address)
+				VALUES ($1, $2::inet, $3, $4, $5)
+				ON CONFLICT (forum_user_id, ip_address) 
+				DO UPDATE SET 
+					player_guid = EXCLUDED.player_guid,
+					server_name = EXCLUDED.server_name,
+					server_address = EXCLUDED.server_address,
+					requested_at = NOW(),
+					expires_at = NOW() + INTERVAL '24 hours',
+					status = 'pending',
+					resolved_at = NULL
+			`, forumUserID, req.PlayerIP, req.PlayerGUID, req.ServerName, req.ServerAddress)
+
+			if err != nil {
+				h.logger.Errorw("Failed to create pending IP approval", "error", err)
+			}
+		}
+
+		logAttempt(false, "new_ip_pending_approval")
+		h.jsonResponse(w, http.StatusForbidden, map[string]interface{}{
+			"valid":            false,
+			"error":            "new_ip_detected",
+			"message":          "New IP detected. Please approve this IP on the website or generate a new token.",
+			"pending_approval": true,
+		})
 		return
 	}
 
-	// Token is valid! Mark it as used
+	// Token is valid and unused! Mark it as used
 	_, err = h.pg.Exec(ctx, `
 		UPDATE login_tokens 
 		SET used_at = NOW(), used_from_ip = $1::inet, used_player_guid = $2
@@ -545,6 +654,22 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		h.logger.Errorw("Failed to mark token as used", "error", err)
+	}
+
+	// Add this IP to trusted IPs
+	_, err = h.pg.Exec(ctx, `
+		INSERT INTO trusted_ips (forum_user_id, ip_address, source, player_guid)
+		VALUES ($1, $2::inet, 'token_login', $3)
+		ON CONFLICT (forum_user_id, ip_address) 
+		DO UPDATE SET 
+			is_active = true,
+			last_used_at = NOW(),
+			player_guid = COALESCE(EXCLUDED.player_guid, trusted_ips.player_guid),
+			revoked_at = NULL
+	`, forumUserID, req.PlayerIP, req.PlayerGUID)
+
+	if err != nil {
+		h.logger.Errorw("Failed to add trusted IP", "error", err)
 	}
 
 	// Link the player GUID to the forum user (create or update mapping)
@@ -570,6 +695,7 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 		"valid":         true,
 		"forum_user_id": forumUserID,
 		"message":       "Identity verified successfully",
+		"ip_trusted":    true,
 	})
 }
 
@@ -645,6 +771,347 @@ func (h *Handler) GetLoginHistory(w http.ResponseWriter, r *http.Request) {
 		"forum_user_id": forumUserID,
 		"history":       history,
 		"count":         len(history),
+	})
+}
+
+// ============================================================================
+// TRUSTED IP MANAGEMENT
+// ============================================================================
+
+// GetTrustedIPs returns all trusted IPs for a forum user
+// GET /api/v1/auth/trusted-ips?forum_user_id=123
+func (h *Handler) GetTrustedIPs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	forumUserIDStr := r.URL.Query().Get("forum_user_id")
+	if forumUserIDStr == "" {
+		h.errorResponse(w, http.StatusBadRequest, "forum_user_id is required")
+		return
+	}
+
+	forumUserID := 0
+	fmt.Sscanf(forumUserIDStr, "%d", &forumUserID)
+	if forumUserID <= 0 {
+		h.errorResponse(w, http.StatusBadRequest, "invalid forum_user_id")
+		return
+	}
+
+	rows, err := h.pg.Query(ctx, `
+		SELECT 
+			id::text,
+			host(ip_address),
+			source,
+			label,
+			player_guid,
+			created_at,
+			last_used_at
+		FROM trusted_ips
+		WHERE forum_user_id = $1 AND is_active = true
+		ORDER BY last_used_at DESC
+	`, forumUserID)
+	if err != nil {
+		h.logger.Errorw("Failed to fetch trusted IPs", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	type TrustedIP struct {
+		ID         string    `json:"id"`
+		IPAddress  string    `json:"ip_address"`
+		Source     string    `json:"source"`
+		Label      *string   `json:"label"`
+		PlayerGUID *string   `json:"player_guid"`
+		CreatedAt  time.Time `json:"created_at"`
+		LastUsedAt time.Time `json:"last_used_at"`
+	}
+
+	trustedIPs := []TrustedIP{}
+	for rows.Next() {
+		var ip TrustedIP
+		err := rows.Scan(
+			&ip.ID,
+			&ip.IPAddress,
+			&ip.Source,
+			&ip.Label,
+			&ip.PlayerGUID,
+			&ip.CreatedAt,
+			&ip.LastUsedAt,
+		)
+		if err != nil {
+			h.logger.Errorw("Failed to scan trusted IP row", "error", err)
+			continue
+		}
+		trustedIPs = append(trustedIPs, ip)
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"forum_user_id": forumUserID,
+		"trusted_ips":   trustedIPs,
+		"count":         len(trustedIPs),
+	})
+}
+
+// DeleteTrustedIP removes a trusted IP
+// DELETE /api/v1/auth/trusted-ips/{id}?forum_user_id=123
+func (h *Handler) DeleteTrustedIP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ipID := chi.URLParam(r, "id")
+
+	forumUserIDStr := r.URL.Query().Get("forum_user_id")
+	if forumUserIDStr == "" {
+		h.errorResponse(w, http.StatusBadRequest, "forum_user_id is required")
+		return
+	}
+
+	forumUserID := 0
+	fmt.Sscanf(forumUserIDStr, "%d", &forumUserID)
+	if forumUserID <= 0 {
+		h.errorResponse(w, http.StatusBadRequest, "invalid forum_user_id")
+		return
+	}
+
+	// Soft delete - mark as inactive
+	result, err := h.pg.Exec(ctx, `
+		UPDATE trusted_ips 
+		SET is_active = false, revoked_at = NOW()
+		WHERE id = $1 AND forum_user_id = $2
+	`, ipID, forumUserID)
+
+	if err != nil {
+		h.logger.Errorw("Failed to delete trusted IP", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "database error")
+		return
+	}
+
+	if result.RowsAffected() == 0 {
+		h.errorResponse(w, http.StatusNotFound, "Trusted IP not found")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]string{
+		"status":  "deleted",
+		"message": "IP removed from trusted list",
+	})
+}
+
+// GetPendingIPApprovals returns pending IP approval requests
+// GET /api/v1/auth/pending-ips?forum_user_id=123
+func (h *Handler) GetPendingIPApprovals(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	forumUserIDStr := r.URL.Query().Get("forum_user_id")
+	if forumUserIDStr == "" {
+		h.errorResponse(w, http.StatusBadRequest, "forum_user_id is required")
+		return
+	}
+
+	forumUserID := 0
+	fmt.Sscanf(forumUserIDStr, "%d", &forumUserID)
+	if forumUserID <= 0 {
+		h.errorResponse(w, http.StatusBadRequest, "invalid forum_user_id")
+		return
+	}
+
+	rows, err := h.pg.Query(ctx, `
+		SELECT 
+			id::text,
+			host(ip_address),
+			player_guid,
+			player_name,
+			server_name,
+			server_address,
+			requested_at,
+			expires_at,
+			notified_at
+		FROM pending_ip_approvals
+		WHERE forum_user_id = $1 AND status = 'pending' AND expires_at > NOW()
+		ORDER BY requested_at DESC
+	`, forumUserID)
+	if err != nil {
+		h.logger.Errorw("Failed to fetch pending IPs", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	type PendingIP struct {
+		ID            string     `json:"id"`
+		IPAddress     string     `json:"ip_address"`
+		PlayerGUID    *string    `json:"player_guid"`
+		PlayerName    *string    `json:"player_name"`
+		ServerName    *string    `json:"server_name"`
+		ServerAddress *string    `json:"server_address"`
+		RequestedAt   time.Time  `json:"requested_at"`
+		ExpiresAt     time.Time  `json:"expires_at"`
+		NotifiedAt    *time.Time `json:"notified_at"`
+	}
+
+	pendingIPs := []PendingIP{}
+	for rows.Next() {
+		var ip PendingIP
+		err := rows.Scan(
+			&ip.ID,
+			&ip.IPAddress,
+			&ip.PlayerGUID,
+			&ip.PlayerName,
+			&ip.ServerName,
+			&ip.ServerAddress,
+			&ip.RequestedAt,
+			&ip.ExpiresAt,
+			&ip.NotifiedAt,
+		)
+		if err != nil {
+			h.logger.Errorw("Failed to scan pending IP row", "error", err)
+			continue
+		}
+		pendingIPs = append(pendingIPs, ip)
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"forum_user_id": forumUserID,
+		"pending_ips":   pendingIPs,
+		"count":         len(pendingIPs),
+	})
+}
+
+// ResolvePendingIPApproval approves or denies a pending IP request
+// POST /api/v1/auth/pending-ips/{id}
+// Body: {"action": "approve"} or {"action": "deny"}
+func (h *Handler) ResolvePendingIPApproval(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	approvalID := chi.URLParam(r, "id")
+
+	var req struct {
+		ForumUserID int    `json:"forum_user_id"`
+		Action      string `json:"action"` // "approve" or "deny"
+		Label       string `json:"label"`  // Optional label for approved IP
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if req.ForumUserID <= 0 {
+		h.errorResponse(w, http.StatusBadRequest, "forum_user_id is required")
+		return
+	}
+
+	if req.Action != "approve" && req.Action != "deny" {
+		h.errorResponse(w, http.StatusBadRequest, "action must be 'approve' or 'deny'")
+		return
+	}
+
+	// Get the pending request details
+	var ipAddress, playerGUID string
+	err := h.pg.QueryRow(ctx, `
+		SELECT host(ip_address), COALESCE(player_guid, '')
+		FROM pending_ip_approvals
+		WHERE id = $1 AND forum_user_id = $2 AND status = 'pending'
+	`, approvalID, req.ForumUserID).Scan(&ipAddress, &playerGUID)
+
+	if err != nil {
+		h.errorResponse(w, http.StatusNotFound, "Pending request not found")
+		return
+	}
+
+	// Update the pending request status
+	status := "denied"
+	if req.Action == "approve" {
+		status = "approved"
+	}
+
+	_, err = h.pg.Exec(ctx, `
+		UPDATE pending_ip_approvals
+		SET status = $2, resolved_at = NOW()
+		WHERE id = $1
+	`, approvalID, status)
+
+	if err != nil {
+		h.logger.Errorw("Failed to update pending IP", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "database error")
+		return
+	}
+
+	// If approved, add to trusted IPs
+	if req.Action == "approve" {
+		label := req.Label
+		if label == "" {
+			label = "Approved manually"
+		}
+
+		_, err = h.pg.Exec(ctx, `
+			INSERT INTO trusted_ips (forum_user_id, ip_address, source, label, player_guid)
+			VALUES ($1, $2::inet, 'manual_approval', $3, NULLIF($4, ''))
+			ON CONFLICT (forum_user_id, ip_address) 
+			DO UPDATE SET 
+				is_active = true,
+				last_used_at = NOW(),
+				label = EXCLUDED.label,
+				revoked_at = NULL
+		`, req.ForumUserID, ipAddress, label, playerGUID)
+
+		if err != nil {
+			h.logger.Errorw("Failed to add trusted IP after approval", "error", err)
+		}
+	}
+
+	message := "IP request denied"
+	if req.Action == "approve" {
+		message = "IP approved and added to trusted list"
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]string{
+		"status":  status,
+		"message": message,
+	})
+}
+
+// MarkPendingIPsNotified marks pending IP approvals as email-notified
+// POST /api/v1/auth/pending-ips/mark-notified
+// Body: {"forum_user_id": 1, "ids": ["uuid1", "uuid2", ...]}
+func (h *Handler) MarkPendingIPsNotified(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req struct {
+		ForumUserID int      `json:"forum_user_id"`
+		IDs         []string `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if req.ForumUserID <= 0 {
+		h.errorResponse(w, http.StatusBadRequest, "forum_user_id is required")
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"updated": 0,
+		})
+		return
+	}
+
+	// Mark the specified pending IPs as notified
+	result, err := h.pg.Exec(ctx, `
+		UPDATE pending_ip_approvals
+		SET notified_at = NOW()
+		WHERE forum_user_id = $1 
+		  AND id = ANY($2::uuid[]) 
+		  AND status = 'pending' 
+		  AND notified_at IS NULL
+	`, req.ForumUserID, req.IDs)
+
+	if err != nil {
+		h.logger.Errorw("Failed to mark pending IPs as notified", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "database error")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"updated": result.RowsAffected(),
 	})
 }
 

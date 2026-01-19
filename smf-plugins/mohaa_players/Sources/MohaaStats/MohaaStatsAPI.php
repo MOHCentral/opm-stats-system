@@ -109,6 +109,25 @@ class MohaaStatsAPIClient
         return json_decode($response, true);
     }
     
+    private function delete(string $endpoint, array $params = []): ?array
+    {
+        $url = $this->baseUrl . "/api/v1" . $endpoint;
+        if (!empty($params)) $url .= "?" . http_build_query($params);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $this->timeout,
+            CURLOPT_CUSTOMREQUEST => "DELETE",
+            CURLOPT_HTTPHEADER => ["Accept: application/json", "X-Server-Token: " . $this->serverToken],
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($httpCode < 200 || $httpCode >= 300 || $response === false) return null;
+        return json_decode($response, true);
+    }
+    
     public function clearCache(): void { clean_cache("mohaa_api_"); }
     public function getGlobalStats(): ?array { return $this->get("/stats/global"); }
     public function getLeaderboard(string $stat = "kills", int $limit = 25, int $offset = 0, string $period = "all"): ?array { return $this->get("/stats/leaderboard/global", ["stat"=>$stat,"limit"=>$limit,"offset"=>$offset,"period"=>$period]); }
@@ -136,9 +155,17 @@ class MohaaStatsAPIClient
      * @return array|null Response with user_code, expires_in, etc.
      */
     public function initDeviceAuth(int $forumUserId, bool $regenerate = false): ?array { 
+        // Get the user's real IP, checking for proxy headers
+        $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+        // If X-Forwarded-For has multiple IPs, take the first one (original client)
+        if (strpos($clientIp, ',') !== false) {
+            $clientIp = trim(explode(',', $clientIp)[0]);
+        }
+        
         return $this->post("/auth/device", [
             "forum_user_id" => $forumUserId,
-            "regenerate" => $regenerate
+            "regenerate" => $regenerate,
+            "client_ip" => $clientIp
         ]); 
     }
     
@@ -149,6 +176,63 @@ class MohaaStatsAPIClient
      */
     public function getLoginHistory(int $forumUserId): ?array {
         return $this->get("/auth/history", ["forum_user_id" => $forumUserId]);
+    }
+    
+    /**
+     * Get trusted IPs for a forum user
+     * @param int $forumUserId The SMF member ID
+     * @return array|null Response with trusted_ips array
+     */
+    public function getTrustedIPs(int $forumUserId): ?array {
+        return $this->get("/auth/trusted-ips", ["forum_user_id" => $forumUserId]);
+    }
+    
+    /**
+     * Remove a trusted IP
+     * @param int $forumUserId The SMF member ID
+     * @param string $ipId The trusted IP record ID
+     * @return array|null Response with status
+     */
+    public function deleteTrustedIP(int $forumUserId, string $ipId): ?array {
+        return $this->delete("/auth/trusted-ips/" . urlencode($ipId), ["forum_user_id" => $forumUserId]);
+    }
+    
+    /**
+     * Get pending IP approval requests
+     * @param int $forumUserId The SMF member ID
+     * @return array|null Response with pending_ips array
+     */
+    public function getPendingIPApprovals(int $forumUserId): ?array {
+        return $this->get("/auth/pending-ips", ["forum_user_id" => $forumUserId]);
+    }
+    
+    /**
+     * Approve or deny a pending IP request
+     * @param int $forumUserId The SMF member ID
+     * @param string $approvalId The pending approval record ID
+     * @param string $action "approve" or "deny"
+     * @param string $label Optional label for approved IP
+     * @return array|null Response with status
+     */
+    public function resolvePendingIP(int $forumUserId, string $approvalId, string $action, string $label = ""): ?array {
+        return $this->post("/auth/pending-ips/" . urlencode($approvalId), [
+            "forum_user_id" => $forumUserId,
+            "action" => $action,
+            "label" => $label
+        ]);
+    }
+    
+    /**
+     * Mark pending IP approvals as email-notified
+     * @param int $forumUserId The SMF member ID
+     * @param array $ids Array of pending approval UUIDs to mark as notified
+     * @return array|null Response with updated count
+     */
+    public function markPendingIPsNotified(int $forumUserId, array $ids): ?array {
+        return $this->post("/auth/pending-ips/mark-notified", [
+            "forum_user_id" => $forumUserId,
+            "ids" => $ids
+        ]);
     }
     
     public function getGlobalWeaponStats(): ?array { return []; }
