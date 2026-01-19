@@ -242,20 +242,21 @@ function template_mohaa_example()
 }
 ```
 
-### Design Theme
+### Design Theme ("Hybrid Design")
 
-We're using a "Command & Control" militaristic aesthetic:
+We use a **Hybrid Design** philosophy for the War Room and dashboards:
 
-- **Colors**: 
-  - Background: `#1a1a2e`, `#16213e` (dark blue-grey)
-  - Accent: `#8bc34a`, `#4a7c59` (military green)
-  - Highlight: `#ffd700` (gold for ranks/badges)
-  - Danger: `#7f1d1d`, `#f87171` (red for losses)
-  - Success: `#166534`, `#4ade80` (green for wins)
+- **Clean Grid Layout**: Use CSS Grid for responsive, organized dashboards (`.mohaa-grid`).
+- **SMF Layout Integration**: Use SMF native classes for containers (`windowbg`, `roundframe`, `cat_bar`) to ensure seamless integration with the forum theme.
+- **Minimal Custom CSS**: Use custom CSS *only* for:
+  - Grid positioning
+  - Card hover effects & boxing
+  - Specific graphical elements (SVG gauges, silhouettes, weapons)
+- **Colors**:
+  - Prefer Theme Variables: Use parent theme colors where possible.
+  - Functional Accents: Use standard red/green/orange for status (Win/Loss/Draw) but avoid overriding global backgrounds.
 
-- **Typography**: `"Courier New", monospace` for headers
-
-- **Components**: Cards with `rgba(0,0,0,0.3)` backgrounds, `#333` borders
+- **Typography**: Inherit forum fonts (`Verdana`, `Segoe UI`, etc.) rather than forcing `Courier New`.
 
 ### ApexCharts Integration
 
