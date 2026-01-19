@@ -142,6 +142,15 @@ class MohaaStatsAPIClient
         ]); 
     }
     
+    /**
+     * Get login history for a forum user
+     * @param int $forumUserId The SMF member ID
+     * @return array|null Response with history array
+     */
+    public function getLoginHistory(int $forumUserId): ?array {
+        return $this->get("/auth/history", ["forum_user_id" => $forumUserId]);
+    }
+    
     public function getGlobalWeaponStats(): ?array { return []; }
     public function getActivePlayers(int $hours): ?array { return []; }
     public function getPlayerRank(string $guid): ?int { return null; }

@@ -573,6 +573,81 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetLoginHistory returns login history for a forum user
+// GET /api/v1/auth/history?forum_user_id=123
+func (h *Handler) GetLoginHistory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	forumUserIDStr := r.URL.Query().Get("forum_user_id")
+	if forumUserIDStr == "" {
+		h.errorResponse(w, http.StatusBadRequest, "forum_user_id is required")
+		return
+	}
+
+	forumUserID := 0
+	fmt.Sscanf(forumUserIDStr, "%d", &forumUserID)
+	if forumUserID <= 0 {
+		h.errorResponse(w, http.StatusBadRequest, "invalid forum_user_id")
+		return
+	}
+
+	rows, err := h.pg.Query(ctx, `
+		SELECT 
+			attempt_at,
+			server_name,
+			server_address,
+			player_ip::text,
+			player_guid,
+			success,
+			failure_reason
+		FROM login_token_history
+		WHERE forum_user_id = $1
+		ORDER BY attempt_at DESC
+		LIMIT 20
+	`, forumUserID)
+	if err != nil {
+		h.logger.Errorw("Failed to fetch login history", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	type LoginHistoryEntry struct {
+		AttemptAt     time.Time `json:"attempt_at"`
+		ServerName    *string   `json:"server_name"`
+		ServerAddress *string   `json:"server_address"`
+		PlayerIP      *string   `json:"player_ip"`
+		PlayerGUID    *string   `json:"player_guid"`
+		Success       bool      `json:"success"`
+		FailureReason *string   `json:"failure_reason"`
+	}
+
+	history := []LoginHistoryEntry{}
+	for rows.Next() {
+		var entry LoginHistoryEntry
+		err := rows.Scan(
+			&entry.AttemptAt,
+			&entry.ServerName,
+			&entry.ServerAddress,
+			&entry.PlayerIP,
+			&entry.PlayerGUID,
+			&entry.Success,
+			&entry.FailureReason,
+		)
+		if err != nil {
+			h.logger.Errorw("Failed to scan login history row", "error", err)
+			continue
+		}
+		history = append(history, entry)
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"forum_user_id": forumUserID,
+		"history":       history,
+		"count":         len(history),
+	})
+}
+
 // OAuth callbacks (Discord/Steam)
 func (h *Handler) DiscordAuth(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement Discord OAuth redirect

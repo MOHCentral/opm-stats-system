@@ -143,14 +143,14 @@ func main() {
 			r.Get("/global", h.GetGlobalStats)
 			r.Get("/matches", h.GetMatches)
 			r.Get("/weapons", h.GetGlobalWeaponStats)
-			
-			r.Get("/leaderboard", h.GetLeaderboard) // [UPDATED] Unified handler
+
+			r.Get("/leaderboard", h.GetLeaderboard)        // [UPDATED] Unified handler
 			r.Get("/leaderboard/global", h.GetLeaderboard) // Redirect to unified handler
 			// Actually I replaced GetGlobalLeaderboard method with GetLeaderboard, so I MUST update the route name.
-			// The replace_file_content replaced the contents but kept the receiver method signature? 
+			// The replace_file_content replaced the contents but kept the receiver method signature?
 			// No, I changed the function name to GetLeaderboard in the replacement content.
 			// So GetGlobalLeaderboard no longer exists on *Handler.
-			
+
 			// New routes:
 			r.Get("/leaderboard", h.GetLeaderboard)
 			r.Get("/leaderboard/weapon/{weapon}", h.GetWeaponLeaderboard)
@@ -162,7 +162,7 @@ func main() {
 			r.Get("/player/{guid}/weapons", h.GetPlayerWeaponStats)
 			r.Get("/player/{guid}/heatmap/{map}", h.GetPlayerHeatmap)
 			r.Get("/player/{guid}/deaths/{map}", h.GetPlayerDeathHeatmap)
-			r.Get("/player/{guid}/heatmap/body", h.GetPlayerBodyHeatmap) // [NEW] Body Heatmap
+			r.Get("/player/{guid}/heatmap/body", h.GetPlayerBodyHeatmap)       // [NEW] Body Heatmap
 			r.Get("/player/{guid}/performance", h.GetPlayerPerformanceHistory) // [NEW] Performance Graph
 
 			r.Get("/map/{map}/heatmap", h.GetMapHeatmap)
@@ -190,7 +190,7 @@ func main() {
 				r.Put("/{id}", h.UpdateTournament)
 				r.Post("/{id}/register", h.RegisterForTournament)
 				r.Post("/{id}/checkin", h.CheckinTournament)
-			
+
 				// Match reporting
 				r.Post("/matches/{matchID}/report", h.ReportMatchResult)
 			})
@@ -202,6 +202,7 @@ func main() {
 			r.Post("/device", h.InitDeviceAuth)
 			r.Post("/token", h.PollDeviceToken)
 			r.Post("/verify", h.VerifyToken)
+			r.Get("/history", h.GetLoginHistory)
 
 			// Web OAuth (Discord/Steam)
 			r.Get("/discord", h.DiscordAuth)

@@ -17,6 +17,14 @@ services:
       - ./custom:/var/www/html/custom
       - ./entrypoint.sh:/entrypoint.sh
       - ../smf-plugins:/var/www/html/Packages/mohaa
+      # Mount plugin sources directly for instant changes during development
+      - ../smf-plugins/mohaa_players/Sources/MohaaPlayers.php:/var/www/html/Sources/MohaaPlayers.php
+      - ../smf-plugins/mohaa_players/Sources/MohaaStats:/var/www/html/Sources/MohaaStats
+      - ../smf-plugins/mohaa_players/Themes/default/MohaaPlayers.template.php:/var/www/html/Themes/default/MohaaPlayers.template.php
+      - ../smf-plugins/mohaa_players/Themes/default/MohaaIdentity.template.php:/var/www/html/Themes/default/MohaaIdentity.template.php
+      - ../smf-plugins/mohaa_players/Themes/default/MohaaDashboard.template.php:/var/www/html/Themes/default/MohaaDashboard.template.php
+      - ../smf-plugins/mohaa_players/Themes/default/MohaaWarRoom.template.php:/var/www/html/Themes/default/MohaaWarRoom.template.php
+      - ../smf-plugins/Languages/MohaaStats.english.php:/var/www/html/Themes/default/languages/MohaaStats.english.php
     depends_on:
       smf-db:
         condition: service_healthy

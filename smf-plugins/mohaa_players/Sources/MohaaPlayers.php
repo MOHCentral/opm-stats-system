@@ -345,30 +345,21 @@ function MohaaPlayers_ProfileIdentity(int $memID): void
     $context['mohaa_token'] = $_SESSION['mohaa_token'] ?? 'ERROR - Could not generate token';
     $context['mohaa_console_command'] = '/login ' . ($context['mohaa_token'] ?? '');
     
-    // Get login history from database
+    // Get login history from API (stored in PostgreSQL)
     $context['mohaa_login_history'] = [];
     
-    $request = $smcFunc['db_query']('', '
-        SELECT login_date, server_name, ip_address, location, success
-        FROM {db_prefix}mohaa_login_history
-        WHERE id_member = {int:member}
-        ORDER BY login_date DESC
-        LIMIT 20',
-        [
-            'member' => $memID,
-        ]
-    );
-    
-    while ($row = $smcFunc['db_fetch_assoc']($request)) {
-        $context['mohaa_login_history'][] = [
-            'date' => $row['login_date'],
-            'server' => $row['server_name'],
-            'ip' => $row['ip_address'],
-            'location' => $row['location'] ?? 'Unknown',
-            'status' => $row['success'] ? 'Success' : 'Failed',
-        ];
+    $historyData = $api->getLoginHistory($memID);
+    if (!empty($historyData['history'])) {
+        foreach ($historyData['history'] as $entry) {
+            $context['mohaa_login_history'][] = [
+                'date' => strtotime($entry['attempt_at'] ?? 'now'),
+                'server' => $entry['server_name'] ?? 'Unknown Server',
+                'ip' => $entry['player_ip'] ?? '-',
+                'location' => '-', // Could add GeoIP lookup later
+                'status' => $entry['success'] ? 'Success' : ('Failed: ' . ($entry['failure_reason'] ?? 'unknown')),
+            ];
+        }
     }
-    $smcFunc['db_free_result']($request);
     
     // If no history, show placeholder
     if (empty($context['mohaa_login_history'])) {
@@ -535,3 +526,4 @@ function MohaaPlayers_IdentityRedirect(): void
     // Redirect to the profile identity area
     redirectexit('action=profile;area=mohaaidentity');
 }
+
