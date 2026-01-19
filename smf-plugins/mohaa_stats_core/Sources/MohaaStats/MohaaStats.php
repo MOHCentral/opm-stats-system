@@ -65,13 +65,13 @@ function MohaaStats_MenuButtons(array &$buttons): void
     // Add main Stats menu item
     $buttons['mohaastats'] = [
         'title' => $txt['mohaa_stats'],
-        'href' => $scripturl . '?action=mohaastats',
+        'href' => $scripturl . '?action=mohaadashboard',
         'icon' => 'stats',
         'show' => true,
         'sub_buttons' => [
             'warroom' => [
                 'title' => $txt['mohaa_war_room'] ?? 'War Room',
-                'href' => $scripturl . '?action=mohaastats',
+                'href' => $scripturl . '?action=mohaadashboard',
                 'show' => true,
             ],
             'leaderboard' => [

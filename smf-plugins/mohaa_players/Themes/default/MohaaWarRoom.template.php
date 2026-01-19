@@ -1,10 +1,10 @@
 <?php
 /**
  * MOHAA Enhanced Stats Dashboard - War Room
- * Command & Control Aesthetic with Drill-down Tables
+ * Hybrid Design: Modern Grid Layout + SMF Integration
  *
  * @package MohaaPlayers
- * @version 2.0.0
+ * @version 2.3.0
  */
 
 /**
@@ -18,598 +18,563 @@ function template_mohaa_war_room()
     $player = $data['player_stats'] ?? [];
     $member = $data['member'] ?? [];
 
+    // Inject Modern CSS for Dashboard
     echo '
-    <div class="mohaa-war-room">
-        <!-- Command Header -->
-        <div class="war-room-header">
-            <div class="operator-identity">
-                <div class="operator-rank">', template_war_room_rank_icon($player['kills'] ?? 0), '</div>
-                <div class="operator-info">
-                    <h1>', htmlspecialchars($member['real_name'] ?? $member['member_name'] ?? 'Soldier'), '</h1>
-                    <div class="operator-tags">
-                        <span class="clan-tag">[', htmlspecialchars($player['clan_tag'] ?? 'N/A'), ']</span>
-                        <span class="elo-badge">ELO: <strong>', number_format($player['elo'] ?? 1000), '</strong></span>
-                    </div>
+    <style>
+        :root {
+            --mohaa-accent: #4a6b8a; /* Soft blue-grey */
+            --mohaa-success: #4caf50;
+            --mohaa-warning: #ff9800;
+            --mohaa-danger: #f44336;
+            --mohaa-card-bg: rgba(255,255,255,0.05); /* Slight tint for cards */
+        }
+        
+        .mohaa-dashboard-container {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            margin-bottom: 20px;
+        }
+
+        /* Stats Grid System */
+        .mohaa-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        /* Dashboard Card Style */
+        .stat-card {
+            background: var(--mohaa-card-bg); /* Fallback or override if windowbg isn\'t enough */
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .stat-card h3 {
+            margin: 0 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--mohaa-accent);
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: inherit; /* Inherit from theme */
+            opacity: 0.9;
+        }
+        
+        /* Header Profile */
+        .profile-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 20px;
+            padding: 25px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.1), rgba(0,0,0,0));
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .rank-icon { font-size: 3.5em; line-height: 1; }
+        
+        .profile-info h1 { margin: 0; font-size: 2em; line-height: 1.2; }
+        .profile-meta { opacity: 0.7; font-size: 0.9em; }
+        .tag-badge { 
+            background: var(--mohaa-accent); 
+            color: #fff; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-weight: bold;
+        }
+        
+        .header-stats {
+            display: flex;
+            gap: 15px;
+            margin-left: auto;
+        }
+        
+        .mini-stat {
+            text-align: center;
+            padding: 10px 15px;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.2); /* Darker for contrast */
+            min-width: 80px;
+        }
+        
+        .mini-stat .value { display: block; font-size: 1.4em; font-weight: bold; }
+        .mini-stat .label { font-size: 0.7em; text-transform: uppercase; opacity: 0.8; }
+        
+        /* Tabs */
+        .mohaa-tabs {
+            display: flex;
+            gap: 5px;
+            border-bottom: 2px solid var(--mohaa-accent);
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+        
+        .mohaa-tab {
+            padding: 12px 20px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        
+        .mohaa-tab:hover { background: rgba(0,0,0,0.2); text-decoration: none; }
+        .mohaa-tab.active {
+            background: var(--mohaa-accent);
+            color: #fff;
+        }
+
+        /* Component Specifics */
+        .gauge-svg { width: 100%; height: auto; max-height: 150px; }
+        
+        .weapon-list-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .weapon-card {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .map-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .streak-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .streak-item { text-align: center; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 6px; }
+        
+        /* Clean Tables */
+        .clean-table { width: 100%; border-collapse: collapse; }
+        .clean-table th { text-align: left; padding: 12px; border-bottom: 2px solid rgba(0,0,0,0.1); opacity: 0.7; }
+        .clean-table td { padding: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .clean-table tr:hover td { background: rgba(0,0,0,0.02); }
+    </style>
+    
+    <div class="mohaa-dashboard-container">
+        <!-- Header -->
+        <div class="windowbg profile-header">
+            <div class="rank-icon">
+                ', template_war_room_rank_icon($player['kills'] ?? 0), '
+            </div>
+            <div class="profile-info">
+                <h1>', htmlspecialchars($member['real_name'] ?? $member['member_name'] ?? 'Soldier'), '</h1>
+                <div class="profile-meta">
+                    <span class="tag-badge">', htmlspecialchars($player['clan_tag'] ?? 'N/A'), '</span>
+                    <span>ELO: <strong>', number_format($player['elo'] ?? 1000), '</strong></span>
                 </div>
             </div>
-            <div class="quick-stats">
-                <div class="quick-stat">
-                    <span class="qs-value odometer">', number_format($player['kills'] ?? 0), '</span>
-                    <span class="qs-label">KILLS</span>
+            
+            <div class="header-stats">
+                <div class="mini-stat">
+                    <span class="value">', number_format($player['kills'] ?? 0), '</span>
+                    <span class="label">Kills</span>
                 </div>
-                <div class="quick-stat deaths">
-                    <span class="qs-value">', number_format($player['deaths'] ?? 0), '</span>
-                    <span class="qs-label">DEATHS</span>
+                <div class="mini-stat">
+                    <span class="value">', number_format($player['deaths'] ?? 0), '</span>
+                    <span class="label">Deaths</span>
                 </div>
-                <div class="quick-stat">
-                    <span class="qs-value">', number_format(($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1), 2), '</span>
-                    <span class="qs-label">K/D RATIO</span>
+                <div class="mini-stat">
+                    <span class="value" style="color: ', (($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1) >= 1 ? 'var(--mohaa-success)' : 'var(--mohaa-danger)'), '">
+                        ', number_format(($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1), 2), '
+                    </span>
+                    <span class="label">K/D</span>
                 </div>
             </div>
         </div>
 
         <!-- Navigation Tabs -->
-        <div class="war-room-tabs">
-            <button class="tab active" data-section="combat">⚔️ Combat</button>
-            <button class="tab" data-section="weapons">🔫 Armoury</button>
-            <button class="tab" data-section="tactical">🎯 Tactical</button>
-            <button class="tab" data-section="maps">🗺️ Maps</button>
-            <button class="tab" data-section="matches">📊 Matches</button>
+        <div class="mohaa-tabs">
+            <a onclick="showTab(\'combat\')" class="mohaa-tab active">⚔️ Combat</a>
+            <a onclick="showTab(\'weapons\')" class="mohaa-tab">🔫 Armoury</a>
+            <a onclick="showTab(\'tactical\')" class="mohaa-tab">🎯 Tactical</a>
+            <a onclick="showTab(\'maps\')" class="mohaa-tab">🗺️ Maps</a>
+            <a onclick="showTab(\'matches\')" class="mohaa-tab">📊 Matches</a>
         </div>
-
-        <!-- Combat Section -->
-        <div class="war-room-section active" id="section-combat">
-            <div class="section-grid">';
-
-    // KDR Gauge
-    template_war_room_kdr_gauge($player);
-
-    // Human Silhouette
-    template_war_room_silhouette($player);
-
-    // Accuracy Target
-    template_war_room_accuracy($player, $data);
-
-    // Kill Streaks
-    template_war_room_streaks($player);
-
-    // Multi-kills
-    template_war_room_multikills($player);
-
-    // Special Stats
-    template_war_room_special_stats($player);
-
-    echo '
-            </div>
-        </div>
-
-        <!-- Weapons Section -->
-        <div class="war-room-section" id="section-weapons">
-            <div class="armoury-grid">';
-
-    template_war_room_weapons($player['weapons'] ?? []);
-
-    echo '
-            </div>
-        </div>
-
-        <!-- Tactical Section -->
-        <div class="war-room-section" id="section-tactical">
-            <div class="section-grid">';
-
-    template_war_room_movement($player);
-    template_war_room_stance($player);
-    template_war_room_rivals($player);
-
-    echo '
-            </div>
-        </div>
-
-        <!-- Maps Section -->
-        <div class="war-room-section" id="section-maps">
-            <div class="maps-grid">';
-
-    template_war_room_maps($player['maps'] ?? [], $player);
-
-    echo '
-            </div>
-        </div>
-
-        <!-- Matches Section -->
-        <div class="war-room-section" id="section-matches">
-            <h3>Recent Matches</h3>';
-
-    template_war_room_matches($player['recent_matches'] ?? []);
-
-    echo '
-        </div>
-    </div>';
-
-    template_war_room_styles();
-    template_war_room_scripts();
-}
-
-/**
- * KDR Gauge Component
- */
-function template_war_room_kdr_gauge(array $player): void
-{
-    global $scripturl;
-
-    $kdr = ($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1);
-    $gaugeOffset = template_war_room_calc_gauge_offset($kdr);
-
-    echo '
-    <div class="stat-card gauge-card clickable" data-url="', $scripturl, '?action=mohaastats;sa=leaderboard;stat=kdr">
-        <h3>Kill/Death Ratio</h3>
-        <div class="gauge-container">
-            <svg viewBox="0 0 200 120" class="gauge-svg">
-                <defs>
-                    <linearGradient id="kdr-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#ef4444"/>
-                        <stop offset="33%" style="stop-color:#eab308"/>
-                        <stop offset="66%" style="stop-color:#22c55e"/>
-                        <stop offset="100%" style="stop-color:#ffd700"/>
-                    </linearGradient>
-                </defs>
-                <path class="gauge-bg" d="M20,100 A80,80 0 0,1 180,100"/>
-                <path class="gauge-fill" d="M20,100 A80,80 0 0,1 180,100" 
-                      style="stroke: url(#kdr-gradient); stroke-dashoffset: ', $gaugeOffset, ';"/>
-                <text x="100" y="85" class="gauge-value">', number_format($kdr, 2), '</text>
-                <text x="100" y="105" class="gauge-label">K/D</text>
-            </svg>
-        </div>
-        <div class="gauge-legend">
-            <span class="bad">0-1</span>
-            <span class="ok">1-2</span>
-            <span class="good">2-5</span>
-            <span class="elite">5+</span>
-        </div>
-    </div>';
-}
-
-/**
- * Human Silhouette Component
- */
-function template_war_room_silhouette(array $player): void
-{
-    $kills = max(1, $player['kills'] ?? 1);
-    $headshots = $player['headshots'] ?? 0;
-    $torsoKills = $player['torso_kills'] ?? ($kills * 0.4);
-    $limbKills = $player['limb_kills'] ?? ($kills * 0.1);
-
-    $headOpacity = min(1, $headshots / $kills);
-    $torsoOpacity = min(1, $torsoKills / $kills);
-    $limbOpacity = min(1, $limbKills / $kills);
-
-    echo '
-    <div class="stat-card silhouette-card">
-        <h3>Hit Distribution</h3>
-        <div class="silhouette-container">
-            <svg viewBox="0 0 100 200" class="human-silhouette">
-                <!-- Head -->
-                <ellipse cx="50" cy="20" rx="15" ry="18" class="body-part head" 
-                         style="fill-opacity: ', $headOpacity, ';"
-                         title="Headshots: ', number_format($headshots), '"/>
-                <!-- Torso -->
-                <path d="M35,40 L65,40 L70,100 L30,100 Z" class="body-part torso"
-                      style="fill-opacity: ', $torsoOpacity, ';"
-                      title="Torso: ', number_format($torsoKills), '"/>
-                <!-- Left Arm -->
-                <path d="M30,45 L15,80 L20,82 L35,50 Z" class="body-part limb"/>
-                <!-- Right Arm -->
-                <path d="M70,45 L85,80 L80,82 L65,50 Z" class="body-part limb"/>
-                <!-- Left Leg -->
-                <path d="M30,100 L25,175 L35,175 L45,100 Z" class="body-part limb"
-                      style="fill-opacity: ', $limbOpacity, ';"/>
-                <!-- Right Leg -->
-                <path d="M55,100 L65,175 L75,175 L70,100 Z" class="body-part limb"
-                      style="fill-opacity: ', $limbOpacity, ';"/>
-            </svg>
-            <div class="silhouette-stats">
-                <div class="sil-stat head-stat">
-                    <span class="icon">🎯</span>
-                    <span class="value">', number_format($headshots), '</span>
-                    <span class="percent">', number_format(($headshots / $kills) * 100, 1), '%</span>
-                    <span class="label">Headshots</span>
+        
+        <!-- ======================= COMBAT TAB ======================= -->
+        <div id="tab-combat" class="tab-content" style="display: block;">
+            <div class="mohaa-grid">
+                <!-- K/D Gauge -->
+                <div class="windowbg stat-card">
+                    <h3>Performance Gauge</h3>
+                    <div style="text-align: center; flex: 1; display: flex; align-items: center; justify-content: center;">
+                        ', template_war_room_kdr_gauge_content($player), '
+                    </div>
                 </div>
-                <div class="sil-stat torso-stat">
-                    <span class="icon">💀</span>
-                    <span class="value">', number_format($torsoKills), '</span>
-                    <span class="percent">', number_format(($torsoKills / $kills) * 100, 1), '%</span>
-                    <span class="label">Torso</span>
+                
+                <!-- Hit Silhouette -->
+                <div class="windowbg stat-card">
+                    <h3>Hit Distribution</h3>
+                    ', template_war_room_silhouette_content($player), '
                 </div>
-                <div class="sil-stat limb-stat">
-                    <span class="icon">🦵</span>
-                    <span class="value">', number_format($limbKills), '</span>
-                    <span class="percent">', number_format(($limbKills / $kills) * 100, 1), '%</span>
-                    <span class="label">Limbs</span>
+                
+                <!-- Kill Streaks -->
+                <div class="windowbg stat-card">
+                    <h3>Kill Streaks</h3>
+                    ', template_war_room_streaks_content($player), '
+                </div>
+                
+                <!-- Accuracy -->
+                <div class="windowbg stat-card">
+                    <h3>Accuracy</h3>
+                    ', template_war_room_accuracy_content($player, $data), '
+                </div>
+                
+                <!-- Special Stats -->
+                <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+                    <h3>Special Achievements</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                        ', template_war_room_special_stats_content($player), '
+                    </div>
                 </div>
             </div>
         </div>
-    </div>';
-}
 
-/**
- * Accuracy Target Component
- */
-function template_war_room_accuracy(array $player, array $data): void
-{
-    global $scripturl;
-
-    $accuracy = $player['accuracy'] ?? 25;
-    $serverAvg = $data['server_avg_accuracy'] ?? 25;
-    $crosshairSize = 90 * (1 - $accuracy / 100);
-
-    echo '
-    <div class="stat-card target-card clickable" data-url="', $scripturl, '?action=mohaastats;sa=leaderboard;stat=accuracy">
-        <h3>Accuracy</h3>
-        <div class="target-container">
-            <svg viewBox="0 0 200 200" class="target-svg">
-                <circle cx="100" cy="100" r="90" class="target-ring ring-1"/>
-                <circle cx="100" cy="100" r="70" class="target-ring ring-2"/>
-                <circle cx="100" cy="100" r="50" class="target-ring ring-3"/>
-                <circle cx="100" cy="100" r="30" class="target-ring ring-4"/>
-                <circle cx="100" cy="100" r="10" class="target-bullseye"/>
-                <!-- Crosshair tightness based on accuracy -->
-                <line x1="100" y1="', (100 - $crosshairSize), '" 
-                      x2="100" y2="', (100 + $crosshairSize), '" 
-                      class="crosshair"/>
-                <line x1="', (100 - $crosshairSize), '" y1="100"
-                      x2="', (100 + $crosshairSize), '" y2="100"
-                      class="crosshair"/>
-            </svg>
-            <div class="accuracy-value">', number_format($accuracy, 1), '%</div>
-        </div>
-        <div class="stat-compare">
-            <span class="compare-label">Server Avg:</span>
-            <span class="compare-value">', number_format($serverAvg, 1), '%</span>
-        </div>
-    </div>';
-}
-
-/**
- * Kill Streaks Component
- */
-function template_war_room_streaks(array $player): void
-{
-    global $scripturl;
-
-    echo '
-    <div class="stat-card streaks-card clickable" data-url="', $scripturl, '?action=mohaastats;sa=leaderboard;stat=killstreak">
-        <h3>Killstreaks</h3>
-        <div class="streaks-container">
-            <div class="streak-best">
-                <span class="streak-icon">🔥</span>
-                <span class="streak-value">', $player['best_killstreak'] ?? 0, '</span>
-                <span class="streak-label">Best Streak</span>
+        <!-- ======================= WEAPONS TAB ======================= -->
+        <div id="tab-weapons" class="tab-content" style="display: none;">
+            <div class="windowbg stat-card">
+                <h3>Weapon Mastery</h3>
+                ', template_war_room_weapons_content($player['weapons'] ?? []), '
             </div>
-            <div class="streak-breakdown">
-                <div class="streak-tier">
-                    <span class="tier-name">5 Kills</span>
-                    <span class="tier-count">', $player['streaks_5'] ?? 0, 'x</span>
+        </div>
+        
+        <!-- ======================= TACTICAL TAB ======================= -->
+        <div id="tab-tactical" class="tab-content" style="display: none;">
+            <div class="mohaa-grid">
+                <div class="windowbg stat-card">
+                    <h3>Movement Profile</h3>
+                    ', template_war_room_movement_content($player), '
                 </div>
-                <div class="streak-tier">
-                    <span class="tier-name">10 Kills</span>
-                    <span class="tier-count">', $player['streaks_10'] ?? 0, 'x</span>
+                <div class="windowbg stat-card">
+                    <h3>Stance Analysis</h3>
+                    ', template_war_room_stance_content($player), '
                 </div>
-                <div class="streak-tier elite">
-                    <span class="tier-name">15+ Kills</span>
-                    <span class="tier-count">', $player['streaks_15'] ?? 0, 'x</span>
+                <div class="windowbg stat-card">
+                    <h3>Rivals</h3>
+                    ', template_war_room_rivals_content($player), '
                 </div>
             </div>
         </div>
-    </div>';
-}
-
-/**
- * Multi-kills Component
- */
-function template_war_room_multikills(array $player): void
-{
-    global $scripturl;
-
-    echo '
-    <div class="stat-card multikill-card">
-        <h3>Multi-Kills</h3>
-        <div class="multikill-grid">
-            <div class="multikill clickable" data-url="', $scripturl, '?action=mohaastats;sa=leaderboard;stat=double_kills">
-                <span class="mk-skulls">💀💀</span>
-                <span class="mk-count">', $player['double_kills'] ?? 0, '</span>
-                <span class="mk-label">Double</span>
-            </div>
-            <div class="multikill clickable" data-url="', $scripturl, '?action=mohaastats;sa=leaderboard;stat=triple_kills">
-                <span class="mk-skulls">💀💀💀</span>
-                <span class="mk-count">', $player['triple_kills'] ?? 0, '</span>
-                <span class="mk-label">Triple</span>
-            </div>
-            <div class="multikill ultra clickable" data-url="', $scripturl, '?action=mohaastats;sa=leaderboard;stat=ultra_kills">
-                <span class="mk-skulls">☠️</span>
-                <span class="mk-count">', $player['ultra_kills'] ?? 0, '</span>
-                <span class="mk-label">ULTRA</span>
+        
+        <!-- ======================= MAPS TAB ======================= -->
+        <div id="tab-maps" class="tab-content" style="display: none;">
+            <div class="windowbg stat-card">
+                <h3>Map Performance</h3>
+                ', template_war_room_maps_content($player['maps'] ?? [], $player), '
             </div>
         </div>
-    </div>';
-}
-
-/**
- * Special Stats Component
- */
-function template_war_room_special_stats(array $player): void
-{
-    global $scripturl;
-
-    $specialStats = [
-        ['nutshots', '🥜', 'Nutshots', $player['nutshots'] ?? 0],
-        ['backstabs', '🗡️', 'Backstabs', $player['backstabs'] ?? 0],
-        ['wallbangs', '💥', 'Wallbangs', $player['wallbangs'] ?? 0],
-        ['first_bloods', '🩸', 'First Bloods', $player['first_bloods'] ?? 0],
-        ['clutches', '🔥', 'Clutches', $player['clutches'] ?? 0],
-        ['revenge_kills', '😈', 'Revenge', $player['revenge_kills'] ?? 0],
-    ];
-
-    echo '
-    <div class="stat-card special-card">
-        <h3>Special Stats</h3>
-        <div class="special-grid">';
-
-    foreach ($specialStats as $stat) {
-        echo '
-            <div class="special-stat clickable" data-url="', $scripturl, '?action=mohaastats;sa=leaderboard;stat=', $stat[0], '">
-                <span class="ss-icon">', $stat[1], '</span>
-                <span class="ss-value">', number_format($stat[3]), '</span>
-                <span class="ss-label">', $stat[2], '</span>
-            </div>';
-    }
-
-    echo '
-        </div>
-    </div>';
-}
-
-/**
- * Weapons Grid
- */
-function template_war_room_weapons(array $weapons): void
-{
-    global $scripturl;
-
-    foreach ($weapons as $weapon => $wstats) {
-        $masteryLevel = template_war_room_weapon_mastery($wstats['kills'] ?? 0);
-        $weaponIcon = template_war_room_weapon_icon($weapon);
-
-        echo '
-        <div class="weapon-card clickable" data-url="', $scripturl, '?action=mohaastats;sa=weapon;weapon=', urlencode($weapon), '">
-            <div class="weapon-icon">', $weaponIcon, '</div>
-            <div class="weapon-info">
-                <h4>', htmlspecialchars($weapon), '</h4>
-                <div class="mastery-tier ', $masteryLevel['class'], '">', $masteryLevel['name'], '</div>
-            </div>
-            <div class="weapon-stats">
-                <div class="wstat">
-                    <span class="wstat-value">', number_format($wstats['kills'] ?? 0), '</span>
-                    <span class="wstat-label">Kills</span>
-                </div>
-                <div class="wstat">
-                    <span class="wstat-value">', number_format($wstats['accuracy'] ?? 0, 1), '%</span>
-                    <span class="wstat-label">Accuracy</span>
-                </div>
-                <div class="wstat">
-                    <span class="wstat-value">', number_format(($wstats['headshots'] ?? 0) / max(1, $wstats['kills'] ?? 1) * 100, 0), '%</span>
-                    <span class="wstat-label">HS %</span>
-                </div>
-            </div>
-            <div class="weapon-mastery-bar">
-                <div class="mastery-fill" style="width: ', $masteryLevel['progress'], '%;"></div>
-            </div>
-        </div>';
-    }
-
-    if (empty($weapons)) {
-        echo '<div class="no-data">No weapon data available</div>';
-    }
-}
-
-/**
- * Movement Stats
- */
-function template_war_room_movement(array $player): void
-{
-    echo '
-    <div class="stat-card movement-card">
-        <h3>Movement Profile</h3>
-        <div class="movement-stats">
-            <div class="mvmt-stat">
-                <span class="mvmt-icon">🏃</span>
-                <span class="mvmt-value">', number_format(($player['distance_traveled'] ?? 0) / 1000, 1), ' km</span>
-                <span class="mvmt-label">Distance</span>
-            </div>
-            <div class="mvmt-stat">
-                <span class="mvmt-icon">🐍</span>
-                <span class="mvmt-value">', number_format(($player['prone_time'] ?? 0) / 60, 0), ' min</span>
-                <span class="mvmt-label">Prone Time</span>
-            </div>
-            <div class="mvmt-stat">
-                <span class="mvmt-icon">🐰</span>
-                <span class="mvmt-value">', number_format($player['jumps'] ?? 0), '</span>
-                <span class="mvmt-label">Jumps</span>
-            </div>
-            <div class="mvmt-stat">
-                <span class="mvmt-icon">⛺</span>
-                <span class="mvmt-value">', number_format(($player['stationary_time'] ?? 0) / 60, 0), ' min</span>
-                <span class="mvmt-label">Camping</span>
-            </div>
-        </div>
-    </div>';
-}
-
-/**
- * Stance Stats
- */
-function template_war_room_stance(array $player): void
-{
-    $standingPct = $player['standing_kills_pct'] ?? 50;
-    $crouchingPct = $player['crouching_kills_pct'] ?? 30;
-    $pronePct = $player['prone_kills_pct'] ?? 20;
-
-    echo '
-    <div class="stat-card stance-card">
-        <h3>Stance Kill Distribution</h3>
-        <div class="stance-bars">
-            <div class="stance-bar">
-                <span class="stance-icon">🧍</span>
-                <div class="bar-container">
-                    <div class="bar-fill" style="width: ', $standingPct, '%;"></div>
-                </div>
-                <span class="stance-value">', $standingPct, '%</span>
-            </div>
-            <div class="stance-bar">
-                <span class="stance-icon">🧎</span>
-                <div class="bar-container">
-                    <div class="bar-fill" style="width: ', $crouchingPct, '%;"></div>
-                </div>
-                <span class="stance-value">', $crouchingPct, '%</span>
-            </div>
-            <div class="stance-bar">
-                <span class="stance-icon">🐍</span>
-                <div class="bar-container">
-                    <div class="bar-fill" style="width: ', $pronePct, '%;"></div>
-                </div>
-                <span class="stance-value">', $pronePct, '%</span>
-            </div>
-        </div>
-    </div>';
-}
-
-/**
- * Rivals (Nemesis & Victim)
- */
-function template_war_room_rivals(array $player): void
-{
-    echo '
-    <div class="stat-card nemesis-card">
-        <h3>Rivals</h3>
-        <div class="rivals-container">
-            <div class="rival nemesis">
-                <div class="rival-header">
-                    <span class="rival-icon">😡</span>
-                    <span class="rival-title">NEMESIS</span>
-                </div>
-                <div class="wanted-poster">
-                    <div class="poster-name">', htmlspecialchars($player['nemesis_name'] ?? 'None'), '</div>
-                    <div class="poster-stats">Killed you ', $player['nemesis_deaths'] ?? 0, ' times</div>
-                </div>
-            </div>
-            <div class="rival victim">
-                <div class="rival-header">
-                    <span class="rival-icon">😈</span>
-                    <span class="rival-title">VICTIM</span>
-                </div>
-                <div class="tombstone">
-                    <div class="tomb-name">', htmlspecialchars($player['victim_name'] ?? 'None'), '</div>
-                    <div class="tomb-stats">You killed them ', $player['victim_kills'] ?? 0, ' times</div>
+        
+         <!-- ======================= MATCHES TAB ======================= -->
+        <div id="tab-matches" class="tab-content" style="display: none;">
+             <div class="windowbg stat-card">
+                <h3>Recent Match History</h3>
+                <div style="overflow-x: auto;">
+                    ', template_war_room_matches_content($player['recent_matches'] ?? []), '
                 </div>
             </div>
         </div>
-    </div>';
-}
 
-/**
- * Maps Grid
- */
-function template_war_room_maps(array $maps, array $player): void
-{
-    global $scripturl;
+    </div>
 
-    foreach ($maps as $mapName => $mstats) {
-        $isBest = ($mapName === ($player['best_map'] ?? ''));
-        $isWorst = ($mapName === ($player['worst_map'] ?? ''));
-        $mapClass = $isBest ? 'best-map' : ($isWorst ? 'worst-map' : '');
-
-        echo '
-        <div class="map-card ', $mapClass, ' clickable" data-url="', $scripturl, '?action=mohaastats;sa=map;map=', urlencode($mapName), '">
-            <div class="map-image" style="background-image: url(\'/images/maps/', htmlspecialchars($mapName), '.jpg\');">
-                <div class="map-overlay">';
-
-        if ($isBest) {
-            echo '<span class="map-stamp best">HIGH GROUND</span>';
-        } elseif ($isWorst) {
-            echo '<span class="map-stamp worst">NO GO ZONE</span>';
+    <script>
+        function showTab(tabName) {
+            // Hide all tabs
+            var content = document.getElementsByClassName("tab-content");
+            for (var i = 0; i < content.length; i++) {
+                content[i].style.display = "none";
+            }
+            // Show selected
+            document.getElementById("tab-" + tabName).style.display = "block";
+            
+            // Update buttons
+            var buttons = document.getElementsByClassName("mohaa-tab");
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove("active");
+                if (buttons[i].getAttribute("onclick").includes(tabName)) {
+                    buttons[i].classList.add("active");
+                }
+            }
         }
+    </script>';
+}
 
-        echo '
+// =========================================================================
+// HELPER FUNCTIONS (Pure Content Generation, Minimal Styling)
+// =========================================================================
+
+function template_war_room_kdr_gauge_content($player) {
+    $kdr = ($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1);
+    $percent = min(100, ($kdr / 5) * 100);
+    $offset = 251.2 - (251.2 * $percent / 100);
+    
+    return '
+    <div style="position: relative; width: 220px;">
+        <svg viewBox="0 0 200 120" class="gauge-svg">
+            <path d="M20,100 A80,80 0 0,1 180,100" fill="none" class="gauge-bg" stroke="rgba(128,128,128,0.2)" stroke-width="15" stroke-linecap="round"/>
+            <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="var(--mohaa-accent)" stroke-width="15" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="'.$offset.'"/>
+            <text x="100" y="85" font-size="2.2em" font-weight="bold" text-anchor="middle" fill="currentColor">'.number_format($kdr, 2).'</text>
+            <text x="100" y="105" font-size="0.8em" text-anchor="middle" opacity="0.6" fill="currentColor">Ratio</text>
+        </svg>
+    </div>';
+}
+
+function template_war_room_silhouette_content($player) {
+    $kills = max(1, $player['kills'] ?? 1);
+    $head = $player['headshots'] ?? 0;
+    $torso = $player['torso_kills'] ?? ($kills * 0.4); 
+    
+    return '
+    <div style="display: flex; justify-content: center; gap: 20px; align-items: center; padding: 10px;">
+        <svg viewBox="0 0 100 200" style="width: 80px; height: 160px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">
+             <ellipse cx="50" cy="20" rx="15" ry="18" fill="#f44336" fill-opacity="'.max(0.2, min(1, $head/$kills)).'"/>
+             <path d="M35,40 L65,40 L70,100 L30,100 Z" fill="#ff9800" fill-opacity="'.max(0.2, min(1, $torso/$kills)).'"/>
+             <rect x="30" y="100" width="15" height="75" fill="#2196f3" fill-opacity="0.3"/>
+             <rect x="55" y="100" width="15" height="75" fill="#2196f3" fill-opacity="0.3"/>
+        </svg>
+        <div style="text-align: left; font-size: 0.9em;">
+            <div style="margin-bottom: 8px;"><strong style="color: #f44336;">Head:</strong> '.number_format(round($head/$kills*100,1)).'%</div>
+            <div style="margin-bottom: 8px;"><strong style="color: #ff9800;">Torso:</strong> '.number_format(round($torso/$kills*100,1)).'%</div>
+            <div><strong style="color: #2196f3;">Limbs:</strong> '.number_format(100 - round($head/$kills*100,1) - round($torso/$kills*100,1),1).'%</div>
+        </div>
+    </div>';
+}
+
+function template_war_room_streaks_content($player) {
+    return '
+    <div class="streak-grid">
+        <div class="streak-item">
+            <div style="font-size: 1.8em; font-weight: bold; color: var(--mohaa-warning);">'.($player['best_killstreak'] ?? 0).'</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">Best Streak</div>
+        </div>
+        <div class="streak-item">
+            <div style="font-size: 1.8em; font-weight: bold;">'.($player['streaks_5'] ?? 0).'</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">Rampages (5+)</div>
+        </div>
+        <div class="streak-item" style="grid-column: span 2;">
+            <div style="font-size: 1.2em; font-weight: bold;">'.($player['streaks_10'] ?? 0).'</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">Dominations (10+)</div>
+        </div>
+    </div>';
+}
+
+function template_war_room_accuracy_content($player, $data) {
+    $accuracy = $player['accuracy'] ?? 0;
+    $serverAvg = $data['server_avg_accuracy'] ?? 25;
+    
+    return '
+    <div style="text-align: center; padding: 15px;">
+        <div style="font-size: 2.5em; font-weight: bold; color: var(--mohaa-success);">'.number_format($accuracy, 1).'%</div>
+        <div style="font-size: 0.9em; opacity: 0.7; margin-bottom: 15px;">Target Hit Rate</div>
+        
+        <div style="background: rgba(0,0,0,0.1); border-radius: 4px; padding: 10px; font-size: 0.9em;">
+            Server Avg: <strong>'.number_format($serverAvg, 1).'%</strong>
+        </div>
+    </div>';
+}
+
+function template_war_room_special_stats_content($player) {
+    $specials = [
+        '🥜 Nutshots' => $player['nutshots'] ?? 0,
+        '🗡️ Backstabs' => $player['backstabs'] ?? 0,
+        '💥 Wallbangs' => $player['wallbangs'] ?? 0,
+        '🩸 First Blood' => $player['first_bloods'] ?? 0,
+         '☠️ Multi-Kills' => ($player['multi_5plus'] ?? 0),
+         '🔥 Clutches' => ($player['clutches'] ?? 0),
+    ];
+    
+    $html = '';
+    foreach ($specials as $label => $val) {
+        $html .= '
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 6px;">
+            <span>'.$label.'</span>
+            <strong style="font-size: 1.2em;">'.number_format($val).'</strong>
+        </div>';
+    }
+    return $html;
+}
+
+function template_war_room_weapons_content($weapons) {
+    if (empty($weapons)) return '<p style="padding: 20px; text-align: center; opacity: 0.6;">No weapon data recorded yet.</p>';
+    
+    $html = '<div class="weapon-list-grid">';
+    foreach ($weapons as $name => $stats) {
+        $icon = template_war_room_weapon_icon($name);
+        $kills = $stats['kills'] ?? 0;
+        $acc = $stats['accuracy'] ?? 0;
+        
+        // Simple mastery progress
+        $progress = min(100, ($kills / 1000) * 100);
+        
+        $html .= '
+        <div class="weapon-card">
+            <div style="font-size: 2em;">'.$icon.'</div>
+            <div style="flex: 1;">
+                <div style="font-weight: bold; font-size: 1.1em;">'.htmlspecialchars($name).'</div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85em; opacity: 0.8; margin: 5px 0;">
+                    <span>'.$kills.' Kills</span>
+                    <span>'.number_format($acc,1).'% Acc</span>
                 </div>
-            </div>
-            <div class="map-info">
-                <h4>', htmlspecialchars($mapName), '</h4>
-                <div class="map-stats">
-                    <span>K: ', $mstats['kills'] ?? 0, '</span>
-                    <span>D: ', $mstats['deaths'] ?? 0, '</span>
-                    <span>W: ', $mstats['wins'] ?? 0, '</span>
+                <div style="height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px;">
+                    <div style="width: '.$progress.'%; height: 100%; background: var(--mohaa-accent); border-radius: 2px;"></div>
                 </div>
             </div>
         </div>';
     }
-
-    if (empty($maps)) {
-        echo '<div class="no-data">No map data available</div>';
-    }
+    $html .= '</div>';
+    return $html;
 }
 
-/**
- * Recent Matches Table
- */
-function template_war_room_matches(array $matches): void
-{
-    echo '
-    <table class="matches-table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Map</th>
-                <th>Result</th>
-                <th>K</th>
-                <th>D</th>
-                <th>Score</th>
-            </tr>
-        </thead>
-        <tbody>';
-
-    foreach ($matches as $match) {
-        $resultClass = ($match['result'] ?? '') === 'win' ? 'win' : 'loss';
-        echo '
-            <tr class="', $resultClass, '">
-                <td>', timeformat($match['date'] ?? time(), '%b %d'), '</td>
-                <td>', htmlspecialchars($match['map'] ?? 'Unknown'), '</td>
-                <td><span class="result-badge">', strtoupper($match['result'] ?? 'N/A'), '</span></td>
-                <td>', $match['kills'] ?? 0, '</td>
-                <td>', $match['deaths'] ?? 0, '</td>
-                <td>', $match['score'] ?? 0, '</td>
-            </tr>';
-    }
-
-    if (empty($matches)) {
-        echo '<tr><td colspan="6" class="no-data">No match data available</td></tr>';
-    }
-
-    echo '
-        </tbody>
-    </table>';
+function template_war_room_movement_content($player) {
+    return '
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; text-align: center;">
+        <div class="streak-item">
+            <div style="font-size: 2em; margin-bottom: 5px;">🏃</div>
+            <strong>'.number_format(($player['distance_traveled'] ?? 0) / 1000, 1).' km</strong>
+            <div style="font-size: 0.8em; opacity: 0.7;">Traveled</div>
+        </div>
+        <div class="streak-item">
+            <div style="font-size: 2em; margin-bottom: 5px;">🐇</div>
+            <strong>'.number_format($player['jumps'] ?? 0).'</strong>
+            <div style="font-size: 0.8em; opacity: 0.7;">Jumps</div>
+        </div>
+    </div>';
 }
 
-/**
- * Helper: Calculate gauge offset
- */
-function template_war_room_calc_gauge_offset(float $kdr): float
-{
-    $percent = min(100, ($kdr / 5) * 100);
-    $circumference = 251.2;
-    return $circumference - ($circumference * $percent / 100);
+function template_war_room_stance_content($player) {
+    return '
+    <div style="padding: 10px;">
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
+                <span>Standing</span>
+                <strong>'.($player['standing_kills_pct'] ?? 0).'%</strong>
+            </div>
+            <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
+                <div style="width: '.($player['standing_kills_pct'] ?? 0).'%; height: 100%; background: #2196f3; border-radius: 4px;"></div>
+            </div>
+        </div>
+         <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
+                <span>Crouching</span>
+                <strong>'.($player['crouching_kills_pct'] ?? 0).'%</strong>
+            </div>
+            <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
+                <div style="width: '.($player['crouching_kills_pct'] ?? 0).'%; height: 100%; background: #4caf50; border-radius: 4px;"></div>
+            </div>
+        </div>
+         <div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
+                <span>Prone</span>
+                <strong>'.($player['prone_kills_pct'] ?? 0).'%</strong>
+            </div>
+            <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
+                <div style="width: '.($player['prone_kills_pct'] ?? 0).'%; height: 100%; background: #ff9800; border-radius: 4px;"></div>
+            </div>
+        </div>
+    </div>';
 }
 
-/**
- * Helper: Get rank icon
- */
+function template_war_room_rivals_content($player) {
+    return '
+    <div style="display: grid; gap: 15px;">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-left: 3px solid #f44336; background: rgba(244, 67, 54, 0.05);">
+            <div style="font-size: 1.5em;">😡</div>
+            <div>
+                <div style="font-size: 0.8em; color: #f44336; font-weight: bold;">NEMESIS</div>
+                <div style="font-weight: bold;">'.htmlspecialchars($player['nemesis_name'] ?? 'None').'</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">Result: '.($player['nemesis_deaths'] ?? 0).' deaths</div>
+            </div>
+        </div>
+         <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-left: 3px solid #4caf50; background: rgba(76, 175, 80, 0.05);">
+             <div style="font-size: 1.5em;">😈</div>
+            <div>
+                <div style="font-size: 0.8em; color: #4caf50; font-weight: bold;">VICTIM</div>
+                <div style="font-weight: bold;">'.htmlspecialchars($player['victim_name'] ?? 'None').'</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">Result: '.($player['victim_kills'] ?? 0).' kills</div>
+            </div>
+        </div>
+    </div>';
+}
+
+function template_war_room_maps_content($maps, $player) {
+    if (empty($maps)) return '<p class="centertext" style="opacity: 0.6; padding: 20px;">No map data.</p>';
+    
+    $html = '<div class="map-card-grid">';
+    foreach ($maps as $name => $stats) {
+        $isBest = $name === ($player['best_map'] ?? '');
+        $style = $isBest ? 'border-color: var(--mohaa-success); background: rgba(76, 175, 80, 0.1);' : '';
+        
+        $html .= '
+        <div class="stat-card" style="padding: 15px; text-align: center; '.$style.'">
+            <div style="font-weight: bold; margin-bottom: 5px;">'.htmlspecialchars($name).'</div>
+            '.($isBest ? '<div style="font-size: 0.7em; color: var(--mohaa-success); font-weight: bold; margin-bottom: 5px;">BEST MAP</div>' : '').'
+            <div style="font-size: 0.9em;">
+                <div>Kills: <strong>'.($stats['kills'] ?? 0).'</strong></div>
+                <div>Wins: '.($stats['wins'] ?? 0).'</div>
+            </div>
+        </div>';
+    }
+    $html .= '</div>';
+    return $html;
+}
+
+function template_war_room_matches_content($matches) {
+    if (empty($matches)) return '<p class="centertext" style="opacity: 0.6; padding: 20px;">No matches played recently.</p>';
+    
+    $html = '<table class="clean-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Map</th>
+                        <th>Result</th>
+                        <th>Kills</th>
+                        <th>Deaths</th>
+                        <th>Score</th>
+                    </tr>
+                </thead>
+                <tbody>';
+                
+    foreach ($matches as $m) {
+        $res = $m['result'] ?? 'draw';
+        $resClass = $res === 'win' ? 'color: var(--mohaa-success);' : ($res === 'loss' ? 'color: var(--mohaa-danger);' : '');
+        
+        $html .= '
+        <tr>
+            <td>'.timeformat($m['date'] ?? time(), '%b %d').'</td>
+            <td>'.htmlspecialchars($m['map'] ?? 'Unknown').'</td>
+            <td style="font-weight: bold; '.$resClass.'">'.strtoupper($res).'</td>
+            <td>'.($m['kills'] ?? 0).'</td>
+            <td>'.($m['deaths'] ?? 0).'</td>
+            <td>'.($m['score'] ?? 0).'</td>
+        </tr>';
+    }
+    
+    $html .= '</tbody></table>';
+    return $html;
+}
+
 function template_war_room_rank_icon(int $kills): string
 {
     if ($kills >= 100000) return '👑';
@@ -621,22 +586,6 @@ function template_war_room_rank_icon(int $kills): string
     return '🎖️';
 }
 
-/**
- * Helper: Get weapon mastery level
- */
-function template_war_room_weapon_mastery(int $kills): array
-{
-    if ($kills >= 5000) return ['name' => 'Diamond', 'class' => 'diamond', 'progress' => 100];
-    if ($kills >= 2500) return ['name' => 'Platinum', 'class' => 'platinum', 'progress' => 100];
-    if ($kills >= 1000) return ['name' => 'Gold', 'class' => 'gold', 'progress' => (($kills - 1000) / 1500) * 100];
-    if ($kills >= 500) return ['name' => 'Silver', 'class' => 'silver', 'progress' => (($kills - 500) / 500) * 100];
-    if ($kills >= 100) return ['name' => 'Bronze', 'class' => 'bronze', 'progress' => (($kills - 100) / 400) * 100];
-    return ['name' => 'Recruit', 'class' => 'recruit', 'progress' => ($kills / 100) * 100];
-}
-
-/**
- * Helper: Get weapon icon
- */
 function template_war_room_weapon_icon(string $weapon): string
 {
     $icons = [
@@ -645,705 +594,4 @@ function template_war_room_weapon_icon(string $weapon): string
         'StG44' => '🔫', 'Grenade' => '💣', 'Knife' => '🔪', 'Pistol' => '🔫',
     ];
     return $icons[$weapon] ?? '🔫';
-}
-
-/**
- * War Room Styles
- */
-function template_war_room_styles(): void
-{
-    echo '
-    <style>
-        /* ============================================
-           WAR ROOM - Command & Control Dashboard
-           ============================================ */
-        
-        .mohaa-war-room {
-            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 12px;
-            overflow: hidden;
-            color: #e0e0e0;
-        }
-        
-        /* Header */
-        .war-room-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 30px;
-            background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
-            border-bottom: 4px solid #4a5d23;
-        }
-        
-        .operator-identity {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        
-        .operator-rank {
-            font-size: 4em;
-            filter: drop-shadow(0 0 15px rgba(255,215,0,0.5));
-        }
-        
-        .operator-info h1 {
-            margin: 0;
-            font-size: 2em;
-            color: #fff;
-            font-family: "Impact", sans-serif;
-            letter-spacing: 2px;
-        }
-        
-        .operator-tags { margin-top: 5px; }
-        
-        .clan-tag {
-            background: #4a5d23;
-            padding: 3px 10px;
-            border-radius: 4px;
-            font-size: 0.9em;
-            margin-right: 10px;
-        }
-        
-        .elo-badge { color: #ffd700; }
-        
-        .quick-stats { display: flex; gap: 30px; }
-        
-        .quick-stat {
-            text-align: center;
-            padding: 15px 25px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            border: 1px solid #333;
-        }
-        
-        .quick-stat.deaths { opacity: 0.7; }
-        
-        .qs-value {
-            display: block;
-            font-size: 2.5em;
-            font-weight: bold;
-            color: #ffd700;
-            font-family: "Courier New", monospace;
-        }
-        
-        .qs-label {
-            font-size: 0.75em;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-        
-        /* Tabs */
-        .war-room-tabs {
-            display: flex;
-            background: #0d1b2a;
-            border-bottom: 1px solid #333;
-        }
-        
-        .war-room-tabs .tab {
-            flex: 1;
-            padding: 15px;
-            border: none;
-            background: none;
-            color: #888;
-            font-size: 1em;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s;
-        }
-        
-        .war-room-tabs .tab:hover,
-        .war-room-tabs .tab.active {
-            color: #ffd700;
-            border-bottom-color: #4a5d23;
-            background: rgba(74, 93, 35, 0.1);
-        }
-        
-        /* Sections */
-        .war-room-section {
-            display: none;
-            padding: 25px;
-        }
-        
-        .war-room-section.active { display: block; }
-        
-        .section-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        
-        /* Stat Cards */
-        .stat-card {
-            background: rgba(0,0,0,0.3);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid #333;
-            transition: all 0.3s;
-        }
-        
-        .stat-card:hover {
-            border-color: #4a5d23;
-            transform: translateY(-2px);
-        }
-        
-        .stat-card.clickable,
-        .clickable { cursor: pointer; }
-        
-        .stat-card h3 {
-            margin: 0 0 15px;
-            color: #ffd700;
-            font-size: 1em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 10px;
-        }
-        
-        /* Gauge */
-        .gauge-container { text-align: center; }
-        .gauge-svg { width: 200px; height: 120px; }
-        
-        .gauge-bg {
-            fill: none;
-            stroke: #333;
-            stroke-width: 15;
-            stroke-linecap: round;
-        }
-        
-        .gauge-fill {
-            fill: none;
-            stroke-width: 15;
-            stroke-linecap: round;
-            stroke-dasharray: 251.2;
-            transition: stroke-dashoffset 1s ease-out;
-        }
-        
-        .gauge-value {
-            fill: #fff;
-            font-size: 2em;
-            font-weight: bold;
-            text-anchor: middle;
-            font-family: "Courier New", monospace;
-        }
-        
-        .gauge-label {
-            fill: #888;
-            font-size: 0.9em;
-            text-anchor: middle;
-        }
-        
-        .gauge-legend {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.75em;
-            color: #666;
-            margin-top: 10px;
-        }
-        
-        .gauge-legend .bad { color: #ef4444; }
-        .gauge-legend .ok { color: #eab308; }
-        .gauge-legend .good { color: #22c55e; }
-        .gauge-legend .elite { color: #ffd700; }
-        
-        /* Silhouette */
-        .silhouette-container {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        
-        .human-silhouette { width: 100px; height: 200px; }
-        
-        .body-part {
-            stroke: #fff;
-            stroke-width: 0.5;
-            transition: fill-opacity 0.3s;
-        }
-        
-        .body-part.head { fill: #ef4444; }
-        .body-part.torso { fill: #eab308; }
-        .body-part.limb { fill: #3b82f6; }
-        
-        .silhouette-stats { flex: 1; }
-        
-        .sil-stat {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 0;
-            border-bottom: 1px solid #333;
-        }
-        
-        .sil-stat .icon { font-size: 1.5em; }
-        .sil-stat .value { font-weight: bold; color: #fff; min-width: 60px; }
-        .sil-stat .percent { color: #4ade80; font-size: 0.9em; }
-        .sil-stat .label { color: #888; margin-left: auto; }
-        
-        /* Target */
-        .target-container { text-align: center; position: relative; }
-        .target-svg { width: 150px; height: 150px; }
-        
-        .target-ring { fill: none; stroke: #333; stroke-width: 2; }
-        .target-ring.ring-4 { stroke: #4a5d23; }
-        .target-bullseye { fill: #ef4444; }
-        .crosshair { stroke: #ffd700; stroke-width: 2; }
-        
-        .accuracy-value {
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 2em;
-            font-weight: bold;
-            color: #ffd700;
-        }
-        
-        .stat-compare {
-            text-align: center;
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 1px solid #333;
-        }
-        
-        .compare-label { color: #888; }
-        .compare-value { color: #4ecdc4; margin-left: 5px; }
-        
-        /* Streaks */
-        .streaks-container { text-align: center; }
-        .streak-best { margin-bottom: 20px; }
-        .streak-icon { font-size: 2em; }
-        .streak-value { display: block; font-size: 3em; font-weight: bold; color: #ffd700; }
-        .streak-label { color: #888; text-transform: uppercase; font-size: 0.8em; }
-        .streak-breakdown { display: flex; gap: 10px; }
-        
-        .streak-tier {
-            flex: 1;
-            padding: 10px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 6px;
-            text-align: center;
-        }
-        
-        .streak-tier.elite {
-            background: rgba(255, 215, 0, 0.1);
-            border: 1px solid #ffd700;
-        }
-        
-        .tier-name { display: block; font-size: 0.8em; color: #888; }
-        .tier-count { font-weight: bold; color: #fff; }
-        
-        /* Multi-kills */
-        .multikill-grid { display: flex; gap: 15px; }
-        
-        .multikill {
-            flex: 1;
-            text-align: center;
-            padding: 15px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            transition: all 0.3s;
-        }
-        
-        .multikill:hover { background: rgba(255,255,255,0.05); }
-        
-        .multikill.ultra {
-            background: linear-gradient(135deg, rgba(139,0,0,0.3), rgba(0,0,0,0.3));
-            border: 1px solid #8b0000;
-        }
-        
-        .mk-skulls { display: block; font-size: 1.5em; margin-bottom: 5px; }
-        .mk-count { display: block; font-size: 1.8em; font-weight: bold; color: #fff; }
-        .mk-label { font-size: 0.75em; color: #888; }
-        
-        /* Special Stats */
-        .special-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        
-        .special-stat {
-            text-align: center;
-            padding: 15px 10px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 8px;
-            transition: all 0.3s;
-        }
-        
-        .special-stat:hover {
-            background: rgba(255,255,255,0.05);
-            transform: scale(1.05);
-        }
-        
-        .ss-icon { display: block; font-size: 1.8em; margin-bottom: 5px; }
-        .ss-value { display: block; font-size: 1.5em; font-weight: bold; color: #fff; }
-        .ss-label { font-size: 0.7em; color: #888; }
-        
-        /* Weapons */
-        .armoury-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 15px;
-        }
-        
-        .weapon-card {
-            display: flex;
-            flex-direction: column;
-            background: rgba(0,0,0,0.3);
-            border-radius: 12px;
-            padding: 15px;
-            border: 1px solid #333;
-            transition: all 0.3s;
-        }
-        
-        .weapon-card:hover {
-            border-color: #4a5d23;
-            transform: translateY(-3px);
-        }
-        
-        .weapon-icon { font-size: 3em; text-align: center; margin-bottom: 10px; }
-        .weapon-info { text-align: center; }
-        .weapon-info h4 { margin: 0 0 5px; color: #fff; }
-        
-        .mastery-tier {
-            font-size: 0.8em;
-            padding: 3px 10px;
-            border-radius: 4px;
-            display: inline-block;
-        }
-        
-        .mastery-tier.recruit { background: #333; color: #888; }
-        .mastery-tier.bronze { background: #cd7f32; color: #fff; }
-        .mastery-tier.silver { background: #c0c0c0; color: #333; }
-        .mastery-tier.gold { background: #ffd700; color: #333; }
-        .mastery-tier.platinum { background: #e5e4e2; color: #333; }
-        .mastery-tier.diamond { background: linear-gradient(135deg, #b9f2ff, #00d4ff); color: #333; }
-        
-        .weapon-stats { display: flex; justify-content: space-around; margin: 15px 0; }
-        .wstat { text-align: center; }
-        .wstat-value { display: block; font-size: 1.2em; font-weight: bold; color: #ffd700; }
-        .wstat-label { font-size: 0.7em; color: #888; }
-        
-        .weapon-mastery-bar {
-            height: 4px;
-            background: #333;
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        
-        .mastery-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4a5d23, #ffd700);
-            border-radius: 2px;
-        }
-        
-        /* Movement */
-        .movement-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        
-        .mvmt-stat {
-            text-align: center;
-            padding: 15px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 8px;
-        }
-        
-        .mvmt-icon { display: block; font-size: 2em; margin-bottom: 5px; }
-        .mvmt-value { display: block; font-size: 1.3em; font-weight: bold; color: #fff; }
-        .mvmt-label { font-size: 0.75em; color: #888; }
-        
-        /* Stance */
-        .stance-bars { display: flex; flex-direction: column; gap: 15px; }
-        .stance-bar { display: flex; align-items: center; gap: 10px; }
-        .stance-icon { font-size: 1.5em; width: 40px; }
-        
-        .bar-container {
-            flex: 1;
-            height: 20px;
-            background: #333;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        
-        .bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4a5d23, #6b8e23);
-            border-radius: 10px;
-        }
-        
-        .stance-value { width: 50px; text-align: right; font-weight: bold; color: #fff; }
-        
-        /* Rivals */
-        .rivals-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        
-        .rival {
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-        }
-        
-        .rival.nemesis {
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(0,0,0,0.3));
-            border: 1px solid #ef4444;
-        }
-        
-        .rival.victim {
-            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(0,0,0,0.3));
-            border: 1px solid #22c55e;
-        }
-        
-        .rival-header { margin-bottom: 15px; }
-        .rival-icon { font-size: 2em; }
-        .rival-title { display: block; font-size: 0.8em; color: #888; text-transform: uppercase; letter-spacing: 2px; }
-        
-        .wanted-poster, .tombstone {
-            padding: 15px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-        }
-        
-        .poster-name, .tomb-name { font-size: 1.2em; font-weight: bold; color: #fff; margin-bottom: 5px; }
-        .poster-stats, .tomb-stats { font-size: 0.85em; color: #888; }
-        
-        /* Maps */
-        .maps-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-        }
-        
-        .map-card {
-            border-radius: 12px;
-            overflow: hidden;
-            background: #000;
-            transition: all 0.3s;
-        }
-        
-        .map-card:hover { transform: scale(1.02); }
-        .map-card.best-map { box-shadow: 0 0 20px rgba(34, 197, 94, 0.5); }
-        .map-card.worst-map { box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
-        
-        .map-image {
-            height: 120px;
-            background-size: cover;
-            background-position: center;
-            background-color: #2a2a4a;
-            position: relative;
-        }
-        
-        .map-overlay {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .map-stamp {
-            padding: 5px 15px;
-            font-weight: bold;
-            transform: rotate(-15deg);
-            border: 3px solid;
-            font-size: 0.8em;
-        }
-        
-        .map-stamp.best { border-color: #22c55e; color: #22c55e; background: rgba(0,0,0,0.7); }
-        .map-stamp.worst { border-color: #ef4444; color: #ef4444; background: rgba(0,0,0,0.7); }
-        
-        .map-info { padding: 10px; background: rgba(0,0,0,0.8); }
-        .map-info h4 { margin: 0 0 5px; color: #fff; font-size: 0.9em; }
-        .map-stats { font-size: 0.75em; color: #888; }
-        .map-stats span { margin-right: 10px; }
-        
-        /* Matches Table */
-        .matches-table { width: 100%; border-collapse: collapse; }
-        
-        .matches-table th {
-            padding: 12px;
-            background: #0d1b2a;
-            text-align: left;
-            border-bottom: 2px solid #4a5d23;
-            color: #ffd700;
-            font-size: 0.85em;
-        }
-        
-        .matches-table td { padding: 12px; border-bottom: 1px solid #333; }
-        .matches-table tr:hover { background: rgba(255,255,255,0.03); }
-        .matches-table tr.win td:first-child { border-left: 3px solid #22c55e; }
-        .matches-table tr.loss td:first-child { border-left: 3px solid #ef4444; }
-        
-        .result-badge {
-            padding: 3px 10px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
-        
-        .win .result-badge { background: #22c55e; color: #fff; }
-        .loss .result-badge { background: #ef4444; color: #fff; }
-        
-        .no-data { text-align: center; padding: 40px; color: #666; }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .war-room-header { flex-direction: column; gap: 20px; }
-            .quick-stats { flex-wrap: wrap; justify-content: center; }
-            .silhouette-container { flex-direction: column; }
-            .rivals-container { grid-template-columns: 1fr; }
-            .multikill-grid { flex-direction: column; }
-        }
-    </style>';
-}
-
-/**
- * War Room Scripts
- */
-function template_war_room_scripts(): void
-{
-    echo '
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            // Tab switching
-            document.querySelectorAll(".war-room-tabs .tab").forEach(function(tab) {
-                tab.addEventListener("click", function() {
-                    document.querySelectorAll(".war-room-tabs .tab").forEach(t => t.classList.remove("active"));
-                    document.querySelectorAll(".war-room-section").forEach(s => s.classList.remove("active"));
-                    
-                    this.classList.add("active");
-                    document.getElementById("section-" + this.dataset.section).classList.add("active");
-                });
-            });
-            
-            // Clickable stats (drill-down to leaderboard)
-            document.querySelectorAll(".clickable[data-url]").forEach(function(el) {
-                el.addEventListener("click", function() {
-                    window.location.href = this.dataset.url;
-                });
-            });
-        });
-    </script>';
-}
-
-/**
- * Stat Leaderboard Drill-down
- */
-function template_mohaa_stat_leaderboard()
-{
-    global $context, $txt, $scripturl;
-
-    $data = $context['mohaa_leaderboard'];
-
-    echo '
-    <div class="mohaa-drill-down">
-        <div class="drill-header">
-            <a href="', $scripturl, '?action=mohaadashboard" class="back-link">← Back to Dashboard</a>
-            <h2>', template_war_room_stat_icon($data['stat']), ' ', htmlspecialchars($data['stat_name']), ' Leaderboard</h2>
-            <div class="drill-meta">Top 100 Players</div>
-        </div>
-        
-        <table class="leaderboard-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Player</th>
-                    <th>', htmlspecialchars($data['stat_name']), '</th>
-                    <th>Profile</th>
-                </tr>
-            </thead>
-            <tbody>';
-
-    foreach ($data['players'] as $rank => $player) {
-        $rankClass = match($rank) {
-            0 => 'gold', 1 => 'silver', 2 => 'bronze', default => ''
-        };
-
-        echo '
-                <tr class="rank-', $rankClass, '">
-                    <td><span class="rank-number">', ($rank + 1), '</span></td>
-                    <td><a href="', $scripturl, '?action=profile;u=', $player['id_member'], '">', htmlspecialchars($player['name']), '</a></td>
-                    <td><strong>', number_format($player['value'], $data['decimals'] ?? 0), '</strong></td>
-                    <td><a href="', $scripturl, '?action=mohaadashboard;u=', $player['id_member'], '" class="profile-btn">View Stats</a></td>
-                </tr>';
-    }
-
-    echo '
-            </tbody>
-        </table>
-    </div>';
-
-    template_drill_down_styles();
-}
-
-/**
- * Helper: Stat icons
- */
-function template_war_room_stat_icon(string $stat): string
-{
-    $icons = [
-        'kills' => '💀', 'deaths' => '⚰️', 'kdr' => '📊',
-        'headshots' => '🎯', 'accuracy' => '⊕', 'killstreak' => '🔥',
-        'nutshots' => '🥜', 'backstabs' => '🗡️', 'wallbangs' => '💥',
-        'first_bloods' => '🩸', 'double_kills' => '💀💀', 'triple_kills' => '💀💀💀',
-    ];
-    return $icons[$stat] ?? '📈';
-}
-
-/**
- * Drill-down styles
- */
-function template_drill_down_styles(): void
-{
-    echo '
-    <style>
-        .mohaa-drill-down {
-            background: #1a1a2e;
-            border-radius: 12px;
-            overflow: hidden;
-            color: #e0e0e0;
-        }
-        
-        .drill-header {
-            padding: 25px;
-            background: linear-gradient(135deg, #0f3460, #16213e);
-            border-bottom: 3px solid #4a5d23;
-        }
-        
-        .back-link { color: #4ecdc4; text-decoration: none; font-size: 0.9em; }
-        .drill-header h2 { margin: 15px 0 5px; color: #ffd700; }
-        .drill-meta { color: #888; }
-        
-        .leaderboard-table { width: 100%; border-collapse: collapse; }
-        
-        .leaderboard-table th {
-            padding: 15px;
-            background: #0d1b2a;
-            text-align: left;
-            border-bottom: 2px solid #4a5d23;
-            color: #ffd700;
-            text-transform: uppercase;
-            font-size: 0.85em;
-        }
-        
-        .leaderboard-table td { padding: 15px; border-bottom: 1px solid #333; }
-        .leaderboard-table tr:hover { background: rgba(255,255,255,0.03); }
-        
-        .rank-gold td { background: rgba(255, 215, 0, 0.1); }
-        .rank-silver td { background: rgba(192, 192, 192, 0.1); }
-        .rank-bronze td { background: rgba(205, 127, 50, 0.1); }
-        
-        .rank-number { font-weight: bold; font-size: 1.2em; }
-        .rank-gold .rank-number { color: #ffd700; }
-        .rank-silver .rank-number { color: #c0c0c0; }
-        .rank-bronze .rank-number { color: #cd7f32; }
-        
-        .leaderboard-table td a { color: #4ecdc4; text-decoration: none; }
-        
-        .profile-btn {
-            display: inline-block;
-            padding: 5px 15px;
-            background: #4a5d23;
-            color: #fff;
-            border-radius: 4px;
-            text-decoration: none;
-            font-size: 0.85em;
-        }
-        
-        .profile-btn:hover { background: #6b8e23; }
-    </style>';
 }

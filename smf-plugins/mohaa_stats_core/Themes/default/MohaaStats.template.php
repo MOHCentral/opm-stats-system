@@ -15,7 +15,10 @@ function template_mohaa_stats_main()
     
     echo '
     <div class="mohaa-stats-dashboard">
-        <h2 class="category_header">', $txt['mohaa_stats'], '</h2>
+        <div class="category_header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>', $txt['mohaa_stats'], '</span>
+            <a href="', $scripturl, '?action=mohaadashboard" class="button">My War Room</a>
+        </div>
         
         <div class="mohaa-stats-grid">';
     
