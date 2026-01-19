@@ -45,7 +45,7 @@ function template_mohaa_war_room()
         
         /* Dashboard Card Style */
         .stat-card {
-            background: var(--mohaa-card-bg); /* Fallback or override if windowbg isn\'t enough */
+            background: var(--mohaa-card-bg); /* Fallback or override if windowbg is not enough */
             border-radius: 8px;
             padding: 20px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);

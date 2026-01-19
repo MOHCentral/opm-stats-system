@@ -17,7 +17,7 @@ function template_mohaa_achievement_widget()
 {
     global $context, $txt, $scripturl;
 
-    $data = $context['mohaa_achievement_widget'] ?? [];
+    $data = $context['mohaa_stats']['achievement_widget'] ?? $context['mohaa_achievement_widget'] ?? [];
 
     echo '
     <div class="mohaa-achievement-widget">

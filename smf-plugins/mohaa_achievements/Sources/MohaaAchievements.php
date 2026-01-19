@@ -54,11 +54,19 @@ function MohaaAchievements_Main(): void
     $subActions = [
         'list' => 'MohaaAchievements_List',
         'view' => 'MohaaAchievements_View',
-        'leaderboard' => 'MohaaAchievements_Leaderboard',
+        'leaderboard' => 'MohaaAchievements_LeaderboardEnhanced',
         'recent' => 'MohaaAchievements_Recent',
+        'rarest' => 'MohaaAchievements_Rarest',
+        'category' => 'MohaaAchievements_Category',
+        'compare' => 'MohaaAchievements_Compare',
     ];
     
     $sa = isset($_GET['sa']) && isset($subActions[$_GET['sa']]) ? $_GET['sa'] : 'list';
+    
+    // Load enhanced template for specific actions
+    if (in_array($sa, ['leaderboard', 'rarest'])) {
+        loadTemplate('MohaaAchievementsEnhanced');
+    }
     
     call_user_func($subActions[$sa]);
 }
@@ -235,6 +243,469 @@ function MohaaAchievements_Leaderboard(): void
     if (empty($players)) $players = [];
     
     $context['mohaa_leaderboard'] = $players;
+}
+
+/**
+ * Enhanced Achievement Leaderboard with multiple tabs
+ */
+function MohaaAchievements_LeaderboardEnhanced(): void
+{
+    global $context, $txt, $scripturl, $smcFunc;
+    
+    $context['page_title'] = 'Achievement Hall of Fame';
+    $context['sub_template'] = 'mohaa_achievements_leaderboard_enhanced';
+    
+    $tab = isset($_GET['tab']) ? $_GET['tab'] : 'points';
+    $context['leaderboard_tab'] = $tab;
+    
+    // Initialize API
+    require_once(__DIR__ . '/../MohaaStats/MohaaStatsAPI.php');
+    $api = new MohaaStatsAPIClient();
+    
+    $context['mohaa_achievement_leaderboard'] = [];
+    
+    switch ($tab) {
+        case 'count':
+            $context['mohaa_achievement_leaderboard']['count'] = MohaaAchievements_GetCountLeaderboard($smcFunc);
+            break;
+        case 'rarest':
+            $context['mohaa_achievement_leaderboard']['rarest'] = MohaaAchievements_GetRarityLeaderboard($smcFunc);
+            break;
+        case 'first':
+            $context['mohaa_achievement_leaderboard']['first'] = MohaaAchievements_GetFirstUnlocks($smcFunc);
+            break;
+        case 'perfect':
+            $context['mohaa_achievement_leaderboard']['completionists'] = MohaaAchievements_GetCompletionists($smcFunc);
+            break;
+        default:
+            $context['mohaa_achievement_leaderboard']['points'] = MohaaAchievements_GetPointsLeaderboard($smcFunc);
+    }
+    
+    $context['linktree'][] = [
+        'url' => $scripturl . '?action=mohaachievements',
+        'name' => $txt['mohaa_achievements'] ?? 'Achievements',
+    ];
+    $context['linktree'][] = [
+        'url' => $scripturl . '?action=mohaachievements;sa=leaderboard',
+        'name' => 'Leaderboard',
+    ];
+}
+
+/**
+ * Get points-based leaderboard
+ */
+function MohaaAchievements_GetPointsLeaderboard($smcFunc, $limit = 50): array
+{
+    $players = [];
+    
+    $request = $smcFunc['db_query']('', '
+        SELECT 
+            m.id_member, m.member_name, m.real_name,
+            COUNT(pa.id_unlock) AS achievement_count,
+            COALESCE(SUM(ad.points), 0) AS total_points
+        FROM {db_prefix}mohaa_player_achievements pa
+        JOIN {db_prefix}members m ON m.id_member = pa.id_member
+        JOIN {db_prefix}mohaa_achievement_defs ad ON ad.id_achievement = pa.id_achievement
+        GROUP BY m.id_member
+        ORDER BY total_points DESC, achievement_count DESC
+        LIMIT {int:limit}',
+        ['limit' => $limit]
+    );
+    
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $players[] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    // Get featured achievements for top players
+    foreach ($players as &$player) {
+        $request = $smcFunc['db_query']('', '
+            SELECT ad.id_achievement, ad.name, ad.icon, ad.tier, ad.points
+            FROM {db_prefix}mohaa_player_achievements pa
+            JOIN {db_prefix}mohaa_achievement_defs ad ON ad.id_achievement = pa.id_achievement
+            WHERE pa.id_member = {int:member}
+            ORDER BY ad.tier DESC, ad.points DESC
+            LIMIT 5',
+            ['member' => $player['id_member']]
+        );
+        
+        $player['featured_achievements'] = [];
+        while ($ach = $smcFunc['db_fetch_assoc']($request)) {
+            $player['featured_achievements'][] = $ach;
+        }
+        $smcFunc['db_free_result']($request);
+    }
+    
+    return $players;
+}
+
+/**
+ * Get count-based leaderboard
+ */
+function MohaaAchievements_GetCountLeaderboard($smcFunc, $limit = 50): array
+{
+    $players = [];
+    
+    $request = $smcFunc['db_query']('', '
+        SELECT 
+            m.id_member, m.member_name, m.real_name,
+            COUNT(pa.id_unlock) AS achievement_count
+        FROM {db_prefix}mohaa_player_achievements pa
+        JOIN {db_prefix}members m ON m.id_member = pa.id_member
+        GROUP BY m.id_member
+        ORDER BY achievement_count DESC
+        LIMIT {int:limit}',
+        ['limit' => $limit]
+    );
+    
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $players[] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    return $players;
+}
+
+/**
+ * Get rarity-weighted leaderboard
+ */
+function MohaaAchievements_GetRarityLeaderboard($smcFunc, $limit = 50): array
+{
+    // First, calculate unlock percentages for each achievement
+    $request = $smcFunc['db_query']('', '
+        SELECT COUNT(DISTINCT id_member) FROM {db_prefix}mohaa_player_achievements'
+    );
+    list($totalPlayers) = $smcFunc['db_fetch_row']($request);
+    $smcFunc['db_free_result']($request);
+    
+    if ($totalPlayers < 1) $totalPlayers = 1;
+    
+    // Calculate rarity scores per player
+    $players = [];
+    
+    $request = $smcFunc['db_query']('', '
+        SELECT 
+            m.id_member, m.member_name, m.real_name,
+            SUM(
+                CASE 
+                    WHEN (unlock_counts.unlock_pct) <= 0.1 THEN 100
+                    WHEN (unlock_counts.unlock_pct) <= 1 THEN 50
+                    WHEN (unlock_counts.unlock_pct) <= 5 THEN 25
+                    WHEN (unlock_counts.unlock_pct) <= 20 THEN 10
+                    ELSE 1
+                END
+            ) AS rarity_score,
+            SUM(CASE WHEN unlock_counts.unlock_pct <= 0.1 THEN 1 ELSE 0 END) AS legendary_count,
+            SUM(CASE WHEN unlock_counts.unlock_pct > 0.1 AND unlock_counts.unlock_pct <= 1 THEN 1 ELSE 0 END) AS epic_count,
+            SUM(CASE WHEN unlock_counts.unlock_pct > 1 AND unlock_counts.unlock_pct <= 5 THEN 1 ELSE 0 END) AS rare_count
+        FROM {db_prefix}mohaa_player_achievements pa
+        JOIN {db_prefix}members m ON m.id_member = pa.id_member
+        JOIN (
+            SELECT 
+                id_achievement,
+                (COUNT(*) * 100.0 / {int:total_players}) AS unlock_pct
+            FROM {db_prefix}mohaa_player_achievements
+            GROUP BY id_achievement
+        ) unlock_counts ON unlock_counts.id_achievement = pa.id_achievement
+        GROUP BY m.id_member
+        ORDER BY rarity_score DESC
+        LIMIT {int:limit}',
+        ['total_players' => $totalPlayers, 'limit' => $limit]
+    );
+    
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $players[] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    return $players;
+}
+
+/**
+ * Get first unlocks for each achievement
+ */
+function MohaaAchievements_GetFirstUnlocks($smcFunc, $limit = 30): array
+{
+    $achievements = [];
+    
+    // Get total players who have any achievement
+    $request = $smcFunc['db_query']('', '
+        SELECT COUNT(DISTINCT id_member) FROM {db_prefix}mohaa_player_achievements'
+    );
+    list($totalPlayers) = $smcFunc['db_fetch_row']($request);
+    $smcFunc['db_free_result']($request);
+    if ($totalPlayers < 1) $totalPlayers = 1;
+    
+    $request = $smcFunc['db_query']('', '
+        SELECT 
+            ad.id_achievement, ad.name, ad.description, ad.icon, ad.tier, ad.points,
+            first_unlock.id_member AS first_member_id,
+            m.member_name AS first_member_name,
+            first_unlock.unlocked_date AS first_unlock_date,
+            unlock_stats.total_unlocks,
+            (unlock_stats.total_unlocks * 100.0 / {int:total_players}) AS unlock_percent
+        FROM {db_prefix}mohaa_achievement_defs ad
+        JOIN (
+            SELECT id_achievement, id_member, unlocked_date,
+                   ROW_NUMBER() OVER (PARTITION BY id_achievement ORDER BY unlocked_date ASC) AS rn
+            FROM {db_prefix}mohaa_player_achievements
+        ) first_unlock ON first_unlock.id_achievement = ad.id_achievement AND first_unlock.rn = 1
+        JOIN {db_prefix}members m ON m.id_member = first_unlock.id_member
+        JOIN (
+            SELECT id_achievement, COUNT(*) AS total_unlocks
+            FROM {db_prefix}mohaa_player_achievements
+            GROUP BY id_achievement
+        ) unlock_stats ON unlock_stats.id_achievement = ad.id_achievement
+        ORDER BY ad.tier DESC, ad.points DESC
+        LIMIT {int:limit}',
+        ['total_players' => $totalPlayers, 'limit' => $limit]
+    );
+    
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $achievements[] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    return $achievements;
+}
+
+/**
+ * Get completionists - players who completed categories
+ */
+function MohaaAchievements_GetCompletionists($smcFunc, $limit = 50): array
+{
+    $players = [];
+    $categories = ['basic', 'weapon', 'tactical', 'humiliation', 'shame', 'map', 'dedication', 'secret'];
+    
+    // Get total achievements per category
+    $categoryTotals = [];
+    $request = $smcFunc['db_query']('', '
+        SELECT category, COUNT(*) AS total
+        FROM {db_prefix}mohaa_achievement_defs
+        GROUP BY category'
+    );
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $categoryTotals[$row['category']] = (int)$row['total'];
+    }
+    $smcFunc['db_free_result']($request);
+    
+    // Get players with most category completions
+    $request = $smcFunc['db_query']('', '
+        SELECT DISTINCT pa.id_member, m.member_name, m.real_name
+        FROM {db_prefix}mohaa_player_achievements pa
+        JOIN {db_prefix}members m ON m.id_member = pa.id_member
+        ORDER BY (
+            SELECT COUNT(*) FROM {db_prefix}mohaa_player_achievements pa2 WHERE pa2.id_member = pa.id_member
+        ) DESC
+        LIMIT {int:limit}',
+        ['limit' => $limit]
+    );
+    
+    $memberIds = [];
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $memberIds[] = $row['id_member'];
+        $players[$row['id_member']] = [
+            'id_member' => $row['id_member'],
+            'member_name' => $row['member_name'],
+            'real_name' => $row['real_name'],
+            'category_progress' => [],
+        ];
+    }
+    $smcFunc['db_free_result']($request);
+    
+    if (empty($memberIds)) {
+        return [];
+    }
+    
+    // Get category progress for each player
+    $request = $smcFunc['db_query']('', '
+        SELECT pa.id_member, ad.category, COUNT(*) AS completed
+        FROM {db_prefix}mohaa_player_achievements pa
+        JOIN {db_prefix}mohaa_achievement_defs ad ON ad.id_achievement = pa.id_achievement
+        WHERE pa.id_member IN ({array_int:members})
+        GROUP BY pa.id_member, ad.category',
+        ['members' => $memberIds]
+    );
+    
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $total = $categoryTotals[$row['category']] ?? 1;
+        $percent = round(($row['completed'] / $total) * 100);
+        $players[$row['id_member']]['category_progress'][$row['category']] = $percent;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    // Sort by number of completed categories, then by total progress
+    usort($players, function($a, $b) {
+        $aComplete = count(array_filter($a['category_progress'], fn($p) => $p >= 100));
+        $bComplete = count(array_filter($b['category_progress'], fn($p) => $p >= 100));
+        if ($aComplete !== $bComplete) return $bComplete - $aComplete;
+        return array_sum($b['category_progress']) - array_sum($a['category_progress']);
+    });
+    
+    return array_values($players);
+}
+
+/**
+ * Rarest achievements page
+ */
+function MohaaAchievements_Rarest(): void
+{
+    global $context, $txt, $scripturl, $smcFunc;
+    
+    $context['page_title'] = 'Rarest Achievements';
+    $context['sub_template'] = 'mohaa_rarest_achievements';
+    
+    // Get total players
+    $request = $smcFunc['db_query']('', '
+        SELECT COUNT(DISTINCT id_member) FROM {db_prefix}mohaa_player_achievements'
+    );
+    list($totalPlayers) = $smcFunc['db_fetch_row']($request);
+    $smcFunc['db_free_result']($request);
+    if ($totalPlayers < 1) $totalPlayers = 1;
+    
+    // Get achievements with lowest unlock rates
+    $request = $smcFunc['db_query']('', '
+        SELECT 
+            ad.id_achievement, ad.name, ad.description, ad.icon, ad.tier, ad.points,
+            COALESCE(unlock_stats.total_unlocks, 0) AS total_unlocks,
+            COALESCE((unlock_stats.total_unlocks * 100.0 / {int:total_players}), 0) AS unlock_percent
+        FROM {db_prefix}mohaa_achievement_defs ad
+        LEFT JOIN (
+            SELECT id_achievement, COUNT(*) AS total_unlocks
+            FROM {db_prefix}mohaa_player_achievements
+            GROUP BY id_achievement
+        ) unlock_stats ON unlock_stats.id_achievement = ad.id_achievement
+        WHERE ad.is_hidden = 0
+        ORDER BY unlock_percent ASC, ad.tier DESC
+        LIMIT 20',
+        ['total_players' => $totalPlayers]
+    );
+    
+    $context['mohaa_rarest'] = [];
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $context['mohaa_rarest'][] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    $context['linktree'][] = [
+        'url' => $scripturl . '?action=mohaachievements',
+        'name' => $txt['mohaa_achievements'] ?? 'Achievements',
+    ];
+    $context['linktree'][] = [
+        'url' => $scripturl . '?action=mohaachievements;sa=rarest',
+        'name' => 'Rarest',
+    ];
+}
+
+/**
+ * Category explorer
+ */
+function MohaaAchievements_Category(): void
+{
+    global $context, $txt, $scripturl, $smcFunc, $user_info;
+    
+    $category = isset($_GET['cat']) ? $_GET['cat'] : 'basic';
+    $validCategories = ['basic', 'weapon', 'tactical', 'humiliation', 'shame', 'map', 'dedication', 'secret', 'hitbox', 'movement', 'objective', 'physics', 'hardcore', 'troll', 'situational'];
+    
+    if (!in_array($category, $validCategories)) {
+        $category = 'basic';
+    }
+    
+    $context['page_title'] = ucfirst($category) . ' Achievements';
+    $context['sub_template'] = 'mohaa_achievements_category';
+    $context['current_category'] = $category;
+    
+    // Get achievements in this category
+    $request = $smcFunc['db_query']('', '
+        SELECT ad.*, COALESCE(unlock_count.total, 0) AS total_unlocks
+        FROM {db_prefix}mohaa_achievement_defs ad
+        LEFT JOIN (
+            SELECT id_achievement, COUNT(*) AS total
+            FROM {db_prefix}mohaa_player_achievements
+            GROUP BY id_achievement
+        ) unlock_count ON unlock_count.id_achievement = ad.id_achievement
+        WHERE ad.category = {string:category}
+        ORDER BY ad.tier ASC, ad.sort_order ASC',
+        ['category' => $category]
+    );
+    
+    $context['mohaa_category_achievements'] = [];
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $context['mohaa_category_achievements'][] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    // Get user progress if logged in
+    $context['mohaa_user_progress'] = [];
+    if (!$user_info['is_guest']) {
+        $request = $smcFunc['db_query']('', '
+            SELECT pa.id_achievement, pa.unlocked_date, ap.current_progress
+            FROM {db_prefix}mohaa_player_achievements pa
+            LEFT JOIN {db_prefix}mohaa_achievement_progress ap 
+                ON ap.id_member = pa.id_member AND ap.id_achievement = pa.id_achievement
+            WHERE pa.id_member = {int:member}',
+            ['member' => $user_info['id']]
+        );
+        
+        while ($row = $smcFunc['db_fetch_assoc']($request)) {
+            $context['mohaa_user_progress'][$row['id_achievement']] = $row;
+        }
+        $smcFunc['db_free_result']($request);
+    }
+}
+
+/**
+ * Compare achievements between players
+ */
+function MohaaAchievements_Compare(): void
+{
+    global $context, $txt, $scripturl, $smcFunc;
+    
+    $player1 = isset($_GET['p1']) ? (int)$_GET['p1'] : 0;
+    $player2 = isset($_GET['p2']) ? (int)$_GET['p2'] : 0;
+    
+    if (empty($player1) || empty($player2)) {
+        redirectexit('action=mohaachievements;sa=leaderboard');
+        return;
+    }
+    
+    $context['page_title'] = 'Achievement Comparison';
+    $context['sub_template'] = 'mohaa_achievements_compare';
+    
+    // Get player info
+    $request = $smcFunc['db_query']('', '
+        SELECT id_member, member_name, real_name
+        FROM {db_prefix}members
+        WHERE id_member IN ({array_int:members})',
+        ['members' => [$player1, $player2]]
+    );
+    
+    $context['compare_players'] = [];
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $context['compare_players'][$row['id_member']] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    // Get achievements for both players
+    $request = $smcFunc['db_query']('', '
+        SELECT ad.*, 
+               pa1.unlocked_date AS p1_unlocked,
+               pa2.unlocked_date AS p2_unlocked
+        FROM {db_prefix}mohaa_achievement_defs ad
+        LEFT JOIN {db_prefix}mohaa_player_achievements pa1 
+            ON pa1.id_achievement = ad.id_achievement AND pa1.id_member = {int:p1}
+        LEFT JOIN {db_prefix}mohaa_player_achievements pa2 
+            ON pa2.id_achievement = ad.id_achievement AND pa2.id_member = {int:p2}
+        WHERE ad.is_hidden = 0 OR pa1.id_unlock IS NOT NULL OR pa2.id_unlock IS NOT NULL
+        ORDER BY ad.category, ad.tier, ad.sort_order',
+        ['p1' => $player1, 'p2' => $player2]
+    );
+    
+    $context['compare_achievements'] = [];
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $context['compare_achievements'][] = $row;
+    }
+    $smcFunc['db_free_result']($request);
 }
 
 /**

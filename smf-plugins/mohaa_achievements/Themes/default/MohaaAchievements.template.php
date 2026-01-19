@@ -300,37 +300,98 @@ function template_mohaa_achievements_leaderboard()
 }
 
 /**
- * Profile medals
+ * Profile medals - Enhanced with links to main system
  */
 function template_mohaa_profile_medals()
 {
     global $context, $txt, $scripturl;
 
     $data = $context['mohaa_profile_medals'];
+    
+    // Load widget template for shared functions
+    if (function_exists('template_achievement_badge_icon') === false) {
+        // Define inline if widget not loaded
+        function template_achievement_badge_icon($icon) {
+            $icons = [
+                'medal_bronze' => '🥉', 'medal_silver' => '🥈', 'medal_gold' => '🥇',
+                'medal_platinum' => '💎', 'medal_diamond' => '💠', 'trophy_gold' => '🏆',
+                'trophy_platinum' => '👑', 'headshot' => '🎯', 'headshot_gold' => '💀',
+                'clutch' => '🔥', 'streak_10' => '⚡', 'teabag' => '☕', 'grenade' => '💣',
+            ];
+            return $icons[$icon] ?? '🎖️';
+        }
+    }
 
     echo '
-    <div class="mohaa-profile-medals">
+    <div class="mohaa-profile-medals-enhanced">
         <div class="profile-header">
-            <h2>🎖️ ', htmlspecialchars($data['member_name']), '\'s Medal Case</h2>
-            <div class="header-stats">
-                <span class="stat"><strong>', $data['count'], '</strong> Achievements</span>
-                <span class="stat"><strong>', number_format($data['total_points']), '</strong> Points</span>
+            <div class="header-content">
+                <h2>🎖️ ', htmlspecialchars($data['member_name']), '\'s Medal Case</h2>
+                <div class="header-stats">
+                    <div class="stat-box">
+                        <span class="stat-value">', $data['count'], '</span>
+                        <span class="stat-label">Achievements</span>
+                    </div>
+                    <div class="stat-box gold">
+                        <span class="stat-value">', number_format($data['total_points']), '</span>
+                        <span class="stat-label">Points</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-value">';
+    
+    // Calculate tier based on points
+    $tier = 'Bronze';
+    if ($data['total_points'] >= 50000) $tier = 'Immortal';
+    elseif ($data['total_points'] >= 25000) $tier = 'Legend';
+    elseif ($data['total_points'] >= 15000) $tier = 'Champion';
+    elseif ($data['total_points'] >= 10000) $tier = 'Grandmaster';
+    elseif ($data['total_points'] >= 5000) $tier = 'Master';
+    elseif ($data['total_points'] >= 2500) $tier = 'Diamond';
+    elseif ($data['total_points'] >= 1000) $tier = 'Platinum';
+    elseif ($data['total_points'] >= 500) $tier = 'Gold';
+    elseif ($data['total_points'] >= 250) $tier = 'Silver';
+    
+    echo $tier, '</span>
+                        <span class="stat-label">Rank</span>
+                    </div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="', $scripturl, '?action=mohaachievements" class="button">📋 All Achievements</a>
+                <a href="', $scripturl, '?action=mohaachievements;sa=leaderboard" class="button">🏆 Leaderboard</a>';
+    
+    if ($data['is_own']) {
+        echo '
+                <a href="', $scripturl, '?action=mohaachievements;sa=rarest" class="button">💎 Rarest</a>';
+    }
+    
+    echo '
             </div>
         </div>';
 
-    // Featured achievements (highest tier)
+    // Featured achievements (highest tier) with glow effects
     if (!empty($data['featured'])) {
         echo '
         <div class="featured-medals">
-            <h3>Featured Distinctions</h3>
+            <h3>⭐ Featured Distinctions</h3>
             <div class="featured-grid">';
 
         foreach ($data['featured'] as $ach) {
+            $tierColors = [
+                1 => '#cd7f32', 2 => '#c0c0c0', 3 => '#ffd700', 4 => '#e5e4e2',
+                5 => '#b9f2ff', 6 => '#ff4444', 7 => '#a855f7', 8 => '#f97316'
+            ];
+            $color = $tierColors[$ach['tier'] ?? 1] ?? '#cd7f32';
+            
             echo '
-                <div class="featured-medal tier-', $ach['tier'], '">
-                    <div class="medal-glow">', template_achievement_icon($ach['icon']), '</div>
+                <a href="', $scripturl, '?action=mohaachievements;sa=view;id=', $ach['id_achievement'] ?? 0, '" 
+                   class="featured-medal tier-', $ach['tier'] ?? 1, '">
+                    <div class="medal-glow" style="--glow-color:', $color, ';">
+                        ', template_achievement_badge_icon($ach['icon'] ?? 'medal_bronze'), '
+                    </div>
                     <span class="medal-name">', htmlspecialchars($ach['name']), '</span>
-                </div>';
+                    <span class="medal-points">+', $ach['points'] ?? 0, '</span>
+                </a>';
         }
 
         echo '
@@ -338,24 +399,88 @@ function template_mohaa_profile_medals()
         </div>';
     }
 
-    // All achievements
+    // Category breakdown
+    $categories = [];
+    foreach ($data['achievements'] as $ach) {
+        $cat = $ach['category'] ?? 'basic';
+        if (!isset($categories[$cat])) {
+            $categories[$cat] = ['count' => 0, 'points' => 0, 'achievements' => []];
+        }
+        $categories[$cat]['count']++;
+        $categories[$cat]['points'] += ($ach['points'] ?? 0);
+        $categories[$cat]['achievements'][] = $ach;
+    }
+
+    $categoryInfo = [
+        'basic' => ['name' => 'Basic Training', 'icon' => '🎖️'],
+        'weapon' => ['name' => 'Weapon Specialist', 'icon' => '🔫'],
+        'tactical' => ['name' => 'Tactical & Skill', 'icon' => '🎯'],
+        'humiliation' => ['name' => 'Humiliation', 'icon' => '☕'],
+        'shame' => ['name' => 'Hall of Shame', 'icon' => '💀'],
+        'map' => ['name' => 'Map Mastery', 'icon' => '🗺️'],
+        'dedication' => ['name' => 'Dedication', 'icon' => '⏰'],
+        'secret' => ['name' => 'Secret', 'icon' => '🔮'],
+        'hitbox' => ['name' => 'Hitbox Mastery', 'icon' => '🎯'],
+        'movement' => ['name' => 'Movement Analytics', 'icon' => '🏃'],
+        'objective' => ['name' => 'Objective Specialist', 'icon' => '🏁'],
+        'physics' => ['name' => 'Physics Pro', 'icon' => '⚛️'],
+        'hardcore' => ['name' => 'Hardcore', 'icon' => '💪'],
+        'troll' => ['name' => 'Fun / Troll', 'icon' => '🤡'],
+        'situational' => ['name' => 'Situational', 'icon' => '⚡'],
+    ];
+
+    if (!empty($categories)) {
+        echo '
+        <div class="category-breakdown">
+            <h3>📊 Category Breakdown</h3>
+            <div class="category-grid">';
+
+        foreach ($categories as $catCode => $catData) {
+            $info = $categoryInfo[$catCode] ?? ['name' => ucfirst($catCode), 'icon' => '🎖️'];
+            
+            echo '
+                <a href="', $scripturl, '?action=mohaachievements;sa=category;cat=', $catCode, '" class="category-card">
+                    <span class="cat-icon">', $info['icon'], '</span>
+                    <span class="cat-name">', $info['name'], '</span>
+                    <span class="cat-count">', $catData['count'], ' unlocked</span>
+                    <span class="cat-points">+', number_format($catData['points']), ' pts</span>
+                </a>';
+        }
+
+        echo '
+            </div>
+        </div>';
+    }
+
+    // All achievements in scrollable list
     echo '
         <div class="all-medals">
-            <h3>All Achievements (', $data['count'], ')</h3>
+            <h3>📜 All Achievements (', $data['count'], ')</h3>
             <div class="medal-list">';
 
     foreach ($data['achievements'] as $ach) {
+        $tierClass = 'tier-' . ($ach['tier'] ?? 1);
+        
         echo '
-                <div class="medal-row">
-                    <span class="medal-icon-small">', template_achievement_icon($ach['icon']), '</span>
-                    <span class="medal-name">', htmlspecialchars($ach['name']), '</span>
+                <a href="', $scripturl, '?action=mohaachievements;sa=view;id=', $ach['id_achievement'] ?? 0, '" 
+                   class="medal-row ', $tierClass, '">
+                    <span class="medal-icon-small">', template_achievement_badge_icon($ach['icon'] ?? 'medal_bronze'), '</span>
+                    <div class="medal-details">
+                        <span class="medal-name">', htmlspecialchars($ach['name']), '</span>
+                        <span class="medal-desc">', htmlspecialchars($ach['description'] ?? ''), '</span>
+                    </div>
                     <span class="medal-date">', timeformat($ach['unlocked_date'], '%b %d, %Y'), '</span>
-                    <span class="medal-points">+', $ach['points'], '</span>
-                </div>';
+                    <span class="medal-points">+', $ach['points'] ?? 0, '</span>
+                </a>';
     }
 
     if (empty($data['achievements'])) {
-        echo '<div class="no-medals">No achievements unlocked yet.</div>';
+        echo '
+            <div class="no-medals">
+                <span class="no-medals-icon">🎖️</span>
+                <p>No achievements unlocked yet.</p>
+                <a href="', $scripturl, '?action=mohaachievements" class="button">Explore Achievements</a>
+            </div>';
     }
 
     echo '
@@ -363,7 +488,314 @@ function template_mohaa_profile_medals()
         </div>
     </div>';
 
-    template_achievement_styles();
+    template_profile_medals_enhanced_styles();
+}
+
+/**
+ * Enhanced profile medals styles
+ */
+function template_profile_medals_enhanced_styles()
+{
+    echo '
+    <style>
+        /* ============================================
+           PROFILE MEDALS - Enhanced & Linked
+           ============================================ */
+        
+        .mohaa-profile-medals-enhanced {
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            color: #e0e0e0;
+        }
+        
+        .profile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 30px;
+            background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+            border-bottom: 3px solid #4a5d23;
+        }
+        
+        .profile-header h2 {
+            margin: 0 0 15px;
+            color: #ffd700;
+            font-size: 1.8em;
+        }
+        
+        .header-stats {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .stat-box {
+            text-align: center;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        
+        .stat-box.gold {
+            background: rgba(255,215,0,0.1);
+            border: 1px solid rgba(255,215,0,0.3);
+        }
+        
+        .stat-box .stat-value {
+            display: block;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .stat-box.gold .stat-value { color: #ffd700; }
+        
+        .stat-box .stat-label {
+            font-size: 0.8em;
+            color: #888;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .header-actions .button {
+            padding: 10px 15px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #444;
+            border-radius: 8px;
+            color: #fff;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        .header-actions .button:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: #4a5d23;
+        }
+        
+        /* Featured Medals */
+        .featured-medals {
+            padding: 30px;
+            background: rgba(0,0,0,0.2);
+        }
+        
+        .featured-medals h3 {
+            margin: 0 0 20px;
+            color: #ffd700;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .featured-grid {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .featured-medal {
+            text-align: center;
+            padding: 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            min-width: 120px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .featured-medal:hover {
+            transform: translateY(-5px);
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .featured-medal.tier-1 { border-color: rgba(205,127,50,0.3); }
+        .featured-medal.tier-2 { border-color: rgba(192,192,192,0.3); }
+        .featured-medal.tier-3 { border-color: rgba(255,215,0,0.3); }
+        .featured-medal.tier-4 { border-color: rgba(229,228,226,0.3); }
+        .featured-medal.tier-5 { border-color: rgba(185,242,255,0.3); }
+        .featured-medal.tier-6 { border-color: rgba(255,68,68,0.3); }
+        .featured-medal.tier-7 { border-color: rgba(168,85,247,0.3); }
+        .featured-medal.tier-8 { border-color: rgba(249,115,22,0.3); }
+        
+        .medal-glow {
+            font-size: 3em;
+            filter: drop-shadow(0 0 15px var(--glow-color, rgba(255,215,0,0.5)));
+            animation: glow-pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes glow-pulse {
+            0%, 100% { filter: drop-shadow(0 0 10px var(--glow-color, rgba(255,215,0,0.3))); }
+            50% { filter: drop-shadow(0 0 20px var(--glow-color, rgba(255,215,0,0.6))); }
+        }
+        
+        .featured-medal .medal-name {
+            display: block;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .featured-medal .medal-points {
+            display: block;
+            margin-top: 5px;
+            font-size: 0.8em;
+            color: #ffd700;
+        }
+        
+        /* Category Breakdown */
+        .category-breakdown {
+            padding: 30px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .category-breakdown h3 {
+            margin: 0 0 20px;
+            color: #888;
+            font-size: 1em;
+        }
+        
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 15px;
+        }
+        
+        .category-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s;
+            border: 1px solid #333;
+        }
+        
+        .category-card:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: #4a5d23;
+        }
+        
+        .category-card .cat-icon { font-size: 1.5em; margin-bottom: 5px; }
+        .category-card .cat-name { font-weight: bold; color: #fff; }
+        .category-card .cat-count { font-size: 0.85em; color: #888; }
+        .category-card .cat-points { font-size: 0.8em; color: #ffd700; }
+        
+        /* All Medals List */
+        .all-medals {
+            padding: 30px;
+        }
+        
+        .all-medals h3 {
+            margin: 0 0 15px;
+            color: #888;
+            font-size: 1em;
+        }
+        
+        .medal-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .medal-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 8px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.2s;
+            border-left: 3px solid #333;
+        }
+        
+        .medal-row:hover {
+            background: rgba(255,255,255,0.06);
+        }
+        
+        .medal-row.tier-1 { border-left-color: #cd7f32; }
+        .medal-row.tier-2 { border-left-color: #c0c0c0; }
+        .medal-row.tier-3 { border-left-color: #ffd700; }
+        .medal-row.tier-4 { border-left-color: #e5e4e2; }
+        .medal-row.tier-5 { border-left-color: #b9f2ff; }
+        .medal-row.tier-6 { border-left-color: #ff4444; }
+        .medal-row.tier-7 { border-left-color: #a855f7; }
+        .medal-row.tier-8 { border-left-color: #f97316; }
+        
+        .medal-icon-small { font-size: 1.5em; }
+        
+        .medal-details { flex: 1; min-width: 0; }
+        
+        .medal-details .medal-name {
+            display: block;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .medal-details .medal-desc {
+            display: block;
+            font-size: 0.8em;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .medal-row .medal-date {
+            font-size: 0.8em;
+            color: #666;
+        }
+        
+        .medal-row .medal-points {
+            font-weight: bold;
+            color: #ffd700;
+            font-size: 0.9em;
+        }
+        
+        .no-medals {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .no-medals-icon {
+            font-size: 4em;
+            opacity: 0.3;
+        }
+        
+        .no-medals p {
+            color: #666;
+            margin: 15px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .header-stats {
+                justify-content: center;
+            }
+            
+            .header-actions {
+                justify-content: center;
+            }
+        }
+    </style>';
 }
 
 /**
