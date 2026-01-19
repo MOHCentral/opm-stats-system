@@ -394,8 +394,8 @@ else
 fi
 
 # Grafana
-if check_port 3000; then
-    echo -e "  ${GREEN}│${NC}  ✅ Grafana            ${BLUE}localhost:3000${NC}              ${GREEN}│${NC}"
+if check_port 3001; then
+    echo -e "  ${GREEN}│${NC}  ✅ Grafana            ${BLUE}localhost:3001${NC}              ${GREEN}│${NC}"
 else
     echo -e "  ${GREEN}│${NC}  ❌ Grafana            NOT RUNNING                    ${GREEN}│${NC}"
 fi
@@ -434,7 +434,7 @@ echo ""
 echo -e "  ${CYAN}┌─────────────────────────────────────────────────────────┐${NC}"
 echo -e "  ${CYAN}│${NC}                     QUICK ACCESS                        ${CYAN}│${NC}"
 echo -e "  ${CYAN}├─────────────────────────────────────────────────────────┤${NC}"
-echo -e "  ${CYAN}│${NC}  📊 Grafana Dashboard:  ${YELLOW}http://localhost:3000${NC}         ${CYAN}│${NC}"
+echo -e "  ${CYAN}│${NC}  📊 Grafana Dashboard:  ${YELLOW}http://localhost:3001${NC}         ${CYAN}│${NC}"
 echo -e "  ${CYAN}│${NC}     Login: admin / admin                               ${CYAN}│${NC}"
 echo -e "  ${CYAN}│${NC}                                                         ${CYAN}│${NC}"
 echo -e "  ${CYAN}│${NC}  � SMF Forum:          ${YELLOW}http://localhost:8888${NC}         ${CYAN}│${NC}"

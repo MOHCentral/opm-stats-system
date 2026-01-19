@@ -313,9 +313,17 @@ function MohaaPlayers_ProfileIdentity(int $memID): void
     $api = new MohaaStatsAPIClient();
     
     // Handle regenerate token action
-    if (isset($_POST['regenerate_token']) || isset($_GET['regenerate'])) {
-        checkSession('get');
-        $result = $api->initDeviceAuth($memID);
+    if (isset($_POST['regenerate_token'])) {
+        checkSession();  // POST session check
+        $result = $api->initDeviceAuth($memID, true);  // Force regenerate
+        if (!empty($result['user_code'])) {
+            $_SESSION['mohaa_token'] = $result['user_code'];
+            $_SESSION['mohaa_token_expires'] = time() + ($result['expires_in'] ?? 600);
+        }
+        redirectexit('action=profile;area=mohaaidentity');
+    } elseif (isset($_GET['regenerate'])) {
+        checkSession('get');  // GET session check
+        $result = $api->initDeviceAuth($memID, true);  // Force regenerate
         if (!empty($result['user_code'])) {
             $_SESSION['mohaa_token'] = $result['user_code'];
             $_SESSION['mohaa_token_expires'] = time() + ($result['expires_in'] ?? 600);
