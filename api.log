@@ -1,25 +1,10 @@
-{"level":"info","ts":1768832023.3993375,"caller":"api/main.go:42","msg":"OpenMOHAA Stats API starting up..."}
-{"level":"info","ts":1768832023.3993897,"caller":"api/main.go:46","msg":"Configuration loaded","port":8081,"workers":8,"queueSize":10000}
-{"level":"info","ts":1768832023.4040177,"caller":"api/main.go:61","msg":"PostgreSQL connection established"}
-{"level":"info","ts":1768832023.4054205,"caller":"api/main.go:69","msg":"ClickHouse connection established"}
-{"level":"info","ts":1768832023.406865,"caller":"api/main.go:77","msg":"Redis connection established"}
-{"level":"info","ts":1768832023.4069178,"caller":"worker/pool.go:124","msg":"Worker pool started","workers":8,"queueSize":10000,"batchSize":500}
-{"level":"info","ts":1768832023.4069395,"caller":"api/main.go:91","msg":"Worker pool started","workers":8,"queueSize":10000}
-{"level":"info","ts":1768832023.4077196,"caller":"api/main.go:297","msg":"Server listening on port 8081"}
-{"level":"info","ts":1768832023.407755,"caller":"api/main.go:298","msg":"Workers: 8 | Queue Size: 10000 | CPUs: 32"}
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000001] "GET http://localhost:8081/health HTTP/1.1" from [::1]:36294 - 200 85B in 269.656µs
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000002] "POST http://localhost:8081/api/v1/auth/device HTTP/1.1" from [::1]:36300 - 200 119B in 10.551415ms
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000003] "POST http://localhost:8081/api/v1/auth/verify HTTP/1.1" from [::1]:36300 - 200 108B in 13.210378ms
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000004] "POST http://localhost:8081/api/v1/auth/verify HTTP/1.1" from [::1]:36300 - 200 104B in 4.057384ms
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000005] "POST http://localhost:8081/api/v1/auth/verify HTTP/1.1" from [::1]:36316 - 401 50B in 239.527µs
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000006] "POST http://localhost:8081/api/v1/auth/verify HTTP/1.1" from [::1]:36324 - 200 104B in 4.3635ms
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000007] "POST http://localhost:8081/api/v1/auth/device HTTP/1.1" from [::1]:36324 - 400 62B in 595.212µs
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000008] "POST http://localhost:8081/api/v1/auth/device HTTP/1.1" from [::1]:36328 - 200 118B in 660.871µs
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000009] "POST http://localhost:8081/api/v1/auth/device HTTP/1.1" from [::1]:36328 - 200 120B in 3.467923ms
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000010] "POST http://localhost:8081/api/v1/auth/verify HTTP/1.1" from [::1]:36328 - 401 59B in 1.511169ms
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000011] "POST http://localhost:8081/api/v1/auth/verify HTTP/1.1" from [::1]:36340 - 400 68B in 134.838µs
-2026/01/19 14:13:44 [elgan-pc/6NYht1MJGI-000012] "POST http://localhost:8081/api/v1/auth/verify HTTP/1.1" from [::1]:36352 - 400 49B in 40µs
-{"level":"info","ts":1768832024.3767993,"caller":"api/main.go:307","msg":"Shutting down gracefully..."}
-{"level":"info","ts":1768832024.3768716,"caller":"worker/pool.go:133","msg":"Stopping worker pool..."}
-{"level":"info","ts":1768832024.376899,"caller":"worker/pool.go:137","msg":"Worker pool stopped"}
-{"level":"info","ts":1768832024.3769667,"caller":"api/main.go:316","msg":"Server stopped"}
+{"level":"info","ts":1768836297.5703409,"caller":"api/main.go:42","msg":"OpenMOHAA Stats API starting up..."}
+{"level":"info","ts":1768836297.5703967,"caller":"api/main.go:46","msg":"Configuration loaded","port":8080,"workers":8,"queueSize":10000}
+{"level":"info","ts":1768836297.5744092,"caller":"api/main.go:61","msg":"PostgreSQL connection established"}
+{"level":"info","ts":1768836297.5749755,"caller":"api/main.go:69","msg":"ClickHouse connection established"}
+{"level":"info","ts":1768836297.5762324,"caller":"api/main.go:77","msg":"Redis connection established"}
+{"level":"info","ts":1768836297.5762906,"caller":"worker/pool.go:124","msg":"Worker pool started","workers":8,"queueSize":10000,"batchSize":500}
+{"level":"info","ts":1768836297.5763073,"caller":"api/main.go:91","msg":"Worker pool started","workers":8,"queueSize":10000}
+{"level":"info","ts":1768836297.577009,"caller":"api/main.go:300","msg":"Server listening on port 8080"}
+{"level":"info","ts":1768836297.577043,"caller":"api/main.go:301","msg":"Workers: 8 | Queue Size: 10000 | CPUs: 32"}
+{"level":"fatal","ts":1768836297.5771475,"caller":"api/main.go:305","msg":"Server failed","error":"listen tcp :8080: bind: address already in use","stacktrace":"main.main.func4\n\t/home/elgan/dev/opm-stats-system/cmd/api/main.go:305"}
