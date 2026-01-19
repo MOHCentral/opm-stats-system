@@ -1709,6 +1709,148 @@ func (h *Handler) GetMatchAdvancedDetails(w http.ResponseWriter, r *http.Request
 	h.jsonResponse(w, http.StatusOK, details)
 }
 
+// GetLeaderboardCards returns the Stat Cards for the dashboard
+func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	dashboard := models.LeaderboardDashboard{
+		Combat:   make(map[string]models.LeaderboardCard),
+		GameFlow: make(map[string]models.LeaderboardCard),
+		Niche:    make(map[string]models.LeaderboardCard),
+	}
+
+	// Helper to fetch a single card
+	fetchCard := func(title, metric, icon, query string) models.LeaderboardCard {
+		card := models.LeaderboardCard{
+			Title:  title,
+			Metric: metric,
+			Icon:   icon,
+			Top:    make([]models.LeaderboardCardEntry, 0),
+		}
+		
+		rows, err := h.ch.Query(ctx, query)
+		if err != nil {
+			h.logger.Errorw("Failed to fetch card", "metric", metric, "error", err)
+			return card
+		}
+		defer rows.Close()
+
+		rank := 1
+		for rows.Next() {
+			var e models.LeaderboardCardEntry
+			if err := rows.Scan(&e.PlayerID, &e.PlayerName, &e.Value); err != nil {
+				continue
+			}
+			e.Rank = rank
+			card.Top = append(card.Top, e)
+			rank++
+		}
+		return card
+	}
+
+	// Combat Metrics
+	// ----------------
+	dashboard.Combat["accuracy"] = fetchCard("Most Accurate", "accuracy", "🎯", `
+		SELECT 
+			actor_id, 
+			any(actor_name), 
+			sumIf(event_type='weapon_hit') / NULLIF(sumIf(event_type='weapon_fire'), 0) * 100 as val 
+		FROM raw_events 
+		WHERE event_type IN ('weapon_hit','weapon_fire') AND actor_id != ''
+		GROUP BY actor_id 
+		HAVING sumIf(event_type='weapon_fire') > 50
+		ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.Combat["headhunter"] = fetchCard("Headhunter", "headshots", "🤯", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type='player_headshot' AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.Combat["kd_ratio"] = fetchCard("K/D Ratio", "kd_ratio", "⚖️", `
+		SELECT actor_id, any(actor_name), 
+			countIf(event_type='player_kill') / NULLIF(countIf(event_type='player_death'), 1) as val 
+		FROM raw_events WHERE actor_id != ''
+		GROUP BY actor_id 
+		HAVING countIf(event_type='player_kill') > 10
+		ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.Combat["executioner"] = fetchCard("Executioner", "bash_kills", "🔨", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type='player_bash' AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.Combat["road_rage"] = fetchCard("Road Rage", "roadkills", "🚗", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type='player_roadkill' AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.Combat["the_carry"] = fetchCard("The Carry", "kills", "💪", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type='player_kill' AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	// Game Flow
+	// ----------------
+	dashboard.GameFlow["grand_champion"] = fetchCard("Grand Champion", "wins", "🏆", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type='team_win' AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.GameFlow["objective_specialist"] = fetchCard("Objective Specialist", "captures", "🚩", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type='player_use_object_finish' AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.GameFlow["ironman"] = fetchCard("Ironman", "rounds", "🛡️", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type='round_end' AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	// Niche
+	// ----------------
+	dashboard.Niche["glass_cannon"] = fetchCard("Glass Cannon", "violence", "💥", `
+		SELECT actor_id, any(actor_name), (countIf(event_type='player_kill') + countIf(event_type='player_death')) as val 
+		FROM raw_events WHERE event_type IN ('player_kill', 'player_death') AND actor_id != ''
+		GROUP BY actor_id 
+		HAVING countIf(event_type='player_kill') > 10 AND countIf(event_type='player_death') > 10
+		ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.Niche["humiliation"] = fetchCard("Humiliation", "crushed", "😂", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type IN ('player_telefragged', 'player_crushed') AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.Niche["trigger_happy"] = fetchCard("Trigger Happy", "shots", "🔫", `
+		SELECT actor_id, any(actor_name), count() as val 
+		FROM raw_events WHERE event_type='weapon_fire' AND actor_id != ''
+		GROUP BY actor_id ORDER BY val DESC LIMIT 3
+	`)
+
+	dashboard.Niche["survivor"] = fetchCard("Survivor", "survival_rate", "🆘", `
+		SELECT 
+			actor_id, 
+			any(actor_name), 
+			(1 - (countIf(event_type='player_death') / NULLIF(countIf(event_type='round_end'), 0))) * 100 as val 
+		FROM raw_events 
+		WHERE actor_id != ''
+		GROUP BY actor_id 
+		HAVING countIf(event_type='round_end') > 5
+		ORDER BY val DESC LIMIT 3
+	`)
+
+	h.jsonResponse(w, http.StatusOK, dashboard)
+}
+
 // ============================================================================
 // HELPERS
 // ============================================================================

@@ -147,6 +147,7 @@ func main() {
 			r.Get("/maps/popularity", h.GetMapPopularity)  // [NEW]
 
 			r.Get("/leaderboard", h.GetLeaderboard)        // [UPDATED] Unified handler
+			r.Get("/leaderboard/cards", h.GetLeaderboardCards) // [NEW] Summary cards
 			r.Get("/leaderboard/global", h.GetLeaderboard) // Redirect to unified handler
 			// Actually I replaced GetGlobalLeaderboard method with GetLeaderboard, so I MUST update the route name.
 			// The replace_file_content replaced the contents but kept the receiver method signature?

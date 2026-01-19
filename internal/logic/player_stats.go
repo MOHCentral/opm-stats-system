@@ -22,8 +22,9 @@ type DeepStats struct {
 	Movement MovementStats `json:"movement"`
 	Accuracy AccuracyStats `json:"accuracy"`
 	Session  SessionStats  `json:"session"`
-	Rivals   RivalStats    `json:"rivals"`
-	Stance   StanceStats   `json:"stance"`
+	Rivals      RivalStats       `json:"rivals"`
+	Stance      StanceStats      `json:"stance"`
+	Interaction InteractionStats `json:"interaction"`
 }
 
 type RivalStats struct {
@@ -61,6 +62,10 @@ type CombatStats struct {
 	Backstabs       int64 `json:"backstabs"`
 	FirstBloods     int64 `json:"first_bloods"`
 	Longshots       int64 `json:"longshots"`
+	Roadkills       int64 `json:"roadkills"`
+	BashKills       int64 `json:"bash_kills"`
+	DamageDealt     int64 `json:"damage_dealt"`
+	DamageTaken     int64 `json:"damage_taken"`
 }
 
 type WeaponStats struct {
@@ -93,6 +98,18 @@ type SessionStats struct {
 	MatchesPlayed int64   `json:"matches_played"`
 	Wins          int64   `json:"wins"`
 	WinRate       float64 `json:"win_rate"`
+}
+
+type InteractionStats struct {
+	ChatMessages    int64        `json:"chat_messages"`
+	Pickups         []PickupStat `json:"pickups"`
+	VehicleUses     int64        `json:"vehicle_uses"`
+	TurretUses      int64        `json:"turret_uses"`
+}
+
+type PickupStat struct {
+	ItemName string `json:"item_name"`
+	Count    int64  `json:"count"`
 }
 
 // GetDeepStats fetches all categories for a player
@@ -129,25 +146,40 @@ func (s *PlayerStatsService) GetDeepStats(ctx context.Context, guid string) (*De
 		stats.Stance = StanceStats{}
 	}
 
+	if err := s.fillInteractionStats(ctx, guid, &stats.Interaction); err != nil {
+		// Log or ignore
+		stats.Interaction = InteractionStats{}
+	}
+
 	return stats, nil
 }
 
 func (s *PlayerStatsService) fillCombatStats(ctx context.Context, guid string, out *CombatStats) error {
 	query := `
 		SELECT 
-			countIf(event_type = 'kill') as kills,
-			countIf(event_type = 'death') as deaths,
-			countIf(event_type = 'headshot') as headshots,
-			countIf(event_type = 'kill' AND extract(extra, 'hitloc') = 'torso') as torso,
-			countIf(event_type = 'kill' AND extract(extra, 'hitloc') IN ('left_arm','right_arm','left_leg','right_leg')) as limbs,
-			countIf(event_type = 'kill' AND extract(extra, 'mod') = 'MOD_MELEE') as melee,
-			countIf(event_type = 'kill' AND extract(extra, 'mod') = 'MOD_SUICIDE') as suicides
+			countIf(event_type = 'player_kill' AND actor_id = ?) as kills,
+			countIf(event_type = 'player_death' AND actor_id = ?) as deaths,
+			countIf(event_type = 'player_headshot' AND actor_id = ?) as headshots,
+			countIf(event_type = 'player_kill' AND actor_id = ? AND extract(extra, 'hitloc') = 'torso') as torso,
+			countIf(event_type = 'player_kill' AND actor_id = ? AND extract(extra, 'hitloc') IN ('left_arm','right_arm','left_leg','right_leg')) as limbs,
+			countIf(event_type = 'player_kill' AND actor_id = ? AND extract(extra, 'mod') = 'MOD_MELEE') as melee,
+			countIf(event_type = 'player_suicide' AND actor_id = ?) as suicides,
+			countIf(event_type = 'player_teamkill' AND actor_id = ?) as team_kills,
+			countIf(event_type = 'player_roadkill' AND actor_id = ?) as roadkills,
+			countIf(event_type = 'player_bash' AND actor_id = ?) as bash_kills,
+			sumIf(toInt64OrZero(extract(extra, 'damage')), event_type = 'player_damage' AND target_id = ?) as damage_dealt,
+			sumIf(toInt64OrZero(extract(extra, 'damage')), event_type = 'player_damage' AND actor_id = ?) as damage_taken
 		FROM raw_events
-		WHERE actor_id = ?
+		WHERE (actor_id = ? OR target_id = ?)
 	`
-	if err := s.ch.QueryRow(ctx, query, guid).Scan(
+	if err := s.ch.QueryRow(ctx, query, 
+		guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, // Params for select clauses
+		guid, guid, // Params for WHERE clause
+	).Scan(
 		&out.Kills, &out.Deaths, &out.Headshots, 
 		&out.TorsoKills, &out.LimbKills, &out.MeleeKills, &out.Suicides,
+		&out.TeamKills, &out.Roadkills, &out.BashKills,
+		&out.DamageDealt, &out.DamageTaken,
 		// New: Nutshots, Backstabs, FirstBloods, Longshots (simulated checks in SQL)
 		// For now we assume some hitlocs map to nutshots if available, or just mock it here
 		// In production, 'nutshot' would be a specific hitloc alias or mod
@@ -257,6 +289,42 @@ func (s *PlayerStatsService) fillSessionStats(ctx context.Context, guid string, 
 	
 	// Placeholder for hours (requires complex session aggregation)
 	out.PlaytimeHours = float64(out.MatchesPlayed) * 0.25 // Avg 15 min per match
+	return nil
+}
+
+func (s *PlayerStatsService) fillInteractionStats(ctx context.Context, guid string, out *InteractionStats) error {
+	// Chat
+	s.ch.QueryRow(ctx, "SELECT countIf(event_type='player_say' AND actor_id=?) FROM raw_events", guid).Scan(&out.ChatMessages)
+
+	// Vehicle/Turret Uses
+	s.ch.QueryRow(ctx, `
+		SELECT 
+			countIf(event_type='vehicle_enter' AND actor_id=?) as v_uses,
+			countIf(event_type='turret_enter' AND actor_id=?) as t_uses
+		FROM raw_events
+	`, guid, guid).Scan(&out.VehicleUses, &out.TurretUses)
+
+	// Pickups
+	rows, err := s.ch.Query(ctx, `
+		SELECT 
+			extract(extra, 'item_name') as item, 
+			count() as c 
+		FROM raw_events 
+		WHERE event_type='item_pickup' AND actor_id=? AND extract(extra, 'item_name') != ''
+		GROUP BY item 
+		ORDER BY c DESC LIMIT 10
+	`, guid)
+	if err != nil {
+		return nil // Ignore pickup errors
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var p PickupStat
+		if err := rows.Scan(&p.ItemName, &p.Count); err == nil {
+			out.Pickups = append(out.Pickups, p)
+		}
+	}
 	return nil
 }
 

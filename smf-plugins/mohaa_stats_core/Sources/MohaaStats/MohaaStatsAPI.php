@@ -149,6 +149,7 @@ class MohaaStatsAPIClient
     public function getPlayerMapStats(string $guid): ?array { return []; }
     public function getPlayerComparisons(string $guid): ?array { return []; }
     public function getHeadToHead(string $guid1, string $guid2): ?array { return []; }
+    public function getLeaderboardCards(): ?array { return $this->get('/stats/leaderboard/cards'); }
 }
 
 function MohaaStats_APIProxy(): void

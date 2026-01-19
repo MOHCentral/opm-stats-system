@@ -16,25 +16,34 @@ services:
       - smf-data:/var/www/html
       - ./custom:/var/www/html/custom
       - ./entrypoint.sh:/entrypoint.sh
-      - ../smf-plugins:/var/www/html/Packages/mohaa
-      # Mount plugin sources directly for instant changes during development
-      # MohaaPlayers plugin (profile stats, identity linking)
-      - ../smf-plugins/mohaa_players/Sources/MohaaPlayers.php:/var/www/html/Sources/MohaaPlayers.php
-      - ../smf-plugins/mohaa_players/Themes/default/MohaaPlayers.template.php:/var/www/html/Themes/default/MohaaPlayers.template.php
-      - ../smf-plugins/mohaa_players/Themes/default/MohaaIdentity.template.php:/var/www/html/Themes/default/MohaaIdentity.template.php
-      - ../smf-plugins/mohaa_players/Themes/default/MohaaDashboard.template.php:/var/www/html/Themes/default/MohaaDashboard.template.php
-      - ../smf-plugins/mohaa_players/Themes/default/MohaaWarRoom.template.php:/var/www/html/Themes/default/MohaaWarRoom.template.php
-      # MohaaStats Core plugin (war room, navigation, main stats pages)
-      # Mount individual files into MohaaStats/ directory (this is where SMF looks for them)
-      - ../smf-plugins/mohaa_stats_core/Sources/MohaaStats/MohaaStats.php:/var/www/html/Sources/MohaaStats/MohaaStats.php
-      - ../smf-plugins/mohaa_stats_core/Sources/MohaaStats/MohaaStatsAdmin.php:/var/www/html/Sources/MohaaStats/MohaaStatsAdmin.php
-      - ../smf-plugins/mohaa_players/Sources/MohaaStats/MohaaStatsAPI.php:/var/www/html/Sources/MohaaStats/MohaaStatsAPI.php
-      - ../smf-plugins/mohaa_stats_core/Themes/default/MohaaStats.template.php:/var/www/html/Themes/default/MohaaStats.template.php
-      - ../smf-plugins/mohaa_stats_core/Themes/default/MohaaStatsPlayer.template.php:/var/www/html/Themes/default/MohaaStatsPlayer.template.php
-      - ../smf-plugins/mohaa_stats_core/Themes/default/MohaaStatsMatch.template.php:/var/www/html/Themes/default/MohaaStatsMatch.template.php
-      - ../smf-plugins/mohaa_stats_core/Themes/default/MohaaStatsLeaderboard.template.php:/var/www/html/Themes/default/MohaaStatsLeaderboard.template.php
-      # Language file
-      - ../smf-plugins/Languages/MohaaStats.english.php:/var/www/html/Themes/default/languages/MohaaStats.english.php
+      # =========================================================================
+      # MOHAA Sources - single source of truth: smf-mohaa/
+      # =========================================================================
+      - ../smf-mohaa/Sources/MohaaAchievements.php:/var/www/html/Sources/MohaaAchievements.php
+      - ../smf-mohaa/Sources/MohaaPlayers.php:/var/www/html/Sources/MohaaPlayers.php
+      - ../smf-mohaa/Sources/MohaaServers.php:/var/www/html/Sources/MohaaServers.php
+      - ../smf-mohaa/Sources/MohaaTeams.php:/var/www/html/Sources/MohaaTeams.php
+      - ../smf-mohaa/Sources/MohaaTournaments.php:/var/www/html/Sources/MohaaTournaments.php
+      - ../smf-mohaa/Sources/MohaaStats:/var/www/html/Sources/MohaaStats
+      # =========================================================================
+      # MOHAA Templates
+      # =========================================================================
+      - ../smf-mohaa/Themes/default/MohaaAchievements.template.php:/var/www/html/Themes/default/MohaaAchievements.template.php
+      - ../smf-mohaa/Themes/default/MohaaAchievementsEnhanced.template.php:/var/www/html/Themes/default/MohaaAchievementsEnhanced.template.php
+      - ../smf-mohaa/Themes/default/MohaaAchievementsWidget.template.php:/var/www/html/Themes/default/MohaaAchievementsWidget.template.php
+      - ../smf-mohaa/Themes/default/MohaaDashboard.template.php:/var/www/html/Themes/default/MohaaDashboard.template.php
+      - ../smf-mohaa/Themes/default/MohaaIdentity.template.php:/var/www/html/Themes/default/MohaaIdentity.template.php
+      - ../smf-mohaa/Themes/default/MohaaPlayers.template.php:/var/www/html/Themes/default/MohaaPlayers.template.php
+      - ../smf-mohaa/Themes/default/MohaaServerStats.template.php:/var/www/html/Themes/default/MohaaServerStats.template.php
+      - ../smf-mohaa/Themes/default/MohaaServers.template.php:/var/www/html/Themes/default/MohaaServers.template.php
+      - ../smf-mohaa/Themes/default/MohaaStats.template.php:/var/www/html/Themes/default/MohaaStats.template.php
+      - ../smf-mohaa/Themes/default/MohaaStatsLeaderboard.template.php:/var/www/html/Themes/default/MohaaStatsLeaderboard.template.php
+      - ../smf-mohaa/Themes/default/MohaaStatsMatch.template.php:/var/www/html/Themes/default/MohaaStatsMatch.template.php
+      - ../smf-mohaa/Themes/default/MohaaStatsPlayer.template.php:/var/www/html/Themes/default/MohaaStatsPlayer.template.php
+      - ../smf-mohaa/Themes/default/MohaaTeams.template.php:/var/www/html/Themes/default/MohaaTeams.template.php
+      - ../smf-mohaa/Themes/default/MohaaTournaments.template.php:/var/www/html/Themes/default/MohaaTournaments.template.php
+      - ../smf-mohaa/Themes/default/MohaaWarRoom.template.php:/var/www/html/Themes/default/MohaaWarRoom.template.php
+      - ../smf-mohaa/Themes/default/languages:/var/www/html/Themes/default/languages/Mohaa
     depends_on:
       smf-db:
         condition: service_healthy
