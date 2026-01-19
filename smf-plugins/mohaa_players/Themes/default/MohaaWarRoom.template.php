@@ -420,7 +420,7 @@ function template_mohaa_war_room()
             // Filter maps with data
             const mapArr = Array.isArray(maps) ? maps : Object.entries(maps)
                 .map(([name, stats]) => ({
-                    name: name.split("/").pop().replace(/^obj_|dm_/, ''), 
+                    name: name.split("/").pop().replace(/^obj_|dm_/, ""), 
                     winRate: ((stats.wins || 0) / Math.max(1, (stats.matches || stats.kills/10))) * 100, // Approx matches if missing
                     kills: stats.kills || 0
                 }))
@@ -449,7 +449,7 @@ function template_mohaa_war_room()
                     markers: { size: 4, colors: ["#fff"], strokeColors: "#4caf50", strokeWidth: 2 },
                     theme: { mode: "dark" },
                     yaxis: { max: 100, tickAmount: 4, labels: { style: { colors: "#888" } } },
-                    tooltip: { theme: 'dark' }
+                    tooltip: { theme: "dark" }
                 };
                 new ApexCharts(mapCtx, options).render();
             } else if (mapCtx) {
