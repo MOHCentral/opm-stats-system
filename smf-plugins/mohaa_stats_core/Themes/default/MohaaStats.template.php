@@ -236,7 +236,9 @@ function template_mohaa_leaderboards()
         
         <div class="windowbg">';
     
-    if (!empty($context['mohaa_leaderboard']['players']['players'])) {
+    $players = $context['mohaa_leaderboard']['players']['players'] ?? [];
+
+    if (!empty($players)) {
         echo '
             <table class="mohaa-leaderboard table_grid">
                 <thead>
@@ -251,7 +253,7 @@ function template_mohaa_leaderboards()
                 </thead>
                 <tbody>';
         
-        foreach ($context['mohaa_leaderboard']['players']['players'] as $i => $player) {
+        foreach ($players as $i => $player) {
             $rank = $i + 1;
             $rankClass = $rank <= 3 ? ' rank-' . $rank : '';
             
