@@ -311,6 +311,8 @@ function MohaaStats_Player(): void
         'weapons' => ['endpoint' => '/stats/player/' . urlencode($guid) . '/weapons'],
         'matches' => ['endpoint' => '/stats/player/' . urlencode($guid) . '/matches', 'params' => ['limit' => 10]],
         'achievements' => ['endpoint' => '/achievements/player/' . urlencode($guid)],
+        'peak_performance' => ['endpoint' => '/stats/player/' . urlencode($guid) . '/peak-performance'],
+        'combo_metrics' => ['endpoint' => '/stats/player/' . urlencode($guid) . '/combos'],
     ];
     
     $results = $api->getMultiple($requests);
@@ -345,6 +347,8 @@ function MohaaStats_Player(): void
     
     $context['mohaa_dashboard'] = [
         'player_stats' => $flatStats,
+        'peak_performance' => $results['peak_performance'] ?? [],
+        'combo_metrics' => $results['combo_metrics'] ?? [],
         'member' => [
             'member_name' => $player['name'],
             'real_name' => $player['name'],

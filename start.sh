@@ -13,7 +13,6 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SMF_DIR="$SCRIPT_DIR/smf"
 
 clear
 echo -e "${CYAN}"
@@ -28,9 +27,11 @@ cat << 'LOGO'
 LOGO
 echo -e "${NC}"
 
-# Stats System
+# ==============================================================================
+# Docker Services (ClickHouse, PostgreSQL, Redis, Stats API)
+# ==============================================================================
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}Starting Stats System...${NC}"
+echo -e "${CYAN}Starting Docker Services (API, Databases)...${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 cd "$SCRIPT_DIR"
@@ -42,38 +43,58 @@ echo -e "${GREEN}[✓]${NC} PostgreSQL (port 5432)"
 echo -e "${GREEN}[✓]${NC} ClickHouse (port 8123)"
 echo -e "${GREEN}[✓]${NC} Redis (port 6379)"
 
-# SMF Forum
+# ==============================================================================
+# Native SMF Forum (Apache + MariaDB)
+# ==============================================================================
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}Starting SMF Forum...${NC}"
+echo -e "${CYAN}Checking Native SMF Services (Apache + MariaDB)...${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-cd "$SMF_DIR"
-docker compose down 2>/dev/null || true
-docker compose up -d
+# Check Apache
+if systemctl is-active --quiet apache2; then
+    echo -e "${GREEN}[✓]${NC} Apache2 is running"
+else
+    echo -e "${YELLOW}[!]${NC} Apache2 not running, starting..."
+    sudo systemctl start apache2 && echo -e "${GREEN}[✓]${NC} Apache2 started" || echo -e "${RED}[✗]${NC} Failed"
+fi
 
-echo -e "${GREEN}[✓]${NC} SMF Forum (port 8888)"
-echo -e "${GREEN}[✓]${NC} MariaDB"
-echo -e "${GREEN}[✓]${NC} phpMyAdmin (port 8889)"
+# Check MariaDB
+if systemctl is-active --quiet mariadb; then
+    echo -e "${GREEN}[✓]${NC} MariaDB is running"
+else
+    echo -e "${YELLOW}[!]${NC} MariaDB not running, starting..."
+    sudo systemctl start mariadb && echo -e "${GREEN}[✓]${NC} MariaDB started" || echo -e "${RED}[✗]${NC} Failed"
+fi
 
-# Wait
+# Wait and test
 echo ""
 echo -e "${YELLOW}Waiting for services...${NC}"
-sleep 5
+sleep 3
 
-# Status
+if curl -s -o /dev/null -w "%{http_code}" http://localhost:8888/ | grep -qE "200|302"; then
+    echo -e "${GREEN}[✓]${NC} SMF Forum accessible"
+else
+    echo -e "${YELLOW}[!]${NC} SMF may not be ready"
+fi
+
+if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health | grep -q "200"; then
+    echo -e "${GREEN}[✓]${NC} Stats API healthy"
+else
+    echo -e "${YELLOW}[!]${NC} Stats API may not be ready"
+fi
+
+# Summary
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}                    ALL SERVICES STARTED${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  ${BLUE}Stats API:${NC}      http://localhost:8080"
-echo -e "  ${BLUE}API Health:${NC}     http://localhost:8080/health"
 echo -e "  ${BLUE}SMF Forum:${NC}      http://localhost:8888"
-echo -e "  ${BLUE}phpMyAdmin:${NC}     http://localhost:8889"
 echo -e "  ${BLUE}ClickHouse:${NC}     http://localhost:8123"
 echo ""
-echo -e "${YELLOW}Run ./stop.sh to stop all services${NC}"
+echo -e "${CYAN}Docker:${NC}"
+docker ps --format "  {{.Names}}: {{.Status}}" | grep -E "opm-stats" || echo "  (none)"
 echo ""
-echo -e "${CYAN}Container Status:${NC}"
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "opm-stats|smf" || true
+echo -e "${YELLOW}Run ./stop.sh to stop all services${NC}"

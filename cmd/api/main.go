@@ -144,11 +144,11 @@ func main() {
 			r.Get("/global/activity", h.GetGlobalActivity) // [NEW]
 			r.Get("/matches", h.GetMatches)
 			r.Get("/weapons", h.GetGlobalWeaponStats)
-			r.Get("/maps/popularity", h.GetMapPopularity)  // [NEW]
+			r.Get("/maps/popularity", h.GetMapPopularity) // [NEW]
 
-			r.Get("/leaderboard", h.GetLeaderboard)        // [UPDATED] Unified handler
+			r.Get("/leaderboard", h.GetLeaderboard)            // [UPDATED] Unified handler
 			r.Get("/leaderboard/cards", h.GetLeaderboardCards) // [NEW] Summary cards
-			r.Get("/leaderboard/global", h.GetLeaderboard) // Redirect to unified handler
+			r.Get("/leaderboard/global", h.GetLeaderboard)     // Redirect to unified handler
 			// Actually I replaced GetGlobalLeaderboard method with GetLeaderboard, so I MUST update the route name.
 			// The replace_file_content replaced the contents but kept the receiver method signature?
 			// No, I changed the function name to GetLeaderboard in the replacement content.
@@ -165,9 +165,24 @@ func main() {
 			r.Get("/player/{guid}/weapons", h.GetPlayerWeaponStats)
 			r.Get("/player/{guid}/heatmap/{map}", h.GetPlayerHeatmap)
 			r.Get("/player/{guid}/deaths/{map}", h.GetPlayerDeathHeatmap)
-			r.Get("/player/{guid}/heatmap/body", h.GetPlayerBodyHeatmap)       
+			r.Get("/player/{guid}/heatmap/body", h.GetPlayerBodyHeatmap)
 			r.Get("/player/{guid}/performance", h.GetPlayerPerformanceHistory)
 			r.Get("/player/{guid}/playstyle", h.GetPlayerPlaystyle) // [NEW]
+
+			// War Room Enhanced endpoints
+			r.Get("/player/{guid}/peak-performance", h.GetPlayerPeakPerformance)
+			r.Get("/player/{guid}/combos", h.GetPlayerComboMetrics)
+			r.Get("/player/{guid}/drilldown", h.GetPlayerDrilldown)
+			r.Get("/player/{guid}/drilldown/{dimension}/{value}", h.GetPlayerDrilldownNested)
+			r.Get("/player/{guid}/war-room", h.GetPlayerWarRoomData)
+
+			// Drilldown options
+			r.Get("/drilldown/options", h.GetDrilldownOptions)
+
+			// Enhanced leaderboards
+			r.Get("/leaderboard/contextual", h.GetContextualLeaderboard)
+			r.Get("/leaderboard/combos", h.GetComboLeaderboard)
+			r.Get("/leaderboard/peak", h.GetPeakPerformanceLeaderboard)
 
 			r.Get("/map/{map}/heatmap", h.GetMapHeatmap)
 

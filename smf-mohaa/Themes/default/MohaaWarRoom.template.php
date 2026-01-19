@@ -208,14 +208,36 @@ function template_mohaa_war_room()
 
         <!-- Navigation Tabs -->
         <div class="mohaa-tabs">
-            <a onclick="showTab(\'combat\')" class="mohaa-tab active">⚔️ Combat</a>
-            <a onclick="showTab(\'weapons\')" class="mohaa-tab">🔫 Armoury</a>
-            <a onclick="showTab(\'movement\')" class="mohaa-tab">🏃 Movement</a>
-            <a onclick="showTab(\'gameflow\')" class="mohaa-tab">🎮 Game</a>
-            <a onclick="showTab(\'interaction\')" class="mohaa-tab">🗣️ Interaction</a>
-            <a onclick="showTab(\'maps\')" class="mohaa-tab">🗺️ Maps</a>
-            <a onclick="showTab(\'matches\')" class="mohaa-tab">📊 Matches</a>
-            <a onclick="showTab(\'achievements\')" class="mohaa-tab">🏆 Medals</a>
+            <a href="#" onclick="showTab(\'peak\'); return false;" class="mohaa-tab">⚡ Peak</a>
+            <a href="#" onclick="showTab(\'combat\'); return false;" class="mohaa-tab active">⚔️ Combat</a>
+            <a href="#" onclick="showTab(\'signature\'); return false;" class="mohaa-tab">🎯 Signature</a>
+            <a href="#" onclick="showTab(\'weapons\'); return false;" class="mohaa-tab">🔫 Armoury</a>
+            <a href="#" onclick="showTab(\'movement\'); return false;" class="mohaa-tab">🏃 Movement</a>
+            <a href="#" onclick="showTab(\'gameflow\'); return false;" class="mohaa-tab">🎮 Game</a>
+            <a href="#" onclick="showTab(\'interaction\'); return false;" class="mohaa-tab">🗣️ Interaction</a>
+            <a href="#" onclick="showTab(\'maps\'); return false;" class="mohaa-tab">🗺️ Maps</a>
+            <a href="#" onclick="showTab(\'matches\'); return false;" class="mohaa-tab">📊 Matches</a>
+            <a href="#" onclick="showTab(\'achievements\'); return false;" class="mohaa-tab">🏆 Medals</a>
+        </div>
+        
+        <!-- ======================= PEAK PERFORMANCE TAB ======================= -->
+        <div id="tab-peak" class="tab-content" style="display: none;" data-lazy="peak" data-loaded="false">
+            <div class="lazy-loading-placeholder">
+                <div style="text-align: center; padding: 60px;">
+                    <div style="font-size: 2em; margin-bottom: 15px;">⏳</div>
+                    <div>Loading Peak Performance data...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ======================= SIGNATURE MOVES TAB ======================= -->
+        <div id="tab-signature" class="tab-content" style="display: none;" data-lazy="signature" data-loaded="false">
+            <div class="lazy-loading-placeholder">
+                <div style="text-align: center; padding: 60px;">
+                    <div style="font-size: 2em; margin-bottom: 15px;">⏳</div>
+                    <div>Loading Signature Metrics...</div>
+                </div>
+            </div>
         </div>
         
         <!-- ======================= COMBAT TAB ======================= -->
@@ -394,14 +416,22 @@ function template_mohaa_war_room()
 
     <!-- Pass Data to JS -->
     <script>
-        window.mohaaData = ' . json_encode($context['mohaa_dashboard']) . ';
+        window.mohaaData = ' . json_encode($context['mohaa_dashboard'], JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_UNESCAPED_UNICODE) . ';
         
         document.addEventListener("DOMContentLoaded", function() {
-            initWarRoomCharts();
+            try {
+                initWarRoomCharts();
+            } catch (e) {
+                console.error("Error initializing charts:", e);
+            }
         });
         
         function initWarRoomCharts() {
-            const data = window.mohaaData;
+            const data = window.mohaaData || {};
+            if (!data) {
+                console.warn("No mohaaData available");
+                return;
+            }
             const player = data.player_stats || {};
             const perf = player.performance || []; // Expecting array of {kd: float, played_at: timestamp}
             
@@ -572,23 +602,183 @@ function template_mohaa_war_room()
         }
         
         function showTab(tabName) {
-            // Hide all tabs
-            var content = document.getElementsByClassName("tab-content");
-            for (var i = 0; i < content.length; i++) {
-                content[i].style.display = "none";
-            }
-            // Show selected
-            document.getElementById("tab-" + tabName).style.display = "block";
-            
-            // Update buttons
-            var buttons = document.getElementsByClassName("mohaa-tab");
-            for (var i = 0; i < buttons.length; i++) {
-                buttons[i].classList.remove("active");
-                if (buttons[i].getAttribute("onclick").includes(tabName)) {
-                    buttons[i].classList.add("active");
+            try {
+                // Hide all tabs
+                var content = document.getElementsByClassName("tab-content");
+                for (var i = 0; i < content.length; i++) {
+                    content[i].style.display = "none";
                 }
+                // Show selected
+                var targetTab = document.getElementById("tab-" + tabName);
+                if (targetTab) {
+                    targetTab.style.display = "block";
+                } else {
+                    console.error("Tab not found: tab-" + tabName);
+                    return;
+                }
+                
+                // Update buttons
+                var buttons = document.getElementsByClassName("mohaa-tab");
+                for (var i = 0; i < buttons.length; i++) {
+                    buttons[i].classList.remove("active");
+                    var onclick = buttons[i].getAttribute("onclick");
+                    if (onclick && onclick.indexOf(tabName) !== -1) {
+                        buttons[i].classList.add("active");
+                    }
+                }
+                
+                // Lazy load tab content if needed
+                lazyLoadTab(tabName);
+            } catch (e) {
+                console.error("Error switching tab:", e);
             }
         }
+        
+        // Lazy loading state
+        var loadedTabs = {};
+        
+        // Lazy load function for Peak and Signature tabs
+        function lazyLoadTab(tabName) {
+            // Only lazy load specific tabs
+            if (tabName !== "peak" && tabName !== "signature") {
+                return;
+            }
+            
+            // Skip if already loaded
+            if (loadedTabs[tabName]) {
+                return;
+            }
+            
+            var tabEl = document.getElementById("tab-" + tabName);
+            if (!tabEl) return;
+            
+            // Mark as loading
+            loadedTabs[tabName] = "loading";
+            
+            // Build the AJAX URL
+            var url = "' . $scripturl . '?action=mohaalazyload;tab=" + tabName;
+            
+            fetch(url)
+                .then(function(response) {
+                    if (!response.ok) throw new Error("Network error");
+                    return response.json();
+                })
+                .then(function(data) {
+                    loadedTabs[tabName] = "loaded";
+                    renderLazyTab(tabName, data, tabEl);
+                })
+                .catch(function(err) {
+                    console.error("Failed to load tab:", tabName, err);
+                    loadedTabs[tabName] = false; // Allow retry
+                    tabEl.innerHTML = "<div style=\"text-align: center; padding: 40px; color: #f44336;\"><div style=\"font-size: 2em;\">⚠️</div><div>Failed to load data. <a href=\"javascript:void(0)\" onclick=\"loadedTabs[\'" + tabName + "\']=false;showTab(\'" + tabName + "\')\">Retry</a></div></div>";
+                });
+        }
+        
+        // Render lazy-loaded tab content
+        function renderLazyTab(tabName, data, tabEl) {
+            if (tabName === "peak") {
+                renderPeakTab(data, tabEl);
+            } else if (tabName === "signature") {
+                renderSignatureTab(data, tabEl);
+            }
+        }
+        
+        // Render Peak Performance tab
+        function renderPeakTab(data, container) {
+            var peak = data.peak_performance || data || {};
+            var bestConditions = peak.best_conditions || {};
+            
+            if (!peak || Object.keys(peak).length === 0) {
+                container.innerHTML = "<div style=\"text-align: center; padding: 40px; opacity: 0.7;\"><div style=\"font-size: 3em; margin-bottom: 15px;\">📊</div><div>Peak performance analysis requires more match data.</div></div>";
+                return;
+            }
+            
+            var html = "<div class=\"mohaa-grid\">";
+            
+            // Best Conditions Summary
+            html += "<div class=\"windowbg stat-card\" style=\"grid-column: 1 / -1; background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(33, 150, 243, 0.1));\">";
+            html += "<h3 style=\"text-align: center; margin-bottom: 20px;\">⚡ Your Optimal Conditions</h3>";
+            html += "<div style=\"display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; text-align: center;\">";
+            
+            html += "<div><div style=\"font-size: 2em; margin-bottom: 5px;\">🕐</div>";
+            html += "<div style=\"font-size: 1.8em; font-weight: bold; color: #4caf50;\">" + (bestConditions.best_hour_label || "Evening") + "</div>";
+            html += "<div style=\"opacity: 0.7;\">Best Time</div></div>";
+            
+            html += "<div><div style=\"font-size: 2em; margin-bottom: 5px;\">📅</div>";
+            html += "<div style=\"font-size: 1.8em; font-weight: bold; color: #2196f3;\">" + (bestConditions.best_day || "Weekend") + "</div>";
+            html += "<div style=\"opacity: 0.7;\">Best Day</div></div>";
+            
+            html += "<div><div style=\"font-size: 2em; margin-bottom: 5px;\">🗺️</div>";
+            html += "<div style=\"font-size: 1.8em; font-weight: bold; color: #ff9800;\">" + (bestConditions.best_map || "Unknown") + "</div>";
+            html += "<div style=\"opacity: 0.7;\">Best Map</div></div>";
+            
+            html += "<div><div style=\"font-size: 2em; margin-bottom: 5px;\">⏱️</div>";
+            html += "<div style=\"font-size: 1.8em; font-weight: bold; color: #9c27b0;\">" + (bestConditions.optimal_session_mins || 45) + " min</div>";
+            html += "<div style=\"opacity: 0.7;\">Optimal Session</div></div>";
+            
+            html += "</div></div>"; // End grid, end card
+            
+            html += "</div>"; // End mohaa-grid
+            
+            container.innerHTML = html;
+        }
+        
+        // Render Signature Moves tab
+        function renderSignatureTab(data, container) {
+            var combo = data.combo_metrics || data || {};
+            var signature = combo.signature || {};
+            var playStyle = signature.play_style || "Soldier";
+            
+            if (!combo || Object.keys(combo).length === 0) {
+                container.innerHTML = "<div style=\"text-align: center; padding: 40px; opacity: 0.7;\"><div style=\"font-size: 3em; margin-bottom: 15px;\">🎯</div><div>Signature analysis requires more gameplay data.</div></div>";
+                return;
+            }
+            
+            var icons = {
+                "Rusher": "🏃", "Sniper": "🎯", "Tactician": "🧠", "Support": "🛡️",
+                "Objective": "🎖️", "Lone Wolf": "🐺", "Aggressor": "⚔️", "All-Rounder": "⭐"
+            };
+            var icon = icons[playStyle] || "🎖️";
+            
+            var html = "<div class=\"mohaa-grid\">";
+            
+            // Play Style Hero Section
+            html += "<div class=\"windowbg stat-card\" style=\"grid-column: 1 / -1; text-align: center; background: linear-gradient(135deg, rgba(156, 39, 176, 0.1), rgba(33, 150, 243, 0.1));\">";
+            html += "<div style=\"font-size: 5em; margin: 20px 0;\">" + icon + "</div>";
+            html += "<div style=\"font-size: 2em; font-weight: bold; text-transform: uppercase;\">" + playStyle + "</div>";
+            html += "</div>";
+            
+            // Stats cards
+            var moveCombat = combo.movement_combat || {};
+            html += "<div class=\"windowbg stat-card\">";
+            html += "<h3>🏃 Movement + Combat</h3>";
+            html += renderProgressBar("Run & Gun Index", moveCombat.run_gun_index || 0, "#ff9800");
+            html += renderProgressBar("Bunny Hop Efficiency", moveCombat.bunny_hop_efficiency || 0, "#4caf50");
+            html += "</div>";
+            
+            html += "<div class=\"windowbg stat-card\">";
+            html += "<h3>🎯 Signature Metrics</h3>";
+            html += renderProgressBar("Clutch Rate", signature.clutch_rate || 0, "#f44336");
+            html += renderProgressBar("First Blood Rate", signature.first_blood_rate || 0, "#ff5722");
+            html += "</div>";
+            
+            html += "</div>"; // End grid
+            
+            container.innerHTML = html;
+        }
+        
+        function renderProgressBar(label, value, color) {
+            var pct = Math.min(100, Math.max(0, value));
+            return "<div style=\"margin-bottom: 12px;\">" +
+                "<div style=\"display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;\">" +
+                "<span>" + label + "</span><strong style=\"color: " + color + ";\">" + value.toFixed(1) + "</strong></div>" +
+                "<div style=\"height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;\">" +
+                "<div style=\"width: " + pct + "%; height: 100%; background: " + color + "; border-radius: 4px;\"></div>" +
+                "</div></div>";
+        }
+        
+        // Make showTab available globally
+        window.showTab = showTab;
     </script>
     ';
 }
@@ -1274,5 +1464,519 @@ function template_war_room_interaction_content($player) {
                 '.$pickupsHtml.'
             </div>
         </div>
+    </div>';
+}
+
+// ============================================================================
+// PEAK PERFORMANCE TAB
+// Shows when and where the player performs best
+// ============================================================================
+
+function template_war_room_peak_performance_content($data) {
+    $peak = $data['peak_performance'] ?? [];
+    
+    if (empty($peak)) {
+        return '
+        <div class="centertext" style="padding: 40px; opacity: 0.7;">
+            <div style="font-size: 3em; margin-bottom: 15px;">📊</div>
+            <div>Peak performance analysis requires more match data.</div>
+            <div style="font-size: 0.9em; opacity: 0.7;">Play more matches to unlock insights!</div>
+        </div>';
+    }
+    
+    $bestConditions = $peak['best_conditions'] ?? [];
+    $timeOfDay = $peak['time_of_day'] ?? [];
+    $dayOfWeek = $peak['day_of_week'] ?? [];
+    $maps = $peak['maps'] ?? [];
+    $fatigue = $peak['session_fatigue'] ?? [];
+    $momentum = $peak['match_momentum'] ?? [];
+    
+    // Build hourly K/D data for heatmap
+    $hourlyData = [];
+    foreach ($timeOfDay as $h) {
+        $hourlyData[] = [
+            'hour' => $h['hour'] ?? 0,
+            'kdr' => $h['kdr'] ?? 0,
+            'kills' => $h['kills'] ?? 0,
+        ];
+    }
+    $hourlyJson = json_encode($hourlyData);
+    
+    // Day of week data
+    $dayData = [];
+    $dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    foreach ($dayOfWeek as $d) {
+        $dayData[] = [
+            'day' => $dayNames[$d['day_of_week'] ?? 0] ?? 'Unknown',
+            'kdr' => $d['kdr'] ?? 0,
+            'kills' => $d['kills'] ?? 0,
+        ];
+    }
+    $dayJson = json_encode($dayData);
+    
+    return '
+    <div class="mohaa-grid">
+        <!-- Best Conditions Summary Card -->
+        <div class="windowbg stat-card" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(33, 150, 243, 0.1));">
+            <h3 style="text-align: center; margin-bottom: 20px;">⚡ Your Optimal Conditions</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; text-align: center;">
+                <div class="peak-stat-box">
+                    <div style="font-size: 2em; margin-bottom: 5px;">🕐</div>
+                    <div style="font-size: 1.8em; font-weight: bold; color: #4caf50;">'.htmlspecialchars($bestConditions['best_hour_label'] ?? '8PM - 10PM').'</div>
+                    <div style="opacity: 0.7;">Best Time to Play</div>
+                    <div style="font-size: 0.8em; color: #4caf50;">+'.number_format($bestConditions['hour_kdr_boost'] ?? 0, 0).'% K/D vs Average</div>
+                </div>
+                <div class="peak-stat-box">
+                    <div style="font-size: 2em; margin-bottom: 5px;">📅</div>
+                    <div style="font-size: 1.8em; font-weight: bold; color: #2196f3;">'.htmlspecialchars($bestConditions['best_day'] ?? 'Saturday').'</div>
+                    <div style="opacity: 0.7;">Best Day</div>
+                    <div style="font-size: 0.8em; color: #2196f3;">+'.number_format($bestConditions['day_kdr_boost'] ?? 0, 0).'% K/D vs Average</div>
+                </div>
+                <div class="peak-stat-box">
+                    <div style="font-size: 2em; margin-bottom: 5px;">🗺️</div>
+                    <div style="font-size: 1.8em; font-weight: bold; color: #ff9800;">'.htmlspecialchars($bestConditions['best_map'] ?? 'Unknown').'</div>
+                    <div style="opacity: 0.7;">Best Map</div>
+                    <div style="font-size: 0.8em; color: #ff9800;">'.number_format($bestConditions['map_kdr'] ?? 0, 2).' K/D</div>
+                </div>
+                <div class="peak-stat-box">
+                    <div style="font-size: 2em; margin-bottom: 5px;">⏱️</div>
+                    <div style="font-size: 1.8em; font-weight: bold; color: #9c27b0;">'.($bestConditions['optimal_session_mins'] ?? 45).' min</div>
+                    <div style="opacity: 0.7;">Optimal Session</div>
+                    <div style="font-size: 0.8em; color: #9c27b0;">Before fatigue sets in</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Hourly Performance Chart -->
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>🕐 Performance by Hour</h3>
+            <div id="peak-hourly-chart" style="height: 250px;"></div>
+        </div>
+        
+        <!-- Day of Week Chart -->
+        <div class="windowbg stat-card">
+            <h3>📅 Performance by Day</h3>
+            <div id="peak-day-chart" style="height: 200px;"></div>
+        </div>
+        
+        <!-- Session Fatigue -->
+        <div class="windowbg stat-card">
+            <h3>😓 Session Fatigue Analysis</h3>
+            '.template_war_room_fatigue_content($fatigue).'
+        </div>
+        
+        <!-- Match Momentum -->
+        <div class="windowbg stat-card">
+            <h3>📈 Match Momentum</h3>
+            '.template_war_room_momentum_content($momentum).'
+        </div>
+        
+        <!-- Top Maps -->
+        <div class="windowbg stat-card">
+            <h3>🗺️ Best Maps</h3>
+            '.template_war_room_peak_maps_content($maps).'
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Hourly chart
+        var hourlyData = '.$hourlyJson.';
+        if (hourlyData.length > 0 && typeof ApexCharts !== "undefined") {
+            var hourlyOptions = {
+                series: [{
+                    name: "K/D Ratio",
+                    data: hourlyData.map(h => ({x: h.hour + ":00", y: parseFloat(h.kdr).toFixed(2)}))
+                }],
+                chart: {
+                    type: "heatmap",
+                    height: 250,
+                    toolbar: { show: false },
+                    background: "transparent"
+                },
+                dataLabels: { enabled: true },
+                colors: ["#4caf50"],
+                theme: { mode: "dark" },
+                xaxis: {
+                    labels: { style: { colors: "#aaa" } }
+                },
+                yaxis: {
+                    labels: { style: { colors: "#aaa" } }
+                }
+            };
+            new ApexCharts(document.querySelector("#peak-hourly-chart"), hourlyOptions).render();
+        }
+        
+        // Day of week chart
+        var dayData = '.$dayJson.';
+        if (dayData.length > 0 && typeof ApexCharts !== "undefined") {
+            var dayOptions = {
+                series: [{
+                    name: "K/D Ratio",
+                    data: dayData.map(d => parseFloat(d.kdr))
+                }],
+                chart: {
+                    type: "bar",
+                    height: 200,
+                    toolbar: { show: false },
+                    background: "transparent"
+                },
+                plotOptions: {
+                    bar: { borderRadius: 4, horizontal: false }
+                },
+                xaxis: {
+                    categories: dayData.map(d => d.day),
+                    labels: { style: { colors: "#aaa" } }
+                },
+                yaxis: {
+                    labels: { style: { colors: "#aaa" } }
+                },
+                colors: ["#2196f3"],
+                theme: { mode: "dark" }
+            };
+            new ApexCharts(document.querySelector("#peak-day-chart"), dayOptions).render();
+        }
+    });
+    </script>';
+}
+
+function template_war_room_fatigue_content($fatigue) {
+    if (empty($fatigue)) {
+        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">Not enough session data.</div>';
+    }
+    
+    $segments = [
+        ['label' => 'First 15 min', 'key' => 'first_15_kdr', 'color' => '#4caf50'],
+        ['label' => '15-30 min', 'key' => 'mid_15_kdr', 'color' => '#8bc34a'],
+        ['label' => '30-60 min', 'key' => 'late_30_kdr', 'color' => '#ff9800'],
+        ['label' => '60+ min', 'key' => 'overtime_kdr', 'color' => '#f44336'],
+    ];
+    
+    $html = '<div style="padding: 10px;">';
+    foreach ($segments as $s) {
+        $kdr = $fatigue[$s['key']] ?? 0;
+        $width = min(100, ($kdr / 3) * 100); // Scale to max ~3.0 K/D
+        $html .= '
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
+                <span>'.$s['label'].'</span>
+                <strong style="color: '.$s['color'].'">'.number_format($kdr, 2).' K/D</strong>
+            </div>
+            <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
+                <div style="width: '.$width.'%; height: 100%; background: '.$s['color'].'; border-radius: 4px;"></div>
+            </div>
+        </div>';
+    }
+    $html .= '<div style="font-size: 0.8em; opacity: 0.7; margin-top: 10px; text-align: center;">
+        Optimal session: '.($fatigue['optimal_session_minutes'] ?? 45).' minutes
+    </div>';
+    $html .= '</div>';
+    
+    return $html;
+}
+
+function template_war_room_momentum_content($momentum) {
+    if (empty($momentum)) {
+        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">Not enough match data.</div>';
+    }
+    
+    $html = '<div style="padding: 10px;">';
+    
+    // After win/loss stats
+    $afterWin = $momentum['kdr_after_win'] ?? 0;
+    $afterLoss = $momentum['kdr_after_loss'] ?? 0;
+    $streak = $momentum['best_streak_kdr'] ?? 0;
+    
+    $html .= '
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+        <div style="text-align: center; padding: 15px; background: rgba(76, 175, 80, 0.1); border-radius: 8px;">
+            <div style="font-size: 1.5em; font-weight: bold; color: #4caf50;">'.number_format($afterWin, 2).'</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">K/D After Wins</div>
+        </div>
+        <div style="text-align: center; padding: 15px; background: rgba(244, 67, 54, 0.1); border-radius: 8px;">
+            <div style="font-size: 1.5em; font-weight: bold; color: #f44336;">'.number_format($afterLoss, 2).'</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">K/D After Losses</div>
+        </div>
+    </div>';
+    
+    // Insight
+    $diff = $afterWin - $afterLoss;
+    $insight = $diff > 0.3 ? '🔥 You thrive on momentum! Keep the wins rolling.' 
+                         : ($diff < -0.1 ? '💪 You perform well under pressure after losses.' 
+                         : '⚖️ Your performance is consistent regardless of previous results.');
+    
+    $html .= '<div style="font-size: 0.9em; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; text-align: center;">'.$insight.'</div>';
+    $html .= '</div>';
+    
+    return $html;
+}
+
+function template_war_room_peak_maps_content($maps) {
+    if (empty($maps)) {
+        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">No map data available.</div>';
+    }
+    
+    $html = '<div style="padding: 10px;">';
+    $count = 0;
+    foreach ($maps as $m) {
+        if ($count++ >= 5) break;
+        $mapName = $m['map'] ?? 'Unknown';
+        $kdr = $m['kdr'] ?? 0;
+        $matches = $m['matches'] ?? 0;
+        $winRate = $m['win_rate'] ?? 0;
+        
+        $html .= '
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; margin-bottom: 8px; background: rgba(0,0,0,0.05); border-radius: 6px;">
+            <div>
+                <div style="font-weight: bold;">'.htmlspecialchars($mapName).'</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">'.$matches.' matches</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-weight: bold; color: #4caf50;">'.number_format($kdr, 2).' K/D</div>
+                <div style="font-size: 0.8em; color: #2196f3;">'.number_format($winRate, 0).'% WR</div>
+            </div>
+        </div>';
+    }
+    $html .= '</div>';
+    
+    return $html;
+}
+
+// ============================================================================
+// SIGNATURE MOVES TAB  
+// Cross-event combo metrics and play style analysis
+// ============================================================================
+
+function template_war_room_signature_content($data) {
+    $combo = $data['combo_metrics'] ?? [];
+    
+    if (empty($combo)) {
+        return '
+        <div class="centertext" style="padding: 40px; opacity: 0.7;">
+            <div style="font-size: 3em; margin-bottom: 15px;">🎯</div>
+            <div>Signature analysis requires more diverse gameplay data.</div>
+            <div style="font-size: 0.9em; opacity: 0.7;">Play more matches to unlock insights!</div>
+        </div>';
+    }
+    
+    $moveCombat = $combo['movement_combat'] ?? [];
+    $signature = $combo['signature'] ?? [];
+    $health = $combo['health_objective'] ?? [];
+    $economy = $combo['economy_survival'] ?? [];
+    
+    // Play style badge
+    $playStyle = $signature['play_style'] ?? 'Soldier';
+    $playStyleIcon = template_war_room_playstyle_icon($playStyle);
+    
+    return '
+    <div class="mohaa-grid">
+        <!-- Play Style Badge (Hero Section) -->
+        <div class="windowbg stat-card" style="grid-column: 1 / -1; text-align: center; background: linear-gradient(135deg, rgba(156, 39, 176, 0.1), rgba(33, 150, 243, 0.1));">
+            <div style="font-size: 5em; margin: 20px 0;">'.$playStyleIcon.'</div>
+            <div style="font-size: 2em; font-weight: bold; text-transform: uppercase;">'.htmlspecialchars($playStyle).'</div>
+            <div style="opacity: 0.7; margin: 10px 0; max-width: 400px; margin-left: auto; margin-right: auto;">'.template_war_room_playstyle_desc($playStyle).'</div>
+        </div>
+        
+        <!-- Signature Stats Grid -->
+        <div class="windowbg stat-card">
+            <h3>🏃 Movement + Combat</h3>
+            '.template_war_room_move_combat_content($moveCombat).'
+        </div>
+        
+        <div class="windowbg stat-card">
+            <h3>🎯 Signature Metrics</h3>
+            '.template_war_room_signature_metrics_content($signature).'
+        </div>
+        
+        <div class="windowbg stat-card">
+            <h3>❤️ Health & Objective</h3>
+            '.template_war_room_health_obj_content($health).'
+        </div>
+        
+        <div class="windowbg stat-card">
+            <h3>💰 Economy & Survival</h3>
+            '.template_war_room_economy_content($economy).'
+        </div>
+        
+        <!-- Combo Radar Chart -->
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>📊 Your Combat DNA</h3>
+            <div id="signature-radar-chart" style="height: 350px;"></div>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        if (typeof ApexCharts !== "undefined") {
+            var radarOptions = {
+                series: [{
+                    name: "Your Stats",
+                    data: [
+                        '.($moveCombat['run_gun_index'] ?? 50).',
+                        '.($moveCombat['bunny_hop_efficiency'] ?? 50).',
+                        '.($signature['clutch_rate'] ?? 50).',
+                        '.($health['objective_focus'] ?? 50).',
+                        '.($economy['scavenger_score'] ?? 50).',
+                        '.($signature['first_blood_rate'] ?? 50).'
+                    ]
+                }],
+                chart: {
+                    type: "radar",
+                    height: 350,
+                    toolbar: { show: false },
+                    background: "transparent"
+                },
+                xaxis: {
+                    categories: ["Run & Gun", "Bunny Hop", "Clutch", "Objective", "Scavenger", "First Blood"],
+                    labels: { style: { colors: "#aaa", fontSize: "11px" } }
+                },
+                yaxis: {
+                    show: false,
+                    min: 0,
+                    max: 100
+                },
+                stroke: { width: 2 },
+                fill: { opacity: 0.3 },
+                markers: { size: 4 },
+                colors: ["#9c27b0"],
+                theme: { mode: "dark" }
+            };
+            new ApexCharts(document.querySelector("#signature-radar-chart"), radarOptions).render();
+        }
+    });
+    </script>';
+}
+
+function template_war_room_playstyle_icon($style) {
+    $icons = [
+        'Rusher' => '🏃',
+        'Sniper' => '🎯',
+        'Tactician' => '🧠',
+        'Support' => '🛡️',
+        'Objective' => '🎖️',
+        'Lone Wolf' => '🐺',
+        'Team Player' => '🤝',
+        'Aggressor' => '⚔️',
+        'Defender' => '🏰',
+        'All-Rounder' => '⭐',
+    ];
+    return $icons[$style] ?? '🎖️';
+}
+
+function template_war_room_playstyle_desc($style) {
+    $descs = [
+        'Rusher' => 'You lead the charge with aggressive, fast-paced gameplay. High mobility, high risk, high reward.',
+        'Sniper' => 'Patient and precise. You pick your shots carefully and dominate from range.',
+        'Tactician' => 'Strategic mind. You read the battlefield and position yourself for maximum advantage.',
+        'Support' => 'The backbone of the team. You enable others to succeed while holding the line.',
+        'Objective' => 'Mission-focused warrior. Wins matter more than kills in your book.',
+        'Lone Wolf' => 'Self-reliant and deadly. You work best when carving your own path.',
+        'Team Player' => 'Force multiplier. Your presence elevates everyone around you.',
+        'Aggressor' => 'Relentless pressure. You keep enemies on their heels with constant aggression.',
+        'Defender' => 'Immovable object. You excel at holding positions and denying ground.',
+        'All-Rounder' => 'Versatile and adaptable. You excel in any situation thrown at you.',
+    ];
+    return $descs[$style] ?? 'A skilled warrior with a unique combat style.';
+}
+
+function template_war_room_move_combat_content($data) {
+    if (empty($data)) {
+        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">Calculating...</div>';
+    }
+    
+    $runGun = $data['run_gun_index'] ?? 0;
+    $bunnyHop = $data['bunny_hop_efficiency'] ?? 0;
+    $slideKills = $data['slide_kill_rate'] ?? 0;
+    $airKills = $data['air_kill_rate'] ?? 0;
+    
+    return '
+    <div style="padding: 10px;">
+        '.template_war_room_progress_bar('Run & Gun Index', $runGun, '#ff9800', '% of kills while moving').'
+        '.template_war_room_progress_bar('Bunny Hop Efficiency', $bunnyHop, '#4caf50', '% accuracy while jumping').'
+        '.template_war_room_progress_bar('Slide Kill Rate', $slideKills, '#2196f3', '% of kills while sliding').'
+        '.template_war_room_progress_bar('Air Kill Rate', $airKills, '#9c27b0', '% of kills mid-air').'
+    </div>';
+}
+
+function template_war_room_signature_metrics_content($data) {
+    if (empty($data)) {
+        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">Calculating...</div>';
+    }
+    
+    $clutch = $data['clutch_rate'] ?? 0;
+    $firstBlood = $data['first_blood_rate'] ?? 0;
+    $multiKill = $data['multi_kill_rate'] ?? 0;
+    $revenge = $data['revenge_rate'] ?? 0;
+    
+    return '
+    <div style="padding: 10px;">
+        '.template_war_room_progress_bar('Clutch Rate', $clutch, '#f44336', '% of 1vX situations won').'
+        '.template_war_room_progress_bar('First Blood Rate', $firstBlood, '#ff5722', '% of rounds with first kill').'
+        '.template_war_room_progress_bar('Multi-Kill Rate', $multiKill, '#e91e63', '% of kills in multi-kills').'
+        '.template_war_room_progress_bar('Revenge Rate', $revenge, '#673ab7', '% of deaths avenged').'
+    </div>';
+}
+
+function template_war_room_health_obj_content($data) {
+    if (empty($data)) {
+        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">Calculating...</div>';
+    }
+    
+    $objFocus = $data['objective_focus'] ?? 0;
+    $clutchPlant = $data['clutch_plant_rate'] ?? 0;
+    $lowHealth = $data['low_health_kill_rate'] ?? 0;
+    
+    return '
+    <div style="padding: 10px;">
+        '.template_war_room_progress_bar('Objective Focus', $objFocus, '#4caf50', '% of rounds with obj action').'
+        '.template_war_room_progress_bar('Clutch Plant Rate', $clutchPlant, '#ff9800', '% of last-second plants').'
+        '.template_war_room_progress_bar('Low Health Kills', $lowHealth, '#f44336', '% of kills below 25 HP').'
+        
+        <div style="margin-top: 15px; padding: 10px; background: rgba(76, 175, 80, 0.1); border-radius: 6px; text-align: center;">
+            <div style="font-size: 0.8em; opacity: 0.7;">Average HP at Kill</div>
+            <div style="font-size: 1.5em; font-weight: bold; color: #4caf50;">'.($data['avg_hp_at_kill'] ?? 75).'</div>
+        </div>
+    </div>';
+}
+
+function template_war_room_economy_content($data) {
+    if (empty($data)) {
+        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">Calculating...</div>';
+    }
+    
+    $scavenger = $data['scavenger_score'] ?? 0;
+    $pickupKill = $data['pickup_to_kill_ratio'] ?? 0;
+    $survival = $data['survival_rate'] ?? 0;
+    
+    return '
+    <div style="padding: 10px;">
+        '.template_war_room_progress_bar('Scavenger Score', $scavenger, '#ff9800', '% efficiency of pickups').'
+        '.template_war_room_progress_bar('Survival Rate', $survival, '#4caf50', '% of rounds survived').'
+        
+        <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div style="padding: 15px; background: rgba(255, 152, 0, 0.1); border-radius: 6px; text-align: center;">
+                <div style="font-size: 0.8em; opacity: 0.7;">Pickup/Kill Ratio</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #ff9800;">'.number_format($pickupKill, 2).'</div>
+            </div>
+            <div style="padding: 15px; background: rgba(33, 150, 243, 0.1); border-radius: 6px; text-align: center;">
+                <div style="font-size: 0.8em; opacity: 0.7;">Avg Lifespan</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #2196f3;">'.($data['avg_lifespan_secs'] ?? 60).'s</div>
+            </div>
+        </div>
+    </div>';
+}
+
+function template_war_room_progress_bar($label, $value, $color, $subtext = '') {
+    $pct = min(100, max(0, $value));
+    return '
+    <div style="margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
+            <span>'.$label.'</span>
+            <strong style="color: '.$color.'">'.number_format($value, 1).'</strong>
+        </div>
+        <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
+            <div style="width: '.$pct.'%; height: 100%; background: '.$color.'; border-radius: 4px; transition: width 0.3s ease;"></div>
+        </div>
+        '.($subtext ? '<div style="font-size: 0.75em; opacity: 0.6; margin-top: 2px;">'.$subtext.'</div>' : '').'
     </div>';
 }

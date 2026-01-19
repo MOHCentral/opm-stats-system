@@ -162,6 +162,41 @@ class MohaaStatsAPIClient
     public function getPlayerPlaystyle(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/playstyle'); }
     public function getMatchReport(string $matchId): ?array { return $this->get('/stats/match/' . urlencode($matchId) . '/advanced'); }
 
+    // War Room Enhanced endpoints
+    public function getPlayerPeakPerformance(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/peak-performance'); }
+    public function getPlayerComboMetrics(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/combos'); }
+    public function getPlayerDrilldown(string $guid, string $stat = 'kd', array $dimensions = ['weapon', 'map'], int $limit = 10): ?array { 
+        return $this->get('/stats/player/' . urlencode($guid) . '/drilldown', [
+            'stat' => $stat,
+            'dimensions' => implode(',', $dimensions),
+            'limit' => $limit
+        ]); 
+    }
+    public function getPlayerDrilldownNested(string $guid, string $dimension, string $value, string $childDimension, string $stat = 'kd'): ?array {
+        return $this->get('/stats/player/' . urlencode($guid) . '/drilldown/' . urlencode($dimension) . '/' . urlencode($value), [
+            'child_dimension' => $childDimension,
+            'stat' => $stat
+        ]);
+    }
+    public function getPlayerWarRoomData(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/war-room'); }
+    
+    // Enhanced Leaderboards
+    public function getContextualLeaderboard(string $stat, string $dimension, string $value, int $limit = 25): ?array {
+        return $this->get('/stats/leaderboard/contextual', [
+            'stat' => $stat,
+            'dimension' => $dimension,
+            'value' => $value,
+            'limit' => $limit
+        ]);
+    }
+    public function getComboLeaderboard(string $metric, int $limit = 25): ?array {
+        return $this->get('/stats/leaderboard/combos', ['metric' => $metric, 'limit' => $limit]);
+    }
+    public function getPeakPerformanceLeaderboard(string $dimension = 'evening', int $limit = 25): ?array {
+        return $this->get('/stats/leaderboard/peak', ['dimension' => $dimension, 'limit' => $limit]);
+    }
+    public function getDrilldownOptions(string $stat = 'kd'): ?array { return $this->get('/stats/drilldown/options', ['stat' => $stat]); }
+
     public function getPlayerMapStats(string $guid): ?array { return []; }
     public function getPlayerComparisons(string $guid): ?array { return []; }
     public function getHeadToHead(string $guid1, string $guid2): ?array { return []; }
