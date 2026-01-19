@@ -234,4 +234,185 @@ function template_mohaa_compare()
         <p>Player comparison functionality coming soon.</p>
     </div>';
 }
+
+/**
+ * Player comparison selection page (when no players selected yet)
+ */
+function template_mohaa_compare_select()
+{
+    global $context, $txt, $scripturl;
+    
+    echo '
+    <div class="cat_bar">
+        <h3 class="catbg">', $txt['mohaa_compare_players'] ?? 'Compare Players', '</h3>
+    </div>
+    <div class="windowbg">
+        <form action="', $scripturl, '?action=mohaacompare" method="get" style="max-width: 600px; margin: 0 auto;">
+            <input type="hidden" name="action" value="mohaacompare">
+            
+            <div class="roundframe" style="margin-bottom: 20px;">
+                <h4 style="margin-top: 0;">', $txt['mohaa_select_players'] ?? 'Select Two Players to Compare', '</h4>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="p1" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                        ', $txt['mohaa_player_1'] ?? 'Player 1', ':
+                    </label>
+                    <input type="text" name="p1" id="p1" 
+                           placeholder="', $txt['mohaa_enter_guid_or_name'] ?? 'Enter GUID or player name', '" 
+                           style="width: 100%; padding: 8px; box-sizing: border-box;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="p2" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                        ', $txt['mohaa_player_2'] ?? 'Player 2', ':
+                    </label>
+                    <input type="text" name="p2" id="p2" 
+                           placeholder="', $txt['mohaa_enter_guid_or_name'] ?? 'Enter GUID or player name', '" 
+                           style="width: 100%; padding: 8px; box-sizing: border-box;">
+                </div>
+                
+                <div style="text-align: center;">
+                    <button type="submit" class="button">
+                        ', $txt['mohaa_compare'] ?? 'Compare', '
+                    </button>
+                </div>
+            </div>
+        </form>';
+    
+    // Show recent players for quick selection
+    if (!empty($context['mohaa_recent_players'])) {
+        echo '
+        <div class="roundframe">
+            <h4 style="margin-top: 0;">', $txt['mohaa_recent_players'] ?? 'Recent Players', '</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">';
+        
+        foreach ($context['mohaa_recent_players'] as $player) {
+            echo '
+                <a href="', $scripturl, '?action=mohaaplayer;guid=', urlencode($player['guid']), '" class="button" style="font-size: 12px;">
+                    ', htmlspecialchars($player['name']), '
+                </a>';
+        }
+        
+        echo '
+            </div>
+        </div>';
+    }
+    
+    echo '
+    </div>';
+}
+
+/**
+ * Profile stats tab - shows MOHAA stats in member profile
+ */
+function template_mohaa_profile_stats()
+{
+    global $context, $txt, $scripturl;
+    
+    echo '
+    <div class="cat_bar">
+        <h3 class="catbg">
+            <span class="main_icons stats"></span> ', $txt['mohaa_game_stats'] ?? 'Game Statistics', '
+        </h3>
+    </div>';
+    
+    // No linked identity
+    if (!empty($context['mohaa_no_identity'])) {
+        echo '
+        <div class="windowbg centertext">
+            <p>', $txt['mohaa_no_linked_identity'] ?? 'This member has not linked their game identity yet.', '</p>';
+        
+        // If viewing own profile, show link option
+        if (!empty($context['user']['is_owner'])) {
+            echo '
+            <p>
+                <a href="', $scripturl, '?action=profile;area=mohaaidentity" class="button">
+                    ', $txt['mohaa_link_identity'] ?? 'Link Your Game Identity', '
+                </a>
+            </p>';
+        }
+        
+        echo '
+        </div>';
+        return;
+    }
+    
+    // Show player stats
+    $stats = $context['mohaa_profile_stats'] ?? [];
+    $player = $stats['player'] ?? [];
+    
+    echo '
+    <div class="windowbg">';
+    
+    if (!empty($player)) {
+        // Quick stats grid
+        echo '
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <div class="roundframe" style="text-align: center; padding: 15px;">
+                <div style="font-size: 24px; font-weight: bold; color: #4caf50;">
+                    ', number_format($player['kills'] ?? 0), '
+                </div>
+                <div style="font-size: 12px; color: #888; text-transform: uppercase;">
+                    ', $txt['mohaa_kills'] ?? 'Kills', '
+                </div>
+            </div>
+            <div class="roundframe" style="text-align: center; padding: 15px;">
+                <div style="font-size: 24px; font-weight: bold; color: #f44336;">
+                    ', number_format($player['deaths'] ?? 0), '
+                </div>
+                <div style="font-size: 12px; color: #888; text-transform: uppercase;">
+                    ', $txt['mohaa_deaths'] ?? 'Deaths', '
+                </div>
+            </div>
+            <div class="roundframe" style="text-align: center; padding: 15px;">
+                <div style="font-size: 24px; font-weight: bold;">
+                    ', number_format($player['kd_ratio'] ?? 0, 2), '
+                </div>
+                <div style="font-size: 12px; color: #888; text-transform: uppercase;">
+                    ', $txt['mohaa_kd_ratio'] ?? 'K/D Ratio', '
+                </div>
+            </div>
+            <div class="roundframe" style="text-align: center; padding: 15px;">
+                <div style="font-size: 24px; font-weight: bold; color: #ff9800;">
+                    ', number_format($player['headshots'] ?? 0), '
+                </div>
+                <div style="font-size: 12px; color: #888; text-transform: uppercase;">
+                    ', $txt['mohaa_headshots'] ?? 'Headshots', '
+                </div>
+            </div>
+            <div class="roundframe" style="text-align: center; padding: 15px;">
+                <div style="font-size: 24px; font-weight: bold;">
+                    ', number_format($player['playtime_hours'] ?? 0, 1), 'h
+                </div>
+                <div style="font-size: 12px; color: #888; text-transform: uppercase;">
+                    ', $txt['mohaa_playtime'] ?? 'Playtime', '
+                </div>
+            </div>
+            <div class="roundframe" style="text-align: center; padding: 15px;">
+                <div style="font-size: 24px; font-weight: bold;">
+                    ', number_format($player['matches'] ?? 0), '
+                </div>
+                <div style="font-size: 12px; color: #888; text-transform: uppercase;">
+                    ', $txt['mohaa_matches'] ?? 'Matches', '
+                </div>
+            </div>
+        </div>';
+        
+        // Link to full stats
+        if (!empty($player['guid'])) {
+            echo '
+            <div style="text-align: center;">
+                <a href="', $scripturl, '?action=mohaaplayer;guid=', urlencode($player['guid']), '" class="button">
+                    ', $txt['mohaa_view_full_stats'] ?? 'View Full Stats', '
+                </a>
+            </div>';
+        }
+    } else {
+        echo '
+        <p class="centertext">', $txt['mohaa_no_stats_available'] ?? 'No stats available yet.', '</p>';
+    }
+    
+    echo '
+    </div>';
+}
 ?>

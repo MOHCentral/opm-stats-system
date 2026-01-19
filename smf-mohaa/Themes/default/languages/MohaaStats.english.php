@@ -602,3 +602,32 @@ $txt['mohaa_hitbox_15'] = 'Right Hand';
 $txt['mohaa_hitbox_16'] = 'Left Hand';
 $txt['mohaa_hitbox_17'] = 'Right Foot';
 $txt['mohaa_hitbox_18'] = 'Left Foot';
+$txt['mohaa_no_live_servers'] = 'No live servers at the moment.';
+
+// Missing server-related strings
+$txt['mohaa_no_servers'] = 'No servers registered yet.';
+$txt['mohaa_gametype'] = 'Game Type';
+$txt['mohaa_server_name'] = 'Server Name';
+$txt['mohaa_servers_online'] = 'Servers Online';
+$txt['mohaa_total_players_online'] = 'Players Online';
+$txt['mohaa_server_history'] = 'Server History';
+$txt['mohaa_live_servers'] = 'Live Servers';
+$txt['mohaa_compare_select'] = 'Select Players to Compare';
+$txt['mohaa_compare_title'] = 'Player Comparison';
+$txt['mohaa_player_not_found'] = 'Player not found.';
+
+// Error messages
+$txt['mohaa_player_not_specified'] = 'No player specified. Please provide a player GUID or member ID.';
+$txt['mohaa_no_linked_identity'] = 'This member has not linked their game identity yet.';
+$txt['mohaa_invite_not_found'] = 'Invitation not found or already processed.';
+$txt['mohaa_achievement_not_found'] = 'Achievement not found.';
+
+// Additional UI strings
+$txt['mohaa_api_error'] = 'Could not connect to stats API. Please try again later.';
+$txt['mohaa_total_servers'] = 'Total Servers';
+$txt['mohaa_total_players_online'] = 'Players Online';
+$txt['mohaa_browse_servers'] = 'Browse Servers';
+
+// More UI strings
+$txt['mohaa_map_stats'] = 'Map Statistics';
+$txt['mohaa_game_stats'] = 'Game Statistics';

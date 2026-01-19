@@ -101,9 +101,11 @@ function MohaaAchievements_List(): void
             'tier' => (int)$row['tier'],
             'category' => $row['category'],
             'target' => (int)$row['requirement_value'],
+            'requirement_value' => (int)$row['requirement_value'],
             'metric' => $row['requirement_type'],
             'icon' => $row['icon'],
             'points' => (int)$row['points'],
+            'is_hidden' => (int)$row['is_hidden'],
         ];
     }
     $smcFunc['db_free_result']($request);

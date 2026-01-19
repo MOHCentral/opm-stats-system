@@ -256,6 +256,100 @@ function template_mohaa_live_matches_content()
 }
 
 /**
+ * Live matches page (standalone page for mohaastats;sa=live)
+ */
+function template_mohaa_live()
+{
+    global $context, $txt, $scripturl;
+    
+    echo '
+    <div class="mohaa-live-page">
+        <h2 class="category_header">', $txt['mohaa_live'] ?? 'Live Matches', '</h2>';
+    
+    if (empty($context['mohaa_live_matches'])) {
+        echo '
+        <div class="windowbg centertext">
+            <p>', $txt['mohaa_no_live_matches'] ?? 'No live matches at the moment.', '</p>
+            <p><a href="', $scripturl, '?action=mohaaservers">', $txt['mohaa_browse_servers'] ?? 'Browse Servers', '</a></p>
+        </div>';
+    } else {
+        echo '
+        <div class="windowbg">';
+        
+        foreach ($context['mohaa_live_matches'] as $match) {
+            echo '
+            <div class="mohaa-live-match">
+                <div class="live-indicator"><span class="pulse"></span> LIVE</div>
+                <div class="live-server">', htmlspecialchars($match['server_name'] ?? 'Unknown Server'), '</div>
+                <div class="live-map">', htmlspecialchars($match['map_name'] ?? 'Unknown Map'), '</div>
+                <div class="live-players">', $match['player_count'] ?? 0, '/', $match['max_players'] ?? 0, ' ', $txt['mohaa_players_online'] ?? 'Players', '</div>';
+            
+            if (!empty($match['team_match'])) {
+                echo '
+                <div class="live-score">
+                    <span class="team-allies">', $match['allies_score'] ?? 0, '</span>
+                    <span class="vs">vs</span>
+                    <span class="team-axis">', $match['axis_score'] ?? 0, '</span>
+                </div>';
+            }
+            
+            echo '
+            </div>';
+        }
+        
+        echo '
+        </div>';
+    }
+    
+    echo '
+    </div>
+    
+    <style>
+        .mohaa-live-page { margin: 1em 0; }
+        .mohaa-live-match { 
+            display: flex; 
+            align-items: center; 
+            gap: 1em; 
+            padding: 1em; 
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .mohaa-live-match:last-child { border-bottom: none; }
+        .live-indicator { 
+            color: #f44336; 
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .pulse {
+            width: 10px;
+            height: 10px;
+            background: #f44336;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .live-server { font-weight: bold; flex: 1; }
+        .live-map { color: #aaa; }
+        .live-players { color: #4caf50; }
+        .live-score { display: flex; gap: 0.5em; font-size: 1.2em; }
+        .team-allies { color: #4caf50; }
+        .team-axis { color: #f44336; }
+        .vs { color: #888; }
+    </style>
+    
+    <script>
+        // Auto-refresh live matches every 15 seconds
+        setTimeout(function() {
+            location.reload();
+        }, 15000);
+    </script>';
+}
+
+/**
  * Leaderboards template
  */
 function template_mohaa_leaderboards()

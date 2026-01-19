@@ -137,6 +137,22 @@ class MohaaStatsAPIClient
     public function getAchievements(): ?array { return $this->get('/achievements/'); }
     public function getAchievement(int $id): ?array { return $this->get('/achievements/' . $id); }
     public function getRecentAchievements(): ?array { return $this->get('/achievements/recent'); }
+    
+    // Server methods - stub implementations until Go API has server endpoints
+    public function getServerList(): array { return []; }
+    public function getServerGlobalStats(): array { return ['total_servers' => 0, 'online_servers' => 0, 'total_players' => 0]; }
+    public function getLiveServers(): array { return []; }
+    public function getServerDetails(string $id): ?array { return null; }
+    public function getServerCurrentMatch(string $id): ?array { return null; }
+    public function getServerMatches(string $id, int $limit = 20): array { return []; }
+    public function getServerTopPlayers(string $id, int $limit = 10): array { return []; }
+    public function getServerMapRotation(string $id): array { return []; }
+    public function getServerUptimeHistory(string $id, int $days = 7): array { return []; }
+    public function getServerPlayerHistory(string $id, int $hours = 24): array { return []; }
+    public function getAllServersHistory(int $days = 7): array { return []; }
+    public function getServerHistory(string $id, int $days = 7): array { return []; }
+    public function getHistoricalPlayerCounts(string $id, int $days = 7): array { return []; }
+    public function getHistoricalMatchCounts(string $id, int $days = 7): array { return []; }
     public function getAchievementLeaderboard(): ?array { return $this->get('/achievements/leaderboard'); }
 
     public function getActivePlayers(int $hours): ?array { return []; }

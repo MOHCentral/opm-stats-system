@@ -51,12 +51,12 @@ function MohaaServers_Main(): void
  */
 function MohaaServers_List(): void
 {
-    global $context, $txt, $scripturl;
+    global $context, $txt, $scripturl, $sourcedir;
     
     $context['page_title'] = $txt['mohaa_servers'];
     $context['sub_template'] = 'mohaa_servers_list';
     
-    require_once(SOURCEDIR . '/MohaaStats/MohaaStatsAPI.php');
+    require_once($sourcedir . '/MohaaStats/MohaaStatsAPI.php');
     $api = new MohaaStatsAPIClient();
     
     $context['mohaa_servers'] = $api->getServerList();
@@ -73,12 +73,12 @@ function MohaaServers_List(): void
  */
 function MohaaServers_Live(): void
 {
-    global $context, $txt, $scripturl;
+    global $context, $txt, $scripturl, $sourcedir;
     
     $context['page_title'] = $txt['mohaa_live_servers'];
     $context['sub_template'] = 'mohaa_servers_live';
     
-    require_once(SOURCEDIR . '/MohaaStats/MohaaStatsAPI.php');
+    require_once($sourcedir . '/MohaaStats/MohaaStatsAPI.php');
     $api = new MohaaStatsAPIClient();
     
     $context['mohaa_live'] = $api->getLiveServers();
@@ -94,7 +94,7 @@ function MohaaServers_Live(): void
  */
 function MohaaServers_Detail(): void
 {
-    global $context, $txt, $scripturl;
+    global $context, $txt, $scripturl, $sourcedir;
     
     $serverId = isset($_GET['id']) ? $_GET['id'] : '';
     
@@ -103,7 +103,7 @@ function MohaaServers_Detail(): void
         return;
     }
     
-    require_once(SOURCEDIR . '/MohaaStats/MohaaStatsAPI.php');
+    require_once($sourcedir . '/MohaaStats/MohaaStatsAPI.php');
     $api = new MohaaStatsAPIClient();
     
     $server = $api->getServerDetails($serverId);
@@ -141,7 +141,7 @@ function MohaaServers_Detail(): void
  */
 function MohaaServers_History(): void
 {
-    global $context, $txt, $scripturl;
+    global $context, $txt, $scripturl, $sourcedir;
     
     $serverId = isset($_GET['id']) ? $_GET['id'] : '';
     $period = isset($_GET['period']) ? $_GET['period'] : 'week';
@@ -149,7 +149,7 @@ function MohaaServers_History(): void
     $context['page_title'] = $txt['mohaa_server_history'];
     $context['sub_template'] = 'mohaa_server_history';
     
-    require_once(SOURCEDIR . '/MohaaStats/MohaaStatsAPI.php');
+    require_once($sourcedir . '/MohaaStats/MohaaStatsAPI.php');
     $api = new MohaaStatsAPIClient();
     
     if (!empty($serverId)) {
