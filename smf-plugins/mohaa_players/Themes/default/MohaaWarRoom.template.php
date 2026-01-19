@@ -293,10 +293,10 @@ function template_mohaa_war_room()
         
         <!-- ======================= MAPS TAB ======================= -->
         <div id="tab-maps" class="tab-content" style="display: none;">
-            <div class="windowbg stat-card" style="margin-bottom: 20px;">
-                <h3>Win Rate Analysis</h3>
-                <div id="chart-maps" style="min-height: 350px;"></div>
-                </div>
+            <div class="windowbg stat-card">
+                <h3>Map Performance</h3>
+                ', template_war_room_maps_content($player['maps'] ?? [], $player), '
+            </div>
         </div>
         
          <!-- ======================= ACHIEVEMENTS TAB ======================= -->
@@ -304,11 +304,6 @@ function template_mohaa_war_room()
              <div class="windowbg stat-card">
                 <h3>Unlocked Achievements</h3>
                 ', template_war_room_achievements_content($data['mohaa_my']['achievements'] ?? []), '
-            </div>
-        </div>
-            <div class="windowbg stat-card">
-                <h3>Map Performance</h3>
-                ', template_war_room_maps_content($player['maps'] ?? [], $player), '
             </div>
         </div>
         
@@ -425,6 +420,25 @@ function template_mohaa_war_room()
                 new ApexCharts(document.querySelector("#chart-maps"), options).render();
             } else {
                  document.querySelector("#chart-maps").innerHTML = "<p class=\'centertext\'>Not enough map data yet.</p>";
+            }
+        }
+        
+        function showTab(tabName) {
+            // Hide all tabs
+            var content = document.getElementsByClassName("tab-content");
+            for (var i = 0; i < content.length; i++) {
+                content[i].style.display = "none";
+            }
+            // Show selected
+            document.getElementById("tab-" + tabName).style.display = "block";
+            
+            // Update buttons
+            var buttons = document.getElementsByClassName("mohaa-tab");
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove("active");
+                if (buttons[i].getAttribute("onclick").includes(tabName)) {
+                    buttons[i].classList.add("active");
+                }
             }
         }
     </script>
