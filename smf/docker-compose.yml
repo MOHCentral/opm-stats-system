@@ -18,12 +18,22 @@ services:
       - ./entrypoint.sh:/entrypoint.sh
       - ../smf-plugins:/var/www/html/Packages/mohaa
       # Mount plugin sources directly for instant changes during development
+      # MohaaPlayers plugin (profile stats, identity linking)
       - ../smf-plugins/mohaa_players/Sources/MohaaPlayers.php:/var/www/html/Sources/MohaaPlayers.php
-      - ../smf-plugins/mohaa_players/Sources/MohaaStats:/var/www/html/Sources/MohaaStats
       - ../smf-plugins/mohaa_players/Themes/default/MohaaPlayers.template.php:/var/www/html/Themes/default/MohaaPlayers.template.php
       - ../smf-plugins/mohaa_players/Themes/default/MohaaIdentity.template.php:/var/www/html/Themes/default/MohaaIdentity.template.php
       - ../smf-plugins/mohaa_players/Themes/default/MohaaDashboard.template.php:/var/www/html/Themes/default/MohaaDashboard.template.php
       - ../smf-plugins/mohaa_players/Themes/default/MohaaWarRoom.template.php:/var/www/html/Themes/default/MohaaWarRoom.template.php
+      # MohaaStats Core plugin (war room, navigation, main stats pages)
+      # Mount individual files into MohaaStats/ directory (this is where SMF looks for them)
+      - ../smf-plugins/mohaa_stats_core/Sources/MohaaStats/MohaaStats.php:/var/www/html/Sources/MohaaStats/MohaaStats.php
+      - ../smf-plugins/mohaa_stats_core/Sources/MohaaStats/MohaaStatsAdmin.php:/var/www/html/Sources/MohaaStats/MohaaStatsAdmin.php
+      - ../smf-plugins/mohaa_players/Sources/MohaaStats/MohaaStatsAPI.php:/var/www/html/Sources/MohaaStats/MohaaStatsAPI.php
+      - ../smf-plugins/mohaa_stats_core/Themes/default/MohaaStats.template.php:/var/www/html/Themes/default/MohaaStats.template.php
+      - ../smf-plugins/mohaa_stats_core/Themes/default/MohaaStatsPlayer.template.php:/var/www/html/Themes/default/MohaaStatsPlayer.template.php
+      - ../smf-plugins/mohaa_stats_core/Themes/default/MohaaStatsMatch.template.php:/var/www/html/Themes/default/MohaaStatsMatch.template.php
+      - ../smf-plugins/mohaa_stats_core/Themes/default/MohaaStatsLeaderboard.template.php:/var/www/html/Themes/default/MohaaStatsLeaderboard.template.php
+      # Language file
       - ../smf-plugins/Languages/MohaaStats.english.php:/var/www/html/Themes/default/languages/MohaaStats.english.php
     depends_on:
       smf-db:

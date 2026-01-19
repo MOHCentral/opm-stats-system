@@ -358,7 +358,8 @@ func (h *Handler) InitDeviceAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If regenerating, revoke all existing tokens AND clear trusted IPs for this user
+	// If regenerating, revoke all existing tokens for this user
+	// NOTE: We do NOT clear trusted IPs - user must manually remove them if compromised
 	if req.Regenerate {
 		_, err := h.pg.Exec(ctx, `
 			UPDATE login_tokens 
@@ -367,16 +368,6 @@ func (h *Handler) InitDeviceAuth(w http.ResponseWriter, r *http.Request) {
 		`, req.ForumUserID)
 		if err != nil {
 			h.logger.Errorw("Failed to revoke old tokens", "error", err, "forum_user_id", req.ForumUserID)
-		}
-
-		// Also clear all trusted IPs when regenerating (security measure)
-		_, err = h.pg.Exec(ctx, `
-			UPDATE trusted_ips 
-			SET is_active = false, revoked_at = NOW() 
-			WHERE forum_user_id = $1 AND is_active = true
-		`, req.ForumUserID)
-		if err != nil {
-			h.logger.Errorw("Failed to revoke trusted IPs", "error", err, "forum_user_id", req.ForumUserID)
 		}
 	}
 

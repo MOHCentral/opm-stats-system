@@ -137,13 +137,13 @@ function MohaaPlayers_Dashboard(): void
     }
     
     loadLanguage('MohaaStats');
-    loadTemplate('MohaaDashboard');
+    loadTemplate('MohaaWarRoom');
     
     require_once(__DIR__ . '/MohaaStats/MohaaStatsAPI.php');
     $api = new MohaaStatsAPIClient();
     
-    $context['page_title'] = $txt['mohaa_my_dashboard'];
-    $context['sub_template'] = 'mohaa_dashboard';
+    $context['page_title'] = $txt['mohaa_war_room'] ?? 'War Room';
+    $context['sub_template'] = 'mohaa_war_room';
     
     // Get linked identity for current user
     $myGuid = MohaaPlayers_GetLinkedGUID($user_info['id']);
@@ -175,6 +175,7 @@ function MohaaPlayers_Dashboard(): void
             'weapons' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/weapons'],
             'matches' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/matches', 'params' => ['limit' => 10]],
             'achievements' => ['endpoint' => '/achievements/player/' . urlencode($myGuid)],
+            'maps' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/maps'],
         ];
         
         $playerResults = $api->getMultiple($playerRequests);
@@ -191,13 +192,40 @@ function MohaaPlayers_Dashboard(): void
         ];
         
         $context['mohaa_has_identity'] = true;
+        
+        // Build the War Room dashboard format
+        $playerStats = $playerResults['player'] ?? [];
+        $playerStats['weapons'] = $playerResults['weapons'] ?? [];
+        $playerStats['maps'] = $playerResults['maps'] ?? [];
+        $playerStats['recent_matches'] = $playerResults['matches'] ?? [];
+        
+        $context['mohaa_dashboard'] = [
+            'player_stats' => $playerStats,
+            'member' => [
+                'id_member' => $user_info['id'],
+                'member_name' => $user_info['username'],
+                'real_name' => $user_info['name'],
+            ],
+            'global' => $results['stats'] ?? [],
+        ];
     } else {
         $context['mohaa_has_identity'] = false;
+        
+        // Provide empty dashboard for users without linked identity
+        $context['mohaa_dashboard'] = [
+            'player_stats' => [],
+            'member' => [
+                'id_member' => $user_info['id'],
+                'member_name' => $user_info['username'],
+                'real_name' => $user_info['name'],
+            ],
+            'global' => $results['stats'] ?? [],
+        ];
     }
     
     $context['linktree'][] = [
         'url' => $scripturl . '?action=mohaadashboard',
-        'name' => $txt['mohaa_my_dashboard'],
+        'name' => $txt['mohaa_war_room'] ?? 'War Room',
     ];
 }
 
@@ -372,6 +400,20 @@ function MohaaPlayers_ProfileIdentity(int $memID): void
                 'status' => '-',
             ],
         ];
+    }
+    
+    // Get trusted IPs from API
+    $context['mohaa_trusted_ips'] = [];
+    $trustedData = $api->getTrustedIPs($memID);
+    if (!empty($trustedData['trusted_ips'])) {
+        $context['mohaa_trusted_ips'] = $trustedData['trusted_ips'];
+    }
+    
+    // Get pending IP approvals from API
+    $context['mohaa_pending_ips'] = [];
+    $pendingData = $api->getPendingIPApprovals($memID);
+    if (!empty($pendingData['pending_ips'])) {
+        $context['mohaa_pending_ips'] = $pendingData['pending_ips'];
     }
 }
 

@@ -9,6 +9,10 @@
 // General
 $txt['mohaa_stats'] = 'MOHAA Stats';
 $txt['mohaa_stats_disabled'] = 'MOHAA Stats is currently disabled.';
+$txt['mohaa_leaderboards'] = 'Leaderboards';
+$txt['mohaa_matches'] = 'Matches';
+$txt['mohaa_live'] = 'Live Servers';
+$txt['mohaa_live_matches'] = 'Live Matches';
 $txt['mohaa_view'] = 'View';
 $txt['mohaa_manage'] = 'Manage';
 $txt['mohaa_create'] = 'Create';

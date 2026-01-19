@@ -15,6 +15,9 @@
 if (!defined('SMF'))
     die('No direct access...');
 
+// Load the API client class
+require_once(__DIR__ . '/MohaaStatsAPI.php');
+
 /**
  * Register actions (URL routes)
  */
@@ -66,21 +69,40 @@ function MohaaStats_MenuButtons(array &$buttons): void
         'icon' => 'stats',
         'show' => true,
         'sub_buttons' => [
-            'leaderboards' => [
-                'title' => $txt['mohaa_leaderboards'],
-                'href' => $scripturl . '?action=mohaastats;sa=leaderboards',
+            'warroom' => [
+                'title' => $txt['mohaa_war_room'] ?? 'War Room',
+                'href' => $scripturl . '?action=mohaastats',
+                'show' => true,
             ],
-            'matches' => [
-                'title' => $txt['mohaa_matches'],
-                'href' => $scripturl . '?action=mohaastats;sa=matches',
+            'leaderboard' => [
+                'title' => $txt['mohaa_leaderboard'] ?? 'Leaderboard',
+                'href' => $scripturl . '?action=mohaastats;sa=leaderboards',
+                'show' => true,
+            ],
+            'livematches' => [
+                'title' => $txt['mohaa_live_matches'] ?? 'Live Matches',
+                'href' => $scripturl . '?action=mohaastats;sa=live',
+                'show' => true,
+            ],
+            'servers' => [
+                'title' => $txt['mohaa_servers'] ?? 'Servers',
+                'href' => $scripturl . '?action=mohaaservers',
+                'show' => true,
             ],
             'maps' => [
-                'title' => $txt['mohaa_maps'],
+                'title' => $txt['mohaa_maps'] ?? 'Maps',
                 'href' => $scripturl . '?action=mohaastats;sa=maps',
+                'show' => true,
             ],
-            'live' => [
-                'title' => $txt['mohaa_live'],
-                'href' => $scripturl . '?action=mohaastats;sa=live',
+            'achievements' => [
+                'title' => $txt['mohaa_achievements'] ?? 'Achievements',
+                'href' => $scripturl . '?action=mohaaachievements',
+                'show' => true,
+            ],
+            'tournaments' => [
+                'title' => $txt['mohaa_tournaments'] ?? 'Tournaments',
+                'href' => $scripturl . '?action=mohaatournaments',
+                'show' => true,
             ],
         ],
     ];
@@ -88,12 +110,14 @@ function MohaaStats_MenuButtons(array &$buttons): void
     // Reorder to put it after Home
     $temp = [];
     foreach ($buttons as $key => $button) {
+        // Skip mohaastats since we'll add it right after home
+        if ($key === 'mohaastats') continue;
+        
         $temp[$key] = $button;
         if ($key === 'home') {
             $temp['mohaastats'] = $buttons['mohaastats'];
         }
     }
-    unset($temp['mohaastats']);
     $buttons = $temp;
 }
 

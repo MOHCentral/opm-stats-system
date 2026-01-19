@@ -3,43 +3,39 @@
 # OpenMOHAA Stats System - Stop All Services
 # ==============================================================================
 
-set -e
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-API_DIR="$SCRIPT_DIR"
 SMF_DIR="$SCRIPT_DIR/smf"
 
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${YELLOW}Stopping OpenMOHAA Stats System...${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# Kill any running API servers
-echo -e "${YELLOW}Stopping API servers...${NC}"
-pkill -f "bin/api-server" 2>/dev/null && echo -e "${GREEN}[✓] Stopped Go API Server${NC}" || echo -e "${YELLOW}[!] Go API Server not running${NC}"
-pkill -f "node server.js" 2>/dev/null && echo -e "${GREEN}[✓] Stopped Node.js Server${NC}" || echo -e "${YELLOW}[!] Node.js Server not running${NC}"
-
-# Stop Docker containers
-echo -e "${YELLOW}Stopping Docker containers...${NC}"
-cd "$API_DIR"
+# Stop Stats System containers
+echo ""
+echo -e "${YELLOW}Stopping Stats System...${NC}"
+cd "$SCRIPT_DIR"
 if [ -f "docker-compose.yml" ]; then
-    docker-compose down
-    echo -e "${GREEN}[✓] Stats system containers stopped${NC}"
-else
-    echo -e "${RED}[!] docker-compose.yml not found in $API_DIR${NC}"
+    docker compose down
+    echo -e "${GREEN}[✓]${NC} Stats system stopped"
 fi
 
 # Stop SMF containers
-echo -e "${YELLOW}Stopping SMF containers...${NC}"
+echo ""
+echo -e "${YELLOW}Stopping SMF Forum...${NC}"
 cd "$SMF_DIR"
 if [ -f "docker-compose.yml" ]; then
-    docker-compose down
-    echo -e "${GREEN}[✓] SMF containers stopped${NC}"
-else
-    echo -e "${YELLOW}[!] SMF docker-compose.yml not found${NC}"
+    docker compose down
+    echo -e "${GREEN}[✓]${NC} SMF Forum stopped"
 fi
 
 echo ""
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}All services stopped.${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo -e "${YELLOW}Run ./start.sh to restart all services${NC}"
