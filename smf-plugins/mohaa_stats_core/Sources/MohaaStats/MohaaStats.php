@@ -104,6 +104,21 @@ function MohaaStats_MenuButtons(array &$buttons): void
                 'href' => $scripturl . '?action=mohaatournaments',
                 'show' => true,
             ],
+            'teams' => [
+                'title' => $txt['mohaa_teams'] ?? 'Teams',
+                'href' => $scripturl . '?action=mohaateams',
+                'show' => true,
+            ],
+            'identity' => [
+                'title' => $txt['mohaa_identity'] ?? 'My Identity',
+                'href' => $scripturl . '?action=mohaaidentity',
+                'show' => true,
+            ],
+            'tokens' => [
+                'title' => $txt['mohaa_tokens'] ?? 'Link Account',
+                'href' => $scripturl . '?action=mohaalogintokens',
+                'show' => true,
+            ],
         ],
     ];
     

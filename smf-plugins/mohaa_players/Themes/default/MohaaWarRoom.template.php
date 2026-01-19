@@ -343,23 +343,85 @@ function template_war_room_kdr_gauge_content($player) {
 
 function template_war_room_silhouette_content($player) {
     $kills = max(1, $player['kills'] ?? 1);
+    
+    // Calculation functions
+    $calcPct = function($val, $total) {
+        return $total > 0 ? round(($val / $total) * 100, 1) : 0;
+    };
+    
+    // Outgoing (Hits Dealt)
     $head = $player['headshots'] ?? 0;
     $torso = $player['torso_kills'] ?? ($kills * 0.4); 
+    // Limbs is remainder
+    $limbs = max(0, $kills - $head - $torso);
     
+    $outHeadPct = $calcPct($head, $kills);
+    $outTorsoPct = $calcPct($torso, $kills);
+    $outLimbPct = $calcPct($limbs, $kills);
+
+    // Incoming (Hits Taken) - extracting from 'deaths' or using placeholders if specific hitloc data missing
+    $deaths = max(1, $player['deaths'] ?? 1);
+    // Note: API might not provide 'headshots_received' yet, simulating or checking standard fields
+    // If fields exist use them, else estimate or show 0
+    $inHead = $player['headshots_received'] ?? 0; // Hypothetical field
+    $inTorso = $player['torso_deaths'] ?? 0;
+    $inLimbs = $player['limb_deaths'] ?? 0;
+    
+    // If no specific death data, calculate 'unknown' remainder
+    $knownDeaths = $inHead + $inTorso + $inLimbs;
+    if ($knownDeaths == 0) {
+        // Fallback/Placeholder if data missing: Estimate standard distribution or show empty
+        // Showing empty/grey for accuracy if data isn't tracked yet
+        $inHeadPct = 0; $inTorsoPct = 0; $inLimbPct = 0;
+    } else {
+        $inHeadPct = $calcPct($inHead, $deaths);
+        $inTorsoPct = $calcPct($inTorso, $deaths);
+        $inLimbPct = $calcPct($inLimbs, $deaths);
+    }
+    
+    $renderMan = function($title, $hPct, $tPct, $lPct) {
+        // Opacity based on percentage (min 0.2 for visibility)
+        $hOp = max(0.1, min(1, $hPct/100 * 2)); // Amplify for visibility
+        $tOp = max(0.1, min(1, $tPct/100 * 1.5));
+        $lOp = max(0.1, min(1, $lPct/100 * 1.5));
+        
+        return '
+        <div style="text-align: center; flex: 1;">
+            <h4 style="margin: 0 0 10px 0; font-size: 0.9em; text-transform: uppercase; color: var(--mohaa-accent);">'.$title.'</h4>
+            <div style="display: flex; gap: 15px; justify-content: center; align-items: center;">
+                
+                <!-- Improved Silhouette SVG -->
+                <svg viewBox="0 0 140 220" style="width: 100px; height: 160px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">
+                    <!-- Head -->
+                    <circle cx="70" cy="25" r="18" fill="#f44336" fill-opacity="'.$hOp.'" />
+                    
+                    <!-- Torso -->
+                    <rect x="50" y="48" width="40" height="70" rx="4" fill="#ff9800" fill-opacity="'.$tOp.'" />
+                    
+                    <!-- Arms -->
+                    <rect x="25" y="50" width="18" height="60" rx="4" fill="#2196f3" fill-opacity="'.$lOp.'" />
+                    <rect x="97" y="50" width="18" height="60" rx="4" fill="#2196f3" fill-opacity="'.$lOp.'" />
+                    
+                    <!-- Legs -->
+                    <rect x="50" y="122" width="18" height="80" rx="4" fill="#2196f3" fill-opacity="'.$lOp.'" />
+                    <rect x="72" y="122" width="18" height="80" rx="4" fill="#2196f3" fill-opacity="'.$lOp.'" />
+                </svg>
+                
+                <div style="text-align: left; font-size: 0.85em; width: 80px;">
+                    <div style="margin-bottom: 5px;"><strong style="color: #f44336;">Head</strong><br>'.$hPct.'%</div>
+                    <div style="margin-bottom: 5px;"><strong style="color: #ff9800;">Torso</strong><br>'.$tPct.'%</div>
+                    <div><strong style="color: #2196f3;">Limbs</strong><br>'.$lPct.'%</div>
+                </div>
+            </div>
+        </div>';
+    };
+
     return '
-    <div style="display: flex; justify-content: center; gap: 20px; align-items: center; padding: 10px;">
-        <svg viewBox="0 0 100 200" style="width: 80px; height: 160px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">
-             <ellipse cx="50" cy="20" rx="15" ry="18" fill="#f44336" fill-opacity="'.max(0.2, min(1, $head/$kills)).'"/>
-             <path d="M35,40 L65,40 L70,100 L30,100 Z" fill="#ff9800" fill-opacity="'.max(0.2, min(1, $torso/$kills)).'"/>
-             <rect x="30" y="100" width="15" height="75" fill="#2196f3" fill-opacity="0.3"/>
-             <rect x="55" y="100" width="15" height="75" fill="#2196f3" fill-opacity="0.3"/>
-        </svg>
-        <div style="text-align: left; font-size: 0.9em;">
-            <div style="margin-bottom: 8px;"><strong style="color: #f44336;">Head:</strong> '.number_format(round($head/$kills*100,1)).'%</div>
-            <div style="margin-bottom: 8px;"><strong style="color: #ff9800;">Torso:</strong> '.number_format(round($torso/$kills*100,1)).'%</div>
-            <div><strong style="color: #2196f3;">Limbs:</strong> '.number_format(100 - round($head/$kills*100,1) - round($torso/$kills*100,1),1).'%</div>
-        </div>
-    </div>';
+    <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px;">' . 
+        $renderMan('HITS DEALT', $outHeadPct, $outTorsoPct, $outLimbPct) . 
+        '<div style="width: 1px; background: rgba(0,0,0,0.1);"></div>' .
+        $renderMan('HITS TAKEN', $inHeadPct, $inTorsoPct, $inLimbPct) . 
+    '</div>';
 }
 
 function template_war_room_streaks_content($player) {
