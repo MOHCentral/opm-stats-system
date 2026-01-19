@@ -20,6 +20,7 @@ function template_mohaa_war_room()
 
     // Inject Modern CSS for Dashboard
     echo '
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <style>
         :root {
             --mohaa-accent: #4a6b8a; /* Soft blue-grey */
@@ -212,11 +213,18 @@ function template_mohaa_war_room()
             <a onclick="showTab(\'tactical\')" class="mohaa-tab">🎯 Tactical</a>
             <a onclick="showTab(\'maps\')" class="mohaa-tab">🗺️ Maps</a>
             <a onclick="showTab(\'matches\')" class="mohaa-tab">📊 Matches</a>
+            <a onclick="showTab(\'achievements\')" class="mohaa-tab">🏆 Medals</a>
         </div>
         
         <!-- ======================= COMBAT TAB ======================= -->
         <div id="tab-combat" class="tab-content" style="display: block;">
             <div class="mohaa-grid">
+                <!-- Performance Trend (Wide) -->
+                <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+                    <h3>Performance Trend (Last 20 Matches)</h3>
+                    <div id="chart-performance" style="min-height: 250px;"></div>
+                </div>
+
                 <!-- K/D Gauge -->
                 <div class="windowbg stat-card">
                     <h3>Performance Gauge</h3>
@@ -255,6 +263,10 @@ function template_mohaa_war_room()
 
         <!-- ======================= WEAPONS TAB ======================= -->
         <div id="tab-weapons" class="tab-content" style="display: none;">
+            <div class="windowbg stat-card" style="margin-bottom: 20px;">
+                <h3>Weapon Usage Distribution</h3>
+                <div id="chart-weapons" style="min-height: 300px;"></div>
+            </div>
             <div class="windowbg stat-card">
                 <h3>Weapon Mastery</h3>
                 ', template_war_room_weapons_content($player['weapons'] ?? []), '
@@ -281,6 +293,19 @@ function template_mohaa_war_room()
         
         <!-- ======================= MAPS TAB ======================= -->
         <div id="tab-maps" class="tab-content" style="display: none;">
+            <div class="windowbg stat-card" style="margin-bottom: 20px;">
+                <h3>Win Rate Analysis</h3>
+                <div id="chart-maps" style="min-height: 350px;"></div>
+                </div>
+        </div>
+        
+         <!-- ======================= ACHIEVEMENTS TAB ======================= -->
+        <div id="tab-achievements" class="tab-content" style="display: none;">
+             <div class="windowbg stat-card">
+                <h3>Unlocked Achievements</h3>
+                ', template_war_room_achievements_content($data['mohaa_my']['achievements'] ?? []), '
+            </div>
+        </div>
             <div class="windowbg stat-card">
                 <h3>Map Performance</h3>
                 ', template_war_room_maps_content($player['maps'] ?? [], $player), '
@@ -299,26 +324,111 @@ function template_mohaa_war_room()
 
     </div>
 
+    <!-- Pass Data to JS -->
     <script>
-        function showTab(tabName) {
-            // Hide all tabs
-            var content = document.getElementsByClassName("tab-content");
-            for (var i = 0; i < content.length; i++) {
-                content[i].style.display = "none";
-            }
-            // Show selected
-            document.getElementById("tab-" + tabName).style.display = "block";
+        window.mohaaData = ' . json_encode($context['mohaa_dashboard']) . ';
+        
+        document.addEventListener("DOMContentLoaded", function() {
+            initWarRoomCharts();
+        });
+        
+        function initWarRoomCharts() {
+            const data = window.mohaaData;
+            const player = data.player_stats || {};
+            const perf = player.performance || [];
             
-            // Update buttons
-            var buttons = document.getElementsByClassName("mohaa-tab");
-            for (var i = 0; i < buttons.length; i++) {
-                buttons[i].classList.remove("active");
-                if (buttons[i].getAttribute("onclick").includes(tabName)) {
-                    buttons[i].classList.add("active");
-                }
+            // 1. Performance Trend (Area Chart)
+            if (perf.length > 0) {
+                const options = {
+                    series: [{
+                        name: "K/D Ratio",
+                        data: perf.map(m => parseFloat(m.kd).toFixed(2))
+                    }],
+                    chart: {
+                        type: "area",
+                        height: 250,
+                        toolbar: { show: false },
+                        background: "transparent"
+                    },
+                    colors: ["#4a6b8a"],
+                    fill: {
+                        type: "gradient",
+                        gradient: { shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.1, stops: [0, 90, 100] }
+                    },
+                    dataLabels: { enabled: false },
+                    stroke: { curve: "smooth", width: 2 },
+                    xaxis: {
+                        categories: perf.map(m => new Date(m.played_at * 1000).toLocaleDateString()),
+                        labels: { style: { colors: "#888" } }
+                    },
+                    yaxis: {
+                        labels: { style: { colors: "#888" } },
+                        title: { text: "K/D Ratio", style: { color: "#888" } }
+                    },
+                    theme: { mode: "dark" },
+                    grid: { borderColor: "#444", strokeDashArray: 4 }
+                };
+                new ApexCharts(document.querySelector("#chart-performance"), options).render();
+            } else {
+                document.querySelector("#chart-performance").innerHTML = "<p class=\'centertext\'>Play more matches to see your trend!</p>";
+            }
+            
+            // 2. Weapon Distribution (Donut)
+            const weapons = player.weapons || {}; // Object: name -> stats
+            // Convert object to array for sorting
+            const weaponArr = Object.entries(weapons)
+                .map(([k, v]) => ({name: k, kills: v.kills}))
+                .filter(w => w.kills > 0)
+                .sort((a, b) => b.kills - a.kills)
+                .slice(0, 8); // Top 8
+                
+            if (weaponArr.length > 0) {
+                const options = {
+                    series: weaponArr.map(w => w.kills),
+                    labels: weaponArr.map(w => w.name),
+                    chart: { type: "donut", height: 300, background: "transparent" },
+                    plotOptions: { pie: { donut: { size: "70%" } } },
+                    stroke: { show: false },
+                    theme: { mode: "dark", palette: "palette1" },
+                    legend: { position: "bottom" },
+                    dataLabels: { enabled: false }
+                };
+                new ApexCharts(document.querySelector("#chart-weapons"), options).render();
+            }
+            
+            // 3. Map Analysis (Radar)
+            const maps = player.maps || {};
+            // Filter maps with data
+            const mapArr = Object.entries(maps)
+                .map(([name, stats]) => ({
+                    name: name.split("/").pop(), 
+                    winRate: ((stats.wins || 0) / Math.max(1, (stats.matches || stats.kills/10))) * 100, // Approx matches if missing
+                    kills: stats.kills || 0
+                }))
+                .filter(m => m.kills > 10) // Only maps with some activity
+                .slice(0, 6);
+                
+            if (mapArr.length > 0) {
+                const options = {
+                    series: [{
+                        name: "Win Rate %",
+                        data: mapArr.map(m => Math.min(100, m.winRate.toFixed(1)))
+                    }],
+                    chart: { type: "radar", height: 350, background: "transparent", toolbar: { show: false } },
+                    xaxis: { categories: mapArr.map(m => m.name), Labels: { style: { colors: ["#fff"] } } },
+                    stroke: { width: 2, colors: ["#4caf50"] },
+                    fill: { opacity: 0.2, colors: ["#4caf50"] },
+                    markers: { size: 4, colors: ["#fff"], strokeColors: "#4caf50", strokeWidth: 2 },
+                    theme: { mode: "dark" },
+                    yaxis: { max: 100, tickAmount: 4 }
+                };
+                new ApexCharts(document.querySelector("#chart-maps"), options).render();
+            } else {
+                 document.querySelector("#chart-maps").innerHTML = "<p class=\'centertext\'>Not enough map data yet.</p>";
             }
         }
-    </script>';
+    </script>
+    ';
 }
 
 // =========================================================================
@@ -634,6 +744,37 @@ function template_war_room_matches_content($matches) {
     }
     
     $html .= '</tbody></table>';
+    return $html;
+}
+
+
+
+function template_war_room_achievements_content($achievements) {
+    // API returns {unlocked: [], progress: []}
+    $unlocked = $achievements['unlocked'] ?? [];
+    
+    if (empty($unlocked)) return '<p class="centertext" style="opacity: 0.6; padding: 20px;">No achievements unlocked yet.</p>';
+    
+    $html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">';
+    
+    foreach ($unlocked as $ach) {
+        // Icon mapping or default
+        $icon = "🎖️"; // Default
+        
+        $html .= '
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-size: 2em;">'.$icon.'</div>
+            <div>
+                <div style="font-weight: bold; font-size: 0.9em;">'.htmlspecialchars($ach['name'] ?? 'Achievement').'</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">'.timeformat($ach['unlocked_date'] ?? time(), '%b %d, %Y').'</div>
+            </div>
+        </div>';
+    }
+    
+    $html .= '</div>
+    <div style="margin-top: 20px; text-align: center;">
+        <a href="' . $GLOBALS['scripturl'] . '?action=mohaachievements" class="button">View Full Medal Case</a>
+    </div>';
     return $html;
 }
 

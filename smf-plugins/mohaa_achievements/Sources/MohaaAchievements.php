@@ -73,49 +73,47 @@ function MohaaAchievements_List(): void
     $context['page_title'] = $txt['mohaa_achievements'] ?? 'Achievements';
     $context['sub_template'] = 'mohaa_achievements_list';
     
-    // Get all achievement definitions
+    // Initialize API
+    require_once(__DIR__ . '/../MohaaStats/MohaaStatsAPI.php');
+    $api = new MohaaStatsAPIClient();
+    
+    // Get all achievement definitions from API
+    $apiAchievements = $api->getAchievements() ?? [];
     $achievements = [];
-    $request = $smcFunc['db_query']('', '
-        SELECT * FROM {db_prefix}mohaa_achievement_defs
-        ORDER BY tier, category, sort_order, id_achievement',
-        []
-    );
-    
-    while ($row = $smcFunc['db_fetch_assoc']($request)) {
-        $achievements[$row['id_achievement']] = $row;
+    foreach ($apiAchievements as $a) {
+        $achievements[$a['id_achievement']] = $a;
     }
-    $smcFunc['db_free_result']($request);
     
-    // Get user's unlocked achievements
+    // Get user's GUID and progress
     $unlocked = [];
-    if (!$user_info['is_guest']) {
-        $request = $smcFunc['db_query']('', '
-            SELECT id_achievement, unlocked_date, progress
-            FROM {db_prefix}mohaa_player_achievements
-            WHERE id_member = {int:member}',
-            ['member' => $user_info['id']]
-        );
-        
-        while ($row = $smcFunc['db_fetch_assoc']($request)) {
-            $unlocked[$row['id_achievement']] = $row;
-        }
-        $smcFunc['db_free_result']($request);
-    }
-    
-    // Get progress for locked achievements
     $progress = [];
+    
     if (!$user_info['is_guest']) {
+        // Get GUID
         $request = $smcFunc['db_query']('', '
-            SELECT id_achievement, current_progress
-            FROM {db_prefix}mohaa_achievement_progress
-            WHERE id_member = {int:member}',
+            SELECT player_guid FROM {db_prefix}mohaa_identities 
+            WHERE id_member = {int:member} LIMIT 1',
             ['member' => $user_info['id']]
         );
-        
-        while ($row = $smcFunc['db_fetch_assoc']($request)) {
-            $progress[$row['id_achievement']] = $row['current_progress'];
-        }
+        $row = $smcFunc['db_fetch_assoc']($request);
         $smcFunc['db_free_result']($request);
+        
+        if ($row && !empty($row['player_guid'])) {
+            $playerData = $api->getPlayerAchievements($row['player_guid']);
+            
+            // Map unlocked
+            if (!empty($playerData['unlocked'])) {
+                foreach ($playerData['unlocked'] as $u) {
+                    $unlocked[$u['id_achievement']] = $u;
+                }
+            }
+            // Map progress
+            if (!empty($playerData['progress'])) {
+                foreach ($playerData['progress'] as $p) {
+                    $progress[$p['id_achievement']] = $p['current_progress'];
+                }
+            }
+        }
     }
     
     // Group by category
@@ -192,14 +190,11 @@ function MohaaAchievements_View(): void
         return;
     }
     
-    $request = $smcFunc['db_query']('', '
-        SELECT * FROM {db_prefix}mohaa_achievement_defs
-        WHERE id_achievement = {int:id}',
-        ['id' => $id]
-    );
+    // Initialize API
+    require_once(__DIR__ . '/../MohaaStats/MohaaStatsAPI.php');
+    $api = new MohaaStatsAPIClient();
     
-    $achievement = $smcFunc['db_fetch_assoc']($request);
-    $smcFunc['db_free_result']($request);
+    $achievement = $api->getAchievement($id);
     
     if (!$achievement) {
         fatal_lang_error('mohaa_achievement_not_found', false);
@@ -209,36 +204,15 @@ function MohaaAchievements_View(): void
     $context['page_title'] = $achievement['name'];
     $context['sub_template'] = 'mohaa_achievement_view';
     
-    // Get players who have unlocked this
-    $players = [];
-    $request = $smcFunc['db_query']('', '
-        SELECT pa.*, m.member_name, m.real_name
-        FROM {db_prefix}mohaa_player_achievements AS pa
-        LEFT JOIN {db_prefix}members AS m ON pa.id_member = m.id_member
-        WHERE pa.id_achievement = {int:id}
-        ORDER BY pa.unlocked_date ASC
-        LIMIT 50',
-        ['id' => $id]
-    );
-    
-    while ($row = $smcFunc['db_fetch_assoc']($request)) {
-        $players[] = $row;
-    }
-    $smcFunc['db_free_result']($request);
-    
-    // Get total unlock count
-    $request = $smcFunc['db_query']('', '
-        SELECT COUNT(*) as total FROM {db_prefix}mohaa_player_achievements
-        WHERE id_achievement = {int:id}',
-        ['id' => $id]
-    );
-    $row = $smcFunc['db_fetch_assoc']($request);
-    $smcFunc['db_free_result']($request);
+    // Players list - currently not supported by API, using empty list
+    // TODO: Add endpoint for achievement unlockers
+    $players = []; 
+    $totalUnlocks = 0; // Placeholder
     
     $context['mohaa_achievement'] = [
         'info' => $achievement,
         'players' => $players,
-        'total_unlocks' => $row['total'],
+        'total_unlocks' => $totalUnlocks,
     ];
 }
 
@@ -252,28 +226,13 @@ function MohaaAchievements_Leaderboard(): void
     $context['page_title'] = 'Achievement Leaderboard';
     $context['sub_template'] = 'mohaa_achievements_leaderboard';
     
-    // Get players by achievement points
-    $players = [];
-    $request = $smcFunc['db_query']('', '
-        SELECT 
-            pa.id_member,
-            m.member_name,
-            m.real_name,
-            COUNT(pa.id_achievement) as achievement_count,
-            SUM(ad.points) as total_points
-        FROM {db_prefix}mohaa_player_achievements AS pa
-        INNER JOIN {db_prefix}mohaa_achievement_defs AS ad ON pa.id_achievement = ad.id_achievement
-        LEFT JOIN {db_prefix}members AS m ON pa.id_member = m.id_member
-        GROUP BY pa.id_member
-        ORDER BY total_points DESC
-        LIMIT 100',
-        []
-    );
+    // Initialize API
+    require_once(__DIR__ . '/../MohaaStats/MohaaStatsAPI.php');
+    $api = new MohaaStatsAPIClient();
     
-    while ($row = $smcFunc['db_fetch_assoc']($request)) {
-        $players[] = $row;
-    }
-    $smcFunc['db_free_result']($request);
+    $players = $api->getAchievementLeaderboard() ?? [];
+    // Mock mapping if API returns different structure or empty
+    if (empty($players)) $players = [];
     
     $context['mohaa_leaderboard'] = $players;
 }
@@ -288,25 +247,20 @@ function MohaaAchievements_Recent(): void
     $context['page_title'] = 'Recent Achievements';
     $context['sub_template'] = 'mohaa_achievements_recent';
     
-    $recent = [];
-    $request = $smcFunc['db_query']('', '
-        SELECT pa.*, ad.name, ad.description, ad.icon, ad.category, ad.tier, ad.points,
-               m.member_name, m.real_name
-        FROM {db_prefix}mohaa_player_achievements AS pa
-        INNER JOIN {db_prefix}mohaa_achievement_defs AS ad ON pa.id_achievement = ad.id_achievement
-        LEFT JOIN {db_prefix}members AS m ON pa.id_member = m.id_member
-        ORDER BY pa.unlocked_date DESC
-        LIMIT 50',
-        []
-    );
+    // Initialize API
+    require_once(__DIR__ . '/../MohaaStats/MohaaStatsAPI.php');
+    $api = new MohaaStatsAPIClient();
     
-    while ($row = $smcFunc['db_fetch_assoc']($request)) {
-        $recent[] = $row;
-    }
-    $smcFunc['db_free_result']($request);
+    $recent = $api->getRecentAchievements() ?? [];
     
     $context['mohaa_recent'] = $recent;
 }
+
+/**
+ * Profile medals page
+ */
+
+
 
 /**
  * Profile medals page
@@ -320,28 +274,6 @@ function MohaaAchievements_ProfileMedals(int $memID): void
     $context['page_title'] = 'Medals & Badges';
     $context['sub_template'] = 'mohaa_profile_medals';
     
-    // Get member's achievements
-    $achievements = [];
-    $request = $smcFunc['db_query']('', '
-        SELECT pa.*, ad.*
-        FROM {db_prefix}mohaa_player_achievements AS pa
-        INNER JOIN {db_prefix}mohaa_achievement_defs AS ad ON pa.id_achievement = ad.id_achievement
-        WHERE pa.id_member = {int:member}
-        ORDER BY ad.tier DESC, pa.unlocked_date DESC',
-        ['member' => $memID]
-    );
-    
-    while ($row = $smcFunc['db_fetch_assoc']($request)) {
-        $achievements[] = $row;
-    }
-    $smcFunc['db_free_result']($request);
-    
-    // Get total points
-    $totalPoints = 0;
-    foreach ($achievements as $a) {
-        $totalPoints += $a['points'];
-    }
-    
     // Get member info
     $request = $smcFunc['db_query']('', '
         SELECT member_name, real_name FROM {db_prefix}members WHERE id_member = {int:id}',
@@ -350,7 +282,44 @@ function MohaaAchievements_ProfileMedals(int $memID): void
     $member = $smcFunc['db_fetch_assoc']($request);
     $smcFunc['db_free_result']($request);
     
+    // Get GUID
+    $request = $smcFunc['db_query']('', '
+        SELECT player_guid FROM {db_prefix}mohaa_identities 
+        WHERE id_member = {int:id}',
+        ['id' => $memID]
+    );
+    $identity = $smcFunc['db_fetch_assoc']($request);
+    $smcFunc['db_free_result']($request);
+    
+    $achievements = [];
+    $totalPoints = 0;
+    
+    if ($identity && !empty($identity['player_guid'])) {
+        // Initialize API
+        require_once(__DIR__ . '/../MohaaStats/MohaaStatsAPI.php');
+        $api = new MohaaStatsAPIClient();
+        
+        $playerData = $api->getPlayerAchievements($identity['player_guid']);
+        if (!empty($playerData['unlocked'])) {
+            $achievements = $playerData['unlocked'];
+            
+            // Calculate points and get definitions if needed
+            // API returns full achievement objects in 'unlocked'
+            foreach ($achievements as $a) {
+                $totalPoints += ($a['points'] ?? 0);
+            }
+        }
+    }
+    
     // Get featured (highest tier) achievements
+    // Sort by tier desc, date desc
+    usort($achievements, function($a, $b) {
+        if (($b['tier'] ?? 0) != ($a['tier'] ?? 0)) {
+            return ($b['tier'] ?? 0) <=> ($a['tier'] ?? 0);
+        }
+        return ($b['unlocked_date'] ?? 0) <=> ($a['unlocked_date'] ?? 0);
+    });
+    
     $featured = array_slice($achievements, 0, 5);
     
     $context['mohaa_profile_medals'] = [

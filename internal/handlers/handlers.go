@@ -725,6 +725,41 @@ func (h *Handler) ListAchievements(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, http.StatusOK, models.AllAchievements)
 }
 
+// GetAchievement returns a single achievement definition
+func (h *Handler) GetAchievement(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	for _, ach := range models.AllAchievements {
+		if ach.ID == id {
+			h.jsonResponse(w, http.StatusOK, ach)
+			return
+		}
+	}
+	h.errorResponse(w, http.StatusNotFound, "Achievement not found")
+}
+
+// GetRecentAchievements returns a global feed of recent unlocks
+func (h *Handler) GetRecentAchievements(w http.ResponseWriter, r *http.Request) {
+	_ = r.Context()
+	// Mock implementation until ClickHouse 'unlocks' table is ready
+	// Retrieve recent 'achievement_unlocked' events from raw_events?
+	// For now, return empty or mock
+	
+	// Real implementation would look like:
+	/*
+	rows, err := h.ch.Query(ctx, "SELECT ... FROM achievement_unlocks ORDER BY timestamp DESC LIMIT 50")
+	*/
+	
+	h.jsonResponse(w, http.StatusOK, []interface{}{}) 
+}
+
+// GetAchievementLeaderboard returns players ranked by achievement points
+func (h *Handler) GetAchievementLeaderboard(w http.ResponseWriter, r *http.Request) {
+	_ = r.Context()
+	// Mock implementation
+	h.jsonResponse(w, http.StatusOK, []interface{}{})
+}
+
 // GetPlayerMatches returns recent matches for a player
 func (h *Handler) GetPlayerMatches(w http.ResponseWriter, r *http.Request) {
 	guid := chi.URLParam(r, "guid")

@@ -1,0 +1,68 @@
+// ============================================================================
+// OpenMOHAA Telemetry Tracker - Game Flow Extensions
+// ============================================================================
+
+on_game_init local.gametype:
+    local.payload = "type=game_init"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&session_id=" + level.session_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&gametype=" + local.gametype
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_game_start:
+    local.payload = "type=game_start"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&session_id=" + level.session_id
+    local.payload = local.payload + "&timestamp=" + level.time
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_game_end:
+    local.payload = "type=game_end"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&session_id=" + level.session_id
+    local.payload = local.payload + "&timestamp=" + level.time
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_round_start:
+    local.payload = "type=round_start"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&round_number=" + level.round_number
+    local.payload = local.payload + "&timestamp=" + level.time
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_round_end:
+    local.payload = "type=round_end"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&round_number=" + level.round_number
+    local.payload = local.payload + "&timestamp=" + level.time
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_team_win local.teamnum:
+    local.payload = "type=team_win"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&teamnum=" + local.teamnum
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_objective_update local.index local.status:
+    local.payload = "type=objective_update"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&objective_index=" + local.index
+    local.payload = local.payload + "&objective_status=" + local.status
+
+    thread tracker_common.scr::send_to_api local.payload
+end

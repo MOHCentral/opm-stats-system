@@ -1,0 +1,44 @@
+// ============================================================================
+// OpenMOHAA Telemetry Tracker - Common Helpers
+// Shared helpers for modular event handler scripts
+// ============================================================================
+
+// Helper: Build player payload with optional SMF member_id
+build_player_payload local.player local.prefix:
+    local.payload = ""
+
+    if (local.player && local.player.netname != NIL) {
+        local.payload = "&" + local.prefix + "_name=" + local.player.netname
+        local.payload = local.payload + "&" + local.prefix + "_guid=" + local.player.dmteam
+        local.payload = local.payload + "&" + local.prefix + "_team=" + local.player.dmteam
+
+        if (local.player.is_authenticated && local.player.smf_member_id > 0) {
+            local.payload = local.payload + "&" + local.prefix + "_member_id=" + local.player.smf_member_id
+        }
+    }
+
+    end local.payload
+
+// Helper: Send payload to API (shared)
+send_to_api local.payload:
+    local.url = level.api_base_url + level.api_events_endpoint
+
+    local.full_payload = local.payload + "&server_token=" + level.server_token
+    local.full_payload = local.full_payload + "&server_id=" + level.server_id
+
+    if (level.tracker_debug) {
+        println ("API POST: " + local.url)
+    }
+
+    curl_post local.url local.full_payload "tracker_common.scr::on_http_callback"
+end
+
+on_http_callback local.success local.response local.http_code:
+    if (level.tracker_debug) {
+        if (local.success) {
+            println ("HTTP OK [" + local.http_code + "]")
+        } else {
+            println ("HTTP FAIL [" + local.http_code + "]: " + local.response)
+        }
+    }
+end

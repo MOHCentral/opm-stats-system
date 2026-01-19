@@ -16,7 +16,7 @@ class MohaaStatsAPIClient
     public function __construct()
     {
         global $modSettings;
-        $this->baseUrl = $modSettings['mohaa_stats_api_url'] ?? 'http://api:8080'\;
+        $this->baseUrl = $modSettings['mohaa_stats_api_url'] ?? 'http://api:8080';
         $this->serverToken = $modSettings['mohaa_stats_server_token'] ?? '';
         $this->cacheDuration = (int)($modSettings['mohaa_stats_cache_duration'] ?? 60);
         $this->timeout = (int)($modSettings['mohaa_stats_api_timeout'] ?? 3);
@@ -129,10 +129,15 @@ class MohaaStatsAPIClient
     public function initDeviceAuth(int $forumUserId): ?array { return $this->post('/auth/device', ['forum_user_id'=>$forumUserId]); }
     
     // Stubs
-    public function getGlobalWeaponStats(): ?array { return []; }
+    public function getAchievements(): ?array { return $this->get('/achievements/'); }
+    public function getAchievement(int $id): ?array { return $this->get('/achievements/' . $id); }
+    public function getRecentAchievements(): ?array { return $this->get('/achievements/recent'); }
+    public function getAchievementLeaderboard(): ?array { return $this->get('/achievements/leaderboard'); }
+
     public function getActivePlayers(int $hours): ?array { return []; }
     public function getPlayerRank(string $guid): ?int { return null; }
-    public function getPlayerPerformance(string $guid, int $days): ?array { return []; }
+    public function getPlayerPerformance(string $guid, int $days): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/performance'); }
+    public function getPlayerHistory(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/performance'); }
     public function getPlayerMapStats(string $guid): ?array { return []; }
     public function getPlayerComparisons(string $guid): ?array { return []; }
     public function getHeadToHead(string $guid1, string $guid2): ?array { return []; }

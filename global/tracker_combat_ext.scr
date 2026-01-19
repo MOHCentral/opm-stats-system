@@ -1,0 +1,136 @@
+// ============================================================================
+// OpenMOHAA Telemetry Tracker - Combat Extensions
+// Additional ScriptDelegate combat events
+// ============================================================================
+
+on_player_pain local.player local.attacker local.damage local.mod local.location:
+    local.payload = "type=player_pain"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
+    local.payload = local.payload + "&damage=" + local.damage
+    local.payload = local.payload + "&mod=" + local.mod
+    local.payload = local.payload + "&location=" + local.location
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_player_suicide local.player:
+    local.payload = "type=player_suicide"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_player_crushed local.player local.attacker:
+    local.payload = "type=player_crushed"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_player_telefragged local.player local.attacker:
+    local.payload = "type=player_telefragged"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_player_roadkill local.attacker local.victim:
+    local.payload = "type=player_roadkill"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.victim "victim"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_player_bash local.attacker local.victim:
+    local.payload = "type=player_bash"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.victim "victim"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_player_teamkill local.killer local.victim:
+    local.payload = "type=player_teamkill"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.killer "killer"
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.victim "victim"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_weapon_reload_done local.owner local.weapon_name:
+    local.payload = "type=weapon_reload_done"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.owner "player"
+    local.payload = local.payload + "&weapon=" + local.weapon_name
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_weapon_ready local.owner local.weapon_name:
+    local.payload = "type=weapon_ready"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.owner "player"
+    local.payload = local.payload + "&weapon=" + local.weapon_name
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_weapon_no_ammo local.owner local.weapon_name:
+    local.payload = "type=weapon_no_ammo"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.owner "player"
+    local.payload = local.payload + "&weapon=" + local.weapon_name
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_weapon_holster local.owner local.weapon_name:
+    local.payload = "type=weapon_holster"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.owner "player"
+    local.payload = local.payload + "&weapon=" + local.weapon_name
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_weapon_raise local.owner local.weapon_name:
+    local.payload = "type=weapon_raise"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.owner "player"
+    local.payload = local.payload + "&weapon=" + local.weapon_name
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_weapon_drop local.owner local.weapon:
+    local.payload = "type=weapon_drop"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.owner "player"
+    local.payload = local.payload + "&weapon=" + local.weapon
+
+    thread tracker_common.scr::send_to_api local.payload
+end

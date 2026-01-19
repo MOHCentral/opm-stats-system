@@ -249,6 +249,9 @@ func main() {
 		// Achievement endpoints
 		r.Route("/achievements", func(r chi.Router) {
 			r.Get("/", h.ListAchievements)
+			r.Get("/recent", h.GetRecentAchievements)
+			r.Get("/leaderboard", h.GetAchievementLeaderboard)
+			r.Get("/{id}", h.GetAchievement)
 			r.Get("/player/{guid}", h.GetPlayerAchievements)
 		})
 	})

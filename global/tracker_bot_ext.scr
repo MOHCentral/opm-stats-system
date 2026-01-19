@@ -1,0 +1,49 @@
+// ============================================================================
+// OpenMOHAA Telemetry Tracker - Bot Extensions
+// ============================================================================
+
+on_bot_spawn local.bot:
+    local.payload = "type=bot_spawn"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.bot "bot"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_bot_killed local.bot local.attacker:
+    local.payload = "type=bot_killed"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.bot "bot"
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_bot_roam local.bot:
+    local.payload = "type=bot_roam"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.bot "bot"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_bot_curious local.bot:
+    local.payload = "type=bot_curious"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.bot "bot"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_bot_attack local.bot:
+    local.payload = "type=bot_attack"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.bot "bot"
+
+    thread tracker_common.scr::send_to_api local.payload
+end

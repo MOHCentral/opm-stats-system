@@ -176,6 +176,7 @@ function MohaaPlayers_Dashboard(): void
             'matches' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/matches', 'params' => ['limit' => 10]],
             'achievements' => ['endpoint' => '/achievements/player/' . urlencode($myGuid)],
             'maps' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/maps'],
+            'performance' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/performance'],
         ];
         
         $playerResults = $api->getMultiple($playerRequests);
@@ -198,6 +199,7 @@ function MohaaPlayers_Dashboard(): void
         $playerStats['weapons'] = $playerResults['weapons'] ?? [];
         $playerStats['maps'] = $playerResults['maps'] ?? [];
         $playerStats['recent_matches'] = $playerResults['matches'] ?? [];
+        $playerStats['performance'] = $playerResults['performance'] ?? [];
         
         $context['mohaa_dashboard'] = [
             'player_stats' => $playerStats,
