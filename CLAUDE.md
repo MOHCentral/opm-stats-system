@@ -10,7 +10,7 @@ You are assisting with building a **massive competitive statistics and tournamen
 - **HUGE emphasis on statistics** - We want 100,000+ trackable metrics
 - **Drill-down everything** - Every stat is clickable, explorable, filterable
 - **Visualize beautifully** - Graphs, heatmaps, spider charts, Sankey diagrams
-- **Military aesthetic** - Command & Control UI theme
+- **Hybrid Design** - SMF Native integration + Rich Visuals
 - **Community integration** - Stats live inside SMF forum
 
 ---
@@ -213,10 +213,12 @@ For EACH of 20+ weapons:
 
 ## 🖥️ UI/UX Guidelines
 
-### Design Theme: "Command & Control"
-- **Colors**: Dark blue-grey (#1a1a2e, #16213e), Military green accents (#8bc34a, #4a7c59), Gold for ranks (#ffd700)
-- **Typography**: Monospace headers ("Courier New"), clean sans-serif body
-- **Components**: Cards with dark backgrounds, glowing borders for emphasis
+### Design Theme: "Hybrid Design"
+- **Philosophy**: Clean Grid Layouts + SMF Native Integration + Rich Visuals
+- **Structure**: Use CSS Grid (`.mohaa-grid`) and SMF classes (`windowbg`, `roundframe`).
+- **Colors**: Inherit forum variables. Use functional colors (Red/Green/Orange) for status.
+- **Typography**: Inherit forum fonts. Clean and readable.
+- **Components**: Stat Cards (`.stat-card`) with minimal boxing/shadows.
 
 ### Visualization Types
 1. **Gauges**: KDR, accuracy, win rate

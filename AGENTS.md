@@ -82,18 +82,26 @@ This file contains instructions for any AI assistant (Claude, Copilot, Gemini, e
 
 ---
 
-## 🎨 UI Theme: "Command & Control"
+## 🎨 UI Theme: "Hybrid Design"
+
+### Philosophy
+We typically use a **Hybrid Design** approach:
+1. **Clean Grid Layouts**: CSS Grid for structure.
+2. **SMF Native Containers**: `windowbg`, `roundframe`, `cat_bar` for integration.
+3. **Rich Visualizations**: Custom SVG gauges, heatmaps, and charts inside the native containers.
+4. **Minimal Custom CSS**: Use structural classes instead of heavy custom styles.
 
 ### Colors
-- Background: `#1a1a2e`, `#16213e` (dark blue-grey)
-- Accent: `#8bc34a`, `#4a7c59` (military green)
-- Gold: `#ffd700` (ranks, highlights)
-- Success: `#166534`, `#4ade80` (green)
-- Danger: `#7f1d1d`, `#f87171` (red)
+- **Integrate**: Use Forum Theme colors where possible.
+- **Accents**:
+  - Success: `#4caf50` (Green)
+  - Danger: `#f44336` (Red)
+  - Warning: `#ff9800` (Orange)
+  - Info: `#2196f3` (Blue)
 
 ### Typography
-- Headers: `"Courier New", monospace`
-- Body: Clean sans-serif
+- Inherit from forum theme (e.g., `Segoe UI`, `Verdana`).
+- Use **Bold** for emphasis, but avoid forced monospace headers.
 
 ### Key Pattern
 **DRILL-DOWN EVERYTHING**: Every stat is a link. Click any number to see its breakdown, leaderboard, or time series.
