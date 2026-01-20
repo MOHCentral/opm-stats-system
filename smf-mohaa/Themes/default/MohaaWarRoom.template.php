@@ -7,6 +7,20 @@
  * @version 2.3.0
  */
 
+// Helper function to format playtime (hours and minutes)
+if (!function_exists('format_playtime')) {
+    function format_playtime($seconds)
+    {
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        
+        if ($hours > 0) {
+            return $hours . 'h ' . $minutes . 'm';
+        }
+        return $minutes . 'm';
+    }
+}
+
 /**
  * Enhanced Player Dashboard - The War Room
  */

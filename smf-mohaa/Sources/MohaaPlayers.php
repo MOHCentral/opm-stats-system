@@ -19,6 +19,7 @@ function MohaaPlayers_Actions(array &$actions): void
 {
     $actions['mohaaplayer'] = ['MohaaPlayers.php', 'MohaaPlayers_ViewPlayer'];
     $actions['mohaadashboard'] = ['MohaaPlayers.php', 'MohaaPlayers_Dashboard'];
+    $actions['mohaawarroom'] = ['MohaaPlayers.php', 'MohaaPlayers_Dashboard']; // Alias for war room
     $actions['mohaacompare'] = ['MohaaPlayers.php', 'MohaaPlayers_Compare'];
     $actions['mohaaidentity'] = ['MohaaPlayers.php', 'MohaaPlayers_IdentityRedirect'];
     $actions['mohaalazyload'] = ['MohaaPlayers.php', 'MohaaPlayers_LazyLoadTab'];
