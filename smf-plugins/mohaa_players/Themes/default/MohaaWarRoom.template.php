@@ -722,7 +722,7 @@ function template_war_room_streaks_content($player) {
 
 function template_war_room_accuracy_content($player, $data) {
     $accuracy = $player['accuracy'] ?? 0;
-    $serverAvg = $data['server_avg_accuracy'] ?? 25;
+    $serverAvg = $data['server_avg_accuracy'] ?? 0;
     
     return '
     <div style="text-align: center; padding: 15px;">

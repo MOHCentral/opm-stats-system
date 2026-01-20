@@ -126,56 +126,11 @@ function template_mohaa_stats_leaderboard()
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <div class="windowbg mohaa-lb-wrap" style="padding: 20px;">
+    <div class="windowbg mohaa-lb-wrap" style="padding: 20px;">';
     
-    <!-- Chart Section -->
-    <div class="mohaa-chart-container" style="position: relative; height:350px; width:100%; margin-bottom: 30px;">
-        <canvas id="leaderboardChart"></canvas>
-    </div>';
 
-    // COMBAT Stats Group
-    echo '
-        <div class="mohaa-filter-section">
-            <strong>⚔️ Combat:</strong>';
-    $combatStats = ['kills' => 'Kills', 'deaths' => 'Deaths', 'kd' => 'K/D', 'headshots' => 'Headshots', 'accuracy' => 'Accuracy', 'damage' => 'Damage'];
-    foreach ($combatStats as $key => $label) {
-        $class = ($current_stat === $key) ? 'active' : 'inactive';
-        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" class="mohaa-chip ', $class, '">', $label, '</a>';
-    }
-    echo '</div>';
 
-    // SPECIAL KILLS Stats Group
-    echo '
-        <div class="mohaa-filter-section">
-            <strong>💀 Special:</strong>';
-    $specialStats = ['suicides' => 'Suicides', 'teamkills' => 'Team Kills', 'roadkills' => 'Roadkills', 'bash_kills' => 'Bash Kills', 'grenades' => 'Grenades'];
-    foreach ($specialStats as $key => $label) {
-        $class = ($current_stat === $key) ? 'active' : 'inactive';
-        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" class="mohaa-chip ', $class, '">', $label, '</a>';
-    }
-    echo '</div>';
 
-    // GAME FLOW Stats Group
-    echo '
-        <div class="mohaa-filter-section">
-            <strong>🎮 Game:</strong>';
-    $gameStats = ['wins' => 'Wins', 'rounds' => 'Rounds', 'objectives' => 'Objectives', 'playtime' => 'Playtime'];
-    foreach ($gameStats as $key => $label) {
-        $class = ($current_stat === $key) ? 'active' : 'inactive';
-        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" class="mohaa-chip ', $class, '">', $label, '</a>';
-    }
-    echo '</div>';
-
-    // MOVEMENT Stats Group
-    echo '
-        <div class="mohaa-filter-section">
-            <strong>🏃 Move:</strong>';
-    $moveStats = ['distance' => 'Distance', 'jumps' => 'Jumps'];
-    foreach ($moveStats as $key => $label) {
-        $class = ($current_stat === $key) ? 'active' : 'inactive';
-        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" class="mohaa-chip ', $class, '">', $label, '</a>';
-    }
-    echo '</div>';
 
     // PERIOD Filters
     echo '
@@ -288,8 +243,15 @@ function template_mohaa_stats_leaderboard()
 
     // STAT CATEGORY FILTERS (Moved to bottom)
     echo '
-    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.05);">
-        <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px;">📊 Explore Other Metrics</h3>
+    <div style="margin-top: 40px;">
+    
+        <!-- Chart Section (Moved Bottom) -->
+        <div class="mohaa-chart-container" style="position: relative; height:300px; width:100%; margin-bottom: 40px; border: 1px solid rgba(0,0,0,0.05); border-radius: 8px; padding: 10px; background: #fff;">
+            <canvas id="leaderboardChart"></canvas>
+        </div>
+
+        <div style="padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.05);">
+            <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px;">📊 Explore Other Metrics</h3>
         
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px;">';
         
