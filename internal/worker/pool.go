@@ -229,9 +229,9 @@ func (p *Pool) processBatch(batch []Job) error {
 	chBatch, err := p.config.ClickHouse.PrepareBatch(ctx, `
 		INSERT INTO raw_events (
 			timestamp, match_id, server_id, map_name, event_type,
-			actor_id, actor_name, actor_team, actor_weapon,
+			actor_id, actor_name, actor_team, actor_smf_id, actor_weapon,
 			actor_pos_x, actor_pos_y, actor_pos_z, actor_pitch, actor_yaw,
-			target_id, target_name, target_team,
+			target_id, target_name, target_team, target_smf_id,
 			target_pos_x, target_pos_y, target_pos_z,
 			damage, hitloc, distance, raw_json
 		)
@@ -255,6 +255,7 @@ func (p *Pool) processBatch(batch []Job) error {
 			chEvent.ActorID,
 			chEvent.ActorName,
 			chEvent.ActorTeam,
+			chEvent.ActorSMFID,
 			chEvent.ActorWeapon,
 			chEvent.ActorPosX,
 			chEvent.ActorPosY,
@@ -264,6 +265,7 @@ func (p *Pool) processBatch(batch []Job) error {
 			chEvent.TargetID,
 			chEvent.TargetName,
 			chEvent.TargetTeam,
+			chEvent.TargetSMFID,
 			chEvent.TargetPosX,
 			chEvent.TargetPosY,
 			chEvent.TargetPosZ,
@@ -301,10 +303,11 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 
 	// Set actor/target based on event type
 	switch event.Type {
-	case models.EventKill, models.EventHeadshot:
+	case models.EventKill, models.EventHeadshot, models.EventPlayerBash, "bash", models.EventPlayerRoadkill, models.EventPlayerTeamkill, models.EventPlayerSuicide, models.EventPlayerCrushed, models.EventPlayerTelefragged:
 		ch.ActorID = event.AttackerGUID
 		ch.ActorName = sanitizeName(event.AttackerName)
 		ch.ActorTeam = event.AttackerTeam
+		ch.ActorSMFID = event.AttackerSMFID
 		ch.ActorWeapon = event.Weapon
 		ch.ActorPosX = event.AttackerX
 		ch.ActorPosY = event.AttackerY
@@ -315,23 +318,27 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		ch.TargetID = event.VictimGUID
 		ch.TargetName = sanitizeName(event.VictimName)
 		ch.TargetTeam = event.VictimTeam
+		ch.TargetSMFID = event.VictimSMFID
 		ch.TargetPosX = event.VictimX
 		ch.TargetPosY = event.VictimY
 		ch.TargetPosZ = event.VictimZ
 
 		ch.Hitloc = event.Hitloc
 
-	case models.EventDamage:
+	case models.EventDamage, models.EventPlayerPain:
 		ch.ActorID = event.AttackerGUID
 		ch.ActorName = sanitizeName(event.AttackerName)
+		ch.ActorSMFID = event.AttackerSMFID
 		ch.ActorWeapon = event.Weapon
 		ch.TargetID = event.VictimGUID
 		ch.TargetName = sanitizeName(event.VictimName)
+		ch.TargetSMFID = event.VictimSMFID
 		ch.Damage = uint32(event.Damage)
 
-	case models.EventWeaponFire:
+	case models.EventWeaponFire, models.EventWeaponReload, models.EventWeaponChange:
 		ch.ActorID = event.PlayerGUID
 		ch.ActorName = sanitizeName(event.PlayerName)
+		ch.ActorSMFID = event.PlayerSMFID
 		ch.ActorWeapon = event.Weapon
 		ch.ActorPosX = event.PosX
 		ch.ActorPosY = event.PosY
@@ -342,27 +349,48 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 	case models.EventWeaponHit:
 		ch.ActorID = event.PlayerGUID
 		ch.ActorName = sanitizeName(event.PlayerName)
+		ch.ActorSMFID = event.PlayerSMFID
 		ch.TargetID = event.TargetGUID
 		ch.TargetName = sanitizeName(event.TargetName)
+		ch.TargetSMFID = event.TargetSMFID
 		ch.Hitloc = event.Hitloc
 
 	case models.EventMatchOutcome:
 		ch.ActorID = event.PlayerGUID
 		ch.ActorName = sanitizeName(event.PlayerName)
+		ch.ActorSMFID = event.PlayerSMFID
 		ch.ActorTeam = event.PlayerTeam
 		// Use Damage column for Win/Loss flag (1=Win, 0=Loss)
 		ch.Damage = uint32(event.Count)
 		// Use ActorWeapon column for Gametype storage
 		ch.ActorWeapon = event.Gametype
 
-	default:
-		// Generic player event
+	case models.EventObjectiveCapture, models.EventObjectiveUpdate:
 		ch.ActorID = event.PlayerGUID
 		ch.ActorName = sanitizeName(event.PlayerName)
+		ch.ActorSMFID = event.PlayerSMFID
+		ch.ActorTeam = event.PlayerTeam
+		// Store objective string in ActorWeapon or TargetName if needed? 
+		// Actually raw_json has it, but lets put it in ActorWeapon for now
+		ch.ActorWeapon = event.Objective
+
+	case models.EventVehicleEnter, models.EventVehicleExit, models.EventVehicleDeath:
+		ch.ActorID = event.PlayerGUID
+		ch.ActorName = sanitizeName(event.PlayerName)
+		ch.ActorSMFID = event.PlayerSMFID
+		ch.TargetID = event.Entity // Store vehicle entity name here
+		ch.Hitloc = event.Seat     // Reuse Hitloc for Seat
+
+	default:
+		// Generic player event (Movement, Interaction, Items, etc.)
+		ch.ActorID = event.PlayerGUID
+		ch.ActorName = sanitizeName(event.PlayerName)
+		ch.ActorSMFID = event.PlayerSMFID
 		ch.ActorTeam = event.PlayerTeam
 		ch.ActorPosX = event.PosX
 		ch.ActorPosY = event.PosY
 		ch.ActorPosZ = event.PosZ
+		ch.ActorWeapon = event.Item // Pickup events store item in ActorWeapon
 	}
 
 	return ch

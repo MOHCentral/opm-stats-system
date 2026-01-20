@@ -129,3 +129,56 @@ on_objective_update local.index local.status:
 
     thread tracker_common.scr::send_to_api local.payload
 end
+
+on_map_load_start local.map_name:
+    local.payload = "type=map_load_start"
+    local.payload = local.payload + "&server_id=" + level.server_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&map=" + local.map_name
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_map_load_end local.map_name:
+    local.payload = "type=map_load_end"
+    local.payload = local.payload + "&server_id=" + level.server_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&map=" + local.map_name
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_map_change_start local.new_map:
+    local.payload = "type=map_change_start"
+    local.payload = local.payload + "&server_id=" + level.server_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&new_map=" + local.new_map
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_server_init local.gametype:
+    local.payload = "type=server_init"
+    local.payload = local.payload + "&server_id=" + level.server_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&gametype=" + local.gametype
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_server_start:
+    local.payload = "type=server_start"
+    local.payload = local.payload + "&server_id=" + level.server_id
+    local.payload = local.payload + "&timestamp=" + level.time
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_server_shutdown local.reason:
+    local.payload = "type=server_shutdown"
+    local.payload = local.payload + "&server_id=" + level.server_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&reason=" + local.reason
+
+    thread tracker_common.scr::send_to_api local.payload
+end

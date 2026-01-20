@@ -625,7 +625,7 @@ function template_mohaa_dashboard_css() {
         .mohaa-section-title {
             background: url("Themes/default/images/theme/main_block.png") repeat-x scroll 0 -160px #e4e4e4;
             padding: 8px 12px; border-radius: 6px 6px 0 0; 
-            display: flex; align-items: center; gap: 12px; margin: 0 0 -1px 0; z-index: 10; position: relative;
+            display: flex; align-items: center; gap: 12px; margin: 0 0 -1px 0; position: relative;
             border: 1px solid #ccc; border-bottom: none;
             color: #444;
         }

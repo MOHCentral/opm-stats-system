@@ -1,38 +1,177 @@
 // ============================================================================
-// OpenMOHAA Telemetry Tracker - Common Helpers
-// Shared helpers for modular event handler scripts
+// OpenMOHAA Telemetry Tracker - Common Helpers v2.0
+// ============================================================================
+//
+// This file contains shared helper functions used by all event handlers.
+// The most important function is build_player_payload which ensures
+// consistent player identity data is sent with every event.
+//
+// IDENTITY RESOLUTION SYSTEM:
+// ---------------------------
+// When a player logs in with /login <token>, we store on the player entity:
+//   - player.is_authenticated = 1
+//   - player.smf_member_id = <forum user id>
+//   - player.smf_member_name = <forum username>
+//
+// For EVERY event involving a player, we send:
+//   - name: current in-game name (can change)
+//   - guid: stable game identifier (permanent)
+//   - smf_id: SMF forum user ID (if logged in, 0 otherwise)
+//
+// The API uses this to:
+// 1. Store events with player identity
+// 2. Build a GUID → SMF ID registry
+// 3. Resolve past events to SMF accounts
 // ============================================================================
 
-// Helper: Build player payload with optional SMF member_id
+// ============================================================================
+// PLAYER PAYLOAD BUILDER
+// ============================================================================
+// Builds a URL-encoded payload string for a player with all identity info.
+//
+// Parameters:
+//   local.player - The player entity to extract data from
+//   local.prefix - The field prefix (e.g., "player", "attacker", "victim")
+//
+// Returns: URL-encoded string like:
+//   &player_name=Elgan&player_guid=abc123&player_smf_id=42&player_team=allies
+//   &player_x=100&player_y=200&player_z=50
+//
+// If player is NULL or has no netname, returns empty string.
+// ============================================================================
 build_player_payload local.player local.prefix:
     local.payload = ""
-
-    if (local.player && local.player.netname != NIL) {
-        local.payload = "&" + local.prefix + "_name=" + local.player.netname
+    
+    // Safety check - ensure player exists and has a name
+    if (local.player == NIL) {
+        end local.payload
+    }
+    
+    if (local.player.netname == NIL) {
+        end local.payload
+    }
+    
+    // ========================================
+    // CORE IDENTITY FIELDS (Always included)
+    // ========================================
+    
+    // Player name (current in-game name)
+    local.payload = "&" + local.prefix + "_name=" + local.player.netname
+    
+    // Player GUID (stable identifier - THIS IS THE KEY!)
+    if (local.player.dmteam != NIL) {
         local.payload = local.payload + "&" + local.prefix + "_guid=" + local.player.dmteam
-        local.payload = local.payload + "&" + local.prefix + "_team=" + local.player.dmteam
-
-        if (local.player.is_authenticated && local.player.smf_member_id > 0) {
-            local.payload = local.payload + "&" + local.prefix + "_member_id=" + local.player.smf_member_id
+    }
+    
+    // ========================================
+    // SMF IDENTITY (If player is logged in)
+    // ========================================
+    // This is the critical link to the forum account!
+    // If the player ran /login <token>, these fields are set.
+    
+    if (local.player.is_authenticated != NIL) {
+        if (local.player.is_authenticated == 1) {
+            if (local.player.smf_member_id != NIL && local.player.smf_member_id > 0) {
+                local.payload = local.payload + "&" + local.prefix + "_smf_id=" + local.player.smf_member_id
+            }
         }
     }
-
+    
+    // ========================================
+    // TEAM INFORMATION
+    // ========================================
+    
+    if (local.player.team != NIL && local.player.team != "") {
+        local.payload = local.payload + "&" + local.prefix + "_team=" + local.player.team
+    }
+    
+    // ========================================
+    // POSITION INFORMATION (Optional)
+    // ========================================
+    
+    if (local.player.origin != NIL) {
+        local.pos = local.player.origin
+        local.payload = local.payload + "&" + local.prefix + "_x=" + local.pos[0]
+        local.payload = local.payload + "&" + local.prefix + "_y=" + local.pos[1]
+        local.payload = local.payload + "&" + local.prefix + "_z=" + local.pos[2]
+    }
+    
+    // ========================================
+    // AIM/ANGLE INFORMATION (Optional)
+    // ========================================
+    
+    if (local.player.angles != NIL) {
+        local.ang = local.player.angles
+        local.payload = local.payload + "&" + local.prefix + "_pitch=" + local.ang[0]
+        local.payload = local.payload + "&" + local.prefix + "_yaw=" + local.ang[1]
+    }
+    
     end local.payload
 
-// Helper: Send payload to API (shared)
+
+// ============================================================================
+// COMPACT PLAYER PAYLOAD BUILDER
+// ============================================================================
+// A lighter version without position/angle data.
+// Use for events where location isn't relevant (chat, team_join, etc.)
+// ============================================================================
+build_player_payload_compact local.player local.prefix:
+    local.payload = ""
+    
+    if (local.player == NIL) {
+        end local.payload
+    }
+    
+    if (local.player.netname == NIL) {
+        end local.payload
+    }
+    
+    // Name
+    local.payload = "&" + local.prefix + "_name=" + local.player.netname
+    
+    // GUID
+    if (local.player.dmteam != NIL) {
+        local.payload = local.payload + "&" + local.prefix + "_guid=" + local.player.dmteam
+    }
+    
+    // SMF ID (if authenticated)
+    if (local.player.is_authenticated != NIL && local.player.is_authenticated == 1) {
+        if (local.player.smf_member_id != NIL && local.player.smf_member_id > 0) {
+            local.payload = local.payload + "&" + local.prefix + "_smf_id=" + local.player.smf_member_id
+        }
+    }
+    
+    // Team
+    if (local.player.team != NIL && local.player.team != "") {
+        local.payload = local.payload + "&" + local.prefix + "_team=" + local.player.team
+    }
+    
+    end local.payload
+
+
+// ============================================================================
+// SEND TO API
+// ============================================================================
+// Sends a payload to the stats API with server authentication.
+// ============================================================================
 send_to_api local.payload:
     local.url = level.api_base_url + level.api_events_endpoint
-
+    
+    // Append server identification
     local.full_payload = local.payload + "&server_token=" + level.server_token
     local.full_payload = local.full_payload + "&server_id=" + level.server_id
-
+    
     if (level.tracker_debug) {
         println ("API POST: " + local.url)
     }
-
+    
     curl_post local.url local.full_payload "tracker_common.scr::on_http_callback"
 end
 
+
+// ============================================================================
+// HTTP CALLBACK HANDLER
+// ============================================================================
 on_http_callback local.success local.response local.http_code:
     if (level.tracker_debug) {
         if (local.success) {
@@ -40,5 +179,37 @@ on_http_callback local.success local.response local.http_code:
         } else {
             println ("HTTP FAIL [" + local.http_code + "]: " + local.response)
         }
+    }
+end
+
+
+// ============================================================================
+// HELPER: BUILD BASE PAYLOAD
+// ============================================================================
+// Creates the base payload with match/session context.
+// All events should start with this.
+// ============================================================================
+build_base_payload local.event_type:
+    local.payload = "type=" + local.event_type
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    
+    if (level.session_id != NIL && level.session_id != "") {
+        local.payload = local.payload + "&session_id=" + level.session_id
+    }
+    
+    if (level.map_name != NIL && level.map_name != "") {
+        local.payload = local.payload + "&map_name=" + level.map_name
+    }
+    
+    end local.payload
+
+
+// ============================================================================
+// HELPER: DEBUG LOG
+// ============================================================================
+debug_log local.message:
+    if (level.tracker_debug) {
+        println ("[TRACKER] " + local.message)
     }
 end

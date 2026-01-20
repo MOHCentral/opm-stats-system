@@ -24,65 +24,65 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'weapon_fire') as shots_fired,
 			countIf(event_type = 'weapon_hit') as shots_hit,
 			sumIf(damage, event_type = 'damage') as total_damage,
-			toUInt64(0) as bash_kills,
-			toUInt64(0) as grenade_kills,
-			toUInt64(0) as roadkills,
-			toUInt64(0) as telefrags,
-			toUInt64(0) as crushed,
-			toUInt64(0) as teamkills,
-			toUInt64(0) as suicides,
-			toUInt64(0) as mystery_kills,
+			countIf(event_type IN ('player_bash', 'bash')) as bash_kills,
+			countIf(event_type IN ('grenade_throw', 'explosion', 'grenade_explode')) as grenade_kills,
+			countIf(event_type IN ('player_roadkill', 'roadkill')) as roadkills,
+			countIf(event_type = 'player_telefragged') as telefrags,
+			countIf(event_type IN ('player_crushed', 'crushed')) as crushed,
+			countIf(event_type IN ('player_teamkill', 'teamkill')) as teamkills,
+			countIf(event_type IN ('player_suicide', 'suicide')) as suicides,
+			countIf(event_type IN ('player_spawn', 'spawn')) as mystery_kills,
 
 			-- B. Weapon Handling
-			toUInt64(0) as reloads,
-			toUInt64(0) as weapon_swaps,
-			toUInt64(0) as no_ammo,
+			countIf(event_type IN ('weapon_reload', 'reload')) as reloads,
+			countIf(event_type IN ('weapon_change', 'weapon_swap')) as weapon_swaps,
+			countIf(event_type = 'weapon_no_ammo') as no_ammo,
 			countIf(event_type = 'item_pickup') as looter,
 
 			-- C. Movement
-			toFloat64(0) as walked,
-			toFloat64(0) as sprinted,
-			toFloat64(0) as swam,
-			toFloat64(0) as driven,
+			sumIf(JSONExtractFloat(raw_json, 'walked'), event_type = 'distance') as walked,
+			sumIf(JSONExtractFloat(raw_json, 'sprinted'), event_type = 'distance') as sprinted,
+			sumIf(JSONExtractFloat(raw_json, 'swam'), event_type = 'distance') as swam,
+			sumIf(JSONExtractFloat(raw_json, 'driven'), event_type = 'distance') as driven,
 			countIf(event_type = 'jump') as jumps,
 			countIf(event_type = 'crouch') as crouch_events,
 			countIf(event_type = 'prone') as prone_events,
 			countIf(event_type = 'ladder_mount') as ladders,
 
 			-- D. Survival & Items
-			toUInt64(0) as health_picked,
-			toUInt64(0) as ammo_picked,
-			toUInt64(0) as armor_picked,
+			countIf(event_type = 'health_pickup') as health_picked,
+			countIf(event_type = 'ammo_pickup') as ammo_picked,
+			countIf(event_type = 'armor_pickup') as armor_picked,
 			countIf(event_type = 'item_pickup') as items_picked,
 
 			-- E. Objectives & Game Flow
 			countIf(event_type = 'match_outcome' AND damage = 1) as wins,
 			countIf(event_type = 'match_outcome' AND damage = 1 AND actor_weapon = 'dm') as ffa_wins,
 			countIf(event_type = 'match_outcome' AND damage = 1 AND actor_weapon != 'dm') as team_wins,
-			countIf(event_type = 'objective_update') as objectives_done,
-			countIf(event_type = 'round_end') as rounds_played,
+			countIf(event_type IN ('objective_update', 'objective_capture')) as objectives_done,
+			countIf(event_type IN ('round_end', 'round_start')) as rounds_played,
 			countIf(event_type = 'match_outcome') as games_finished,
 
 			-- F. Vehicles
-			toUInt64(0) as vehicle_enter,
-			toUInt64(0) as turret_enter,
-			toUInt64(0) as vehicle_kills,
+			countIf(event_type IN ('vehicle_enter', 'turret_enter')) as vehicle_enter,
+			countIf(event_type = 'turret_enter') as turret_enter,
+			countIf(event_type = 'kill' AND actor_id = 'vehicle') as vehicle_kills,
 
 			-- G. Social & Misc
-			countIf(event_type = 'chat') as chat_msgs,
-			toUInt64(0) as spectating,
+			countIf(event_type IN ('chat', 'player_say')) as chat_msgs,
+			countIf(event_type = 'player_spectate') as spectating,
 			countIf(event_type = 'door_open') as doors_opened,
 			
 			-- H. Creative Stats
 			countIf(event_type IN ('ladder_mount', 'jump')) as verticality,
-			uniqIf(actor_weapon, event_type = 'kill') as unique_weapon_kills,
-			toUInt64(0) as items_dropped,
-			toUInt64(0) as vehicle_collisions,
-			toUInt64(0) as bot_kills,
+			uniqIf(actor_weapon, event_type IN ('kill', 'player_bash', 'bash')) as unique_weapon_kills,
+			countIf(event_type = 'item_drop') as items_dropped,
+			countIf(event_type = 'vehicle_collision') as vehicle_collisions,
+			countIf(event_type = 'bot_killed') as bot_kills,
 
             -- Movement specific
             sumIf(distance, event_type = 'distance') as total_distance,
-            toUInt64(0) as reload_count,
+            countIf(event_type = 'weapon_reload') as reload_count,
             countIf(event_type = 'ladder_mount') as ladder_mounts,
             countIf(event_type = 'crouch') as manual_crouches
 
@@ -132,7 +132,6 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
 			&kills, &deaths, &headshots, &shotsFired, &shotsHit, &damage, &bash, &nade, &road, &tele, &crush, &tk, &self, &mystery,
 			&reloads, &swaps, &noAmmo, &looter,
 			&walked, &sprinted, &swam, &driven, &jumps, &crouch, &prone, &ladders,
-			&health, &ammo, &armor, &items,
 			&health, &ammo, &armor, &items,
 			&wins, &ffaWins, &teamWins, &obj, &rounds, &games,
 			&vEnter, &tEnter, &vKills,

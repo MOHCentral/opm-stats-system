@@ -66,6 +66,110 @@ function template_mohaa_player_full()
             </div>
         </div>
 
+        <!-- Combat Style Card -->
+        <h3 style="border-left: 4px solid #E91E63; padding-left: 10px; margin-bottom: 15px; text-transform: uppercase;">⚔️ Combat Style</h3>
+        <div style="background: '.$color_panel.'; padding: 20px; border: 1px solid #333; margin-bottom: 30px;">
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                <!-- Left: Stats Table -->
+                <div>
+                    <table style="width: 100%; border-collapse: collapse; color: '.$color_text.';">
+                        <tr style="border-bottom: 1px solid #444;">
+                            <td style="padding: 10px; font-weight: bold;">Bash Kills</td>
+                            <td style="padding: 10px; text-align: right;">'.number_format($deep['combat']['bash_kills'] ?? 0).'</td>
+                            <td style="padding: 10px; text-align: right; color: #00BCD4;">'.number_format(($deep['combat']['bash_percent'] ?? 0), 1).'%</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #444;">
+                            <td style="padding: 10px; font-weight: bold;">Roadkills</td>
+                            <td style="padding: 10px; text-align: right;">'.number_format($deep['combat']['roadkill_kills'] ?? 0).'</td>
+                            <td style="padding: 10px; text-align: right; color: #00BCD4;">'.number_format(($deep['combat']['roadkill_percent'] ?? 0), 1).'%</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #444;">
+                            <td style="padding: 10px; font-weight: bold;">Telefrag Kills</td>
+                            <td style="padding: 10px; text-align: right;">'.number_format($deep['combat']['telefrag_kills'] ?? 0).'</td>
+                            <td style="padding: 10px; text-align: right; color: #00BCD4;">'.number_format(($deep['combat']['telefrag_percent'] ?? 0), 1).'%</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #444;">
+                            <td style="padding: 10px; font-weight: bold;">Grenade Kills</td>
+                            <td style="padding: 10px; text-align: right;">'.number_format($deep['combat']['grenade_kills'] ?? 0).'</td>
+                            <td style="padding: 10px; text-align: right; color: #00BCD4;">'.number_format(($deep['combat']['grenade_percent'] ?? 0), 1).'%</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">Standard Kills</td>
+                            <td style="padding: 10px; text-align: right;">'.number_format($deep['combat']['standard_kills'] ?? 0).'</td>
+                            <td style="padding: 10px; text-align: right; color: #00BCD4;">'.number_format(($deep['combat']['standard_percent'] ?? 0), 1).'%</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <!-- Right: Combat Style Radial Chart -->
+                <div>
+                    <div id="combat_style_chart" style="min-height: 250px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            // Combat Style Radial Bar Chart
+            var combatStyleOptions = {
+                series: [
+                    '.number_format($deep['combat']['bash_percent'] ?? 0, 1).',
+                    '.number_format($deep['combat']['roadkill_percent'] ?? 0, 1).',
+                    '.number_format($deep['combat']['telefrag_percent'] ?? 0, 1).',
+                    '.number_format($deep['combat']['grenade_percent'] ?? 0, 1).',
+                    '.number_format($deep['combat']['standard_percent'] ?? 0, 1).'
+                ],
+                chart: {
+                    type: "radialBar",
+                    height: 300
+                },
+                plotOptions: {
+                    radialBar: {
+                        offsetY: 0,
+                        startAngle: 0,
+                        endAngle: 270,
+                        hollow: {
+                            margin: 5,
+                            size: "30%",
+                            background: "transparent",
+                        },
+                        dataLabels: {
+                            name: {
+                                show: false
+                            },
+                            value: {
+                                show: false
+                            }
+                        }
+                    }
+                },
+                colors: ["#00BCD4", "#FF5722", "#E91E63", "#4CAF50", "#9E9E9E"],
+                labels: ["Bash", "Roadkill", "Telefrag", "Grenade", "Standard"],
+                legend: {
+                    show: true,
+                    floating: true,
+                    fontSize: "14px",
+                    position: "left",
+                    offsetX: 0,
+                    offsetY: 10,
+                    labels: {
+                        useSeriesColors: true,
+                    },
+                    markers: {
+                        size: 0
+                    },
+                    formatter: function(seriesName, opts) {
+                        return seriesName + ":  " + opts.w.globals.series[opts.seriesIndex] + "%"
+                    },
+                    itemMargin: {
+                        vertical: 3
+                    }
+                }
+            };
+
+            var combatStyleChart = new ApexCharts(document.querySelector("#combat_style_chart"), combatStyleOptions);
+            combatStyleChart.render();
+        </script>
+
         <!-- Movement & Movement -->
         <h3 style="border-left: 4px solid #2196F3; padding-left: 10px; margin-bottom: 15px; text-transform: uppercase;">Movement Analysis</h3>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px;">

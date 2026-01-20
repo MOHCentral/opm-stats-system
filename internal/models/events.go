@@ -10,50 +10,175 @@ import (
 type EventType string
 
 const (
-	// Match lifecycle
-	EventMatchStart EventType = "match_start"
-	EventTeamWin    EventType = "team_win"
-	EventMatchEnd   EventType = "match_end"
-	EventRoundStart EventType = "round_start"
-	EventRoundEnd   EventType = "round_end"
-	EventMatchOutcome EventType = "match_outcome"
-	EventHeartbeat  EventType = "heartbeat"
+	// ========================================
+	// GAME FLOW & MATCH LIFECYCLE (11 events)
+	// ========================================
+	EventGameInit          EventType = "game_init"
+	EventGameStart         EventType = "game_start"
+	EventGameEnd           EventType = "game_end"
+	EventMatchStart        EventType = "match_start"
+	EventMatchEnd          EventType = "match_end"
+	EventMatchOutcome      EventType = "match_outcome"
+	EventRoundStart        EventType = "round_start"
+	EventRoundEnd          EventType = "round_end"
+	EventWarmupStart       EventType = "warmup_start"
+	EventWarmupEnd         EventType = "warmup_end"
+	EventIntermissionStart EventType = "intermission_start"
 
-	// Combat
-	EventKill           EventType = "kill"
-	EventDeath          EventType = "death"
-	EventDamage         EventType = "damage"
-	EventWeaponFire     EventType = "weapon_fire"
-	EventWeaponHit      EventType = "weapon_hit"
-	EventHeadshot       EventType = "headshot"
-	EventReload         EventType = "reload"
-	EventWeaponChange   EventType = "weapon_change"
+	// ========================================
+	// COMBAT EVENTS (23 events)
+	// ========================================
+	// Core Combat
+	EventKill       EventType = "kill"
+	EventDeath      EventType = "death"
+	EventDamage     EventType = "damage"
+	EventPlayerPain EventType = "player_pain"
+	EventHeadshot   EventType = "headshot"
+
+	// Special Kills
+	EventPlayerSuicide     EventType = "player_suicide"
+	EventPlayerCrushed     EventType = "player_crushed"
+	EventPlayerTelefragged EventType = "player_telefragged"
+	EventPlayerRoadkill    EventType = "player_roadkill"
+	EventPlayerBash        EventType = "player_bash"
+	EventPlayerTeamkill    EventType = "player_teamkill"
+
+	// Weapon Events
+	EventWeaponFire       EventType = "weapon_fire"
+	EventWeaponHit        EventType = "weapon_hit"
+	EventWeaponChange     EventType = "weapon_change"
+	EventWeaponReload     EventType = "weapon_reload"
+	EventWeaponReloadDone EventType = "weapon_reload_done"
+	EventWeaponReady      EventType = "weapon_ready"
+	EventWeaponNoAmmo     EventType = "weapon_no_ammo"
+	EventWeaponHolster    EventType = "weapon_holster"
+	EventWeaponRaise      EventType = "weapon_raise"
+	EventWeaponDrop       EventType = "weapon_drop"
+
+	// Grenades
 	EventGrenadeThrow   EventType = "grenade_throw"
 	EventGrenadeExplode EventType = "grenade_explode"
 
-	// Movement
-	EventJump     EventType = "jump"
-	EventLand     EventType = "land"
-	EventCrouch   EventType = "crouch"
-	EventProne    EventType = "prone"
-	EventDistance EventType = "distance"
-
-	// Interaction
+	// ========================================
+	// MOVEMENT EVENTS (10 events)
+	// ========================================
+	EventJump           EventType = "jump"
+	EventLand           EventType = "land"
+	EventCrouch         EventType = "crouch"
+	EventProne          EventType = "prone"
+	EventPlayerStand    EventType = "player_stand"
+	EventPlayerSpawn    EventType = "player_spawn"
+	EventPlayerRespawn  EventType = "player_respawn"
+	EventDistance       EventType = "distance"
 	EventLadderMount    EventType = "ladder_mount"
 	EventLadderDismount EventType = "ladder_dismount"
-	EventItemPickup     EventType = "item_pickup"
-	EventItemDrop       EventType = "item_drop"
-	EventUse            EventType = "use"
 
-	// Session
-	EventConnect    EventType = "connect"
-	EventDisconnect EventType = "disconnect"
-	EventSpawn      EventType = "spawn"
+	// ========================================
+	// INTERACTION EVENTS (6 events)
+	// ========================================
+	EventPlayerUse             EventType = "player_use"
+	EventPlayerUseObjectStart  EventType = "player_use_object_start"
+	EventPlayerUseObjectFinish EventType = "player_use_object_finish"
+	EventPlayerSpectate        EventType = "player_spectate"
+	EventPlayerFreeze          EventType = "player_freeze"
+	EventPlayerSay             EventType = "player_say"
+
+	// ========================================
+	// ITEM EVENTS (5 events)
+	// ========================================
+	EventItemPickup   EventType = "item_pickup"
+	EventItemDrop     EventType = "item_drop"
+	EventItemRespawn  EventType = "item_respawn"
+	EventHealthPickup EventType = "health_pickup"
+	EventAmmoPickup   EventType = "ammo_pickup"
+
+	// ========================================
+	// VEHICLE & TURRET EVENTS (6 events)
+	// ========================================
+	EventVehicleEnter     EventType = "vehicle_enter"
+	EventVehicleExit      EventType = "vehicle_exit"
+	EventVehicleDeath     EventType = "vehicle_death"
+	EventVehicleCollision EventType = "vehicle_collision"
+	EventTurretEnter      EventType = "turret_enter"
+	EventTurretExit       EventType = "turret_exit"
+
+	// ========================================
+	// SERVER LIFECYCLE EVENTS (5 events)
+	// ========================================
+	EventServerInit           EventType = "server_init"
+	EventServerStart          EventType = "server_start"
+	EventServerShutdown       EventType = "server_shutdown"
+	EventServerSpawned        EventType = "server_spawned"
+	EventServerConsoleCommand EventType = "server_console_command"
+	EventHeartbeat            EventType = "heartbeat"
+
+	// ========================================
+	// MAP LIFECYCLE EVENTS (4 events)
+	// ========================================
+	EventMapLoadStart   EventType = "map_load_start"
+	EventMapLoadEnd     EventType = "map_load_end"
+	EventMapChangeStart EventType = "map_change_start"
+	EventMapRestart     EventType = "map_restart"
+
+	// ========================================
+	// TEAM & VOTE EVENTS (5 events)
+	// ========================================
+	EventTeamJoin   EventType = "team_join"
 	EventTeamChange EventType = "team_change"
-	EventChat       EventType = "chat"
+	EventVoteStart  EventType = "vote_start"
+	EventVotePassed EventType = "vote_passed"
+	EventVoteFailed EventType = "vote_failed"
 
-	// Identity
-	EventIdentityClaim EventType = "identity_claim"
+	// ========================================
+	// CLIENT/SESSION EVENTS (5 events)
+	// ========================================
+	EventClientConnect         EventType = "client_connect"
+	EventClientDisconnect      EventType = "client_disconnect"
+	EventClientBegin           EventType = "client_begin"
+	EventClientUserinfoChanged EventType = "client_userinfo_changed"
+	EventPlayerInactivityDrop  EventType = "player_inactivity_drop"
+
+	// ========================================
+	// WORLD EVENTS (3 events)
+	// ========================================
+	EventDoorOpen  EventType = "door_open"
+	EventDoorClose EventType = "door_close"
+	EventExplosion EventType = "explosion"
+
+	// ========================================
+	// AI/ACTOR/BOT EVENTS (7 events)
+	// ========================================
+	EventActorSpawn  EventType = "actor_spawn"
+	EventActorKilled EventType = "actor_killed"
+	EventBotSpawn    EventType = "bot_spawn"
+	EventBotKilled   EventType = "bot_killed"
+	EventBotRoam     EventType = "bot_roam"
+	EventBotCurious  EventType = "bot_curious"
+	EventBotAttack   EventType = "bot_attack"
+
+	// ========================================
+	// OBJECTIVE EVENTS (2 events)
+	// ========================================
+	EventObjectiveUpdate  EventType = "objective_update"
+	EventObjectiveCapture EventType = "objective_capture"
+
+	// ========================================
+	// SCORE & ADMIN EVENTS (2 events)
+	// ========================================
+	EventScoreChange  EventType = "score_change"
+	EventTeamkillKick EventType = "teamkill_kick"
+
+	// ========================================
+	// LEGACY/COMPATIBILITY (kept for backward compatibility)
+	// ========================================
+	EventConnect       EventType = "connect"        // Alias for client_connect
+	EventDisconnect    EventType = "disconnect"     // Alias for client_disconnect
+	EventSpawn         EventType = "spawn"          // Alias for player_spawn
+	EventChat          EventType = "chat"           // Alias for player_say
+	EventUse           EventType = "use"            // Alias for player_use
+	EventReload        EventType = "reload"         // Alias for weapon_reload
+	EventTeamWin       EventType = "team_win"       // Special event (not in 92)
+	EventIdentityClaim EventType = "identity_claim" // Special event (not in 92)
 )
 
 // Team represents a player's team
@@ -75,18 +200,20 @@ type RawEvent struct {
 	Timestamp   float64   `json:"timestamp"`
 	MapName     string    `json:"map_name,omitempty"`
 
-	// Player info
-	PlayerName string  `json:"player_name,omitempty"`
-	PlayerGUID string  `json:"player_guid,omitempty"`
-	PlayerTeam string  `json:"player_team,omitempty"`
-	PosX       float32 `json:"pos_x,omitempty"`
-	PosY       float32 `json:"pos_y,omitempty"`
-	PosZ       float32 `json:"pos_z,omitempty"`
+	// Player info (primary actor for single-player events)
+	PlayerName  string  `json:"player_name,omitempty"`
+	PlayerGUID  string  `json:"player_guid,omitempty"`
+	PlayerTeam  string  `json:"player_team,omitempty"`
+	PlayerSMFID int64   `json:"player_smf_id,omitempty"` // SMF member ID (if authenticated)
+	PosX        float32 `json:"pos_x,omitempty"`
+	PosY        float32 `json:"pos_y,omitempty"`
+	PosZ        float32 `json:"pos_z,omitempty"`
 
 	// Attacker info (for kill/damage events)
 	AttackerName  string  `json:"attacker_name,omitempty"`
 	AttackerGUID  string  `json:"attacker_guid,omitempty"`
 	AttackerTeam  string  `json:"attacker_team,omitempty"`
+	AttackerSMFID int64   `json:"attacker_smf_id,omitempty"` // SMF member ID (if authenticated)
 	AttackerX     float32 `json:"attacker_x,omitempty"`
 	AttackerY     float32 `json:"attacker_y,omitempty"`
 	AttackerZ     float32 `json:"attacker_z,omitempty"`
@@ -94,12 +221,13 @@ type RawEvent struct {
 	AttackerYaw   float32 `json:"attacker_yaw,omitempty"`
 
 	// Victim info
-	VictimName string  `json:"victim_name,omitempty"`
-	VictimGUID string  `json:"victim_guid,omitempty"`
-	VictimTeam string  `json:"victim_team,omitempty"`
-	VictimX    float32 `json:"victim_x,omitempty"`
-	VictimY    float32 `json:"victim_y,omitempty"`
-	VictimZ    float32 `json:"victim_z,omitempty"`
+	VictimName  string  `json:"victim_name,omitempty"`
+	VictimGUID  string  `json:"victim_guid,omitempty"`
+	VictimTeam  string  `json:"victim_team,omitempty"`
+	VictimSMFID int64   `json:"victim_smf_id,omitempty"` // SMF member ID (if authenticated)
+	VictimX     float32 `json:"victim_x,omitempty"`
+	VictimY     float32 `json:"victim_y,omitempty"`
+	VictimZ     float32 `json:"victim_z,omitempty"`
 
 	// Weapon/damage info
 	Weapon        string `json:"weapon,omitempty"`
@@ -126,8 +254,9 @@ type RawEvent struct {
 	Count int    `json:"count,omitempty"`
 
 	// Target info (for hits)
-	TargetName string `json:"target_name,omitempty"`
-	TargetGUID string `json:"target_guid,omitempty"`
+	TargetName  string `json:"target_name,omitempty"`
+	TargetGUID  string `json:"target_guid,omitempty"`
+	TargetSMFID int64  `json:"target_smf_id,omitempty"` // SMF member ID (if authenticated)
 
 	// Team change
 	OldTeam string `json:"old_team,omitempty"`
@@ -176,6 +305,7 @@ type ClickHouseEvent struct {
 	ActorID     string
 	ActorName   string
 	ActorTeam   string
+	ActorSMFID  int64 // SMF member ID (0 if not authenticated)
 	ActorWeapon string
 	ActorPosX   float32
 	ActorPosY   float32
@@ -184,12 +314,13 @@ type ClickHouseEvent struct {
 	ActorYaw    float32
 
 	// Target (recipient of action)
-	TargetID   string
-	TargetName string
-	TargetTeam string
-	TargetPosX float32
-	TargetPosY float32
-	TargetPosZ float32
+	TargetID    string
+	TargetName  string
+	TargetTeam  string
+	TargetSMFID int64 // SMF member ID (0 if not authenticated)
+	TargetPosX  float32
+	TargetPosY  float32
+	TargetPosZ  float32
 
 	// Metrics
 	Damage   uint32

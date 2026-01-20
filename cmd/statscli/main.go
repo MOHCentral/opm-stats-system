@@ -1069,7 +1069,11 @@ func (m *MatchSimulator) simulateRound(roundNum int) {
 		actor := m.players[rand.Intn(len(m.players))]
 
 		r := rand.Float32()
-		if r < 0.50 {
+		if r < 0.05 {
+			m.simulateObjective(actor)
+		} else if r < 0.10 {
+			m.simulateVehicle(actor)
+		} else if r < 0.50 {
 			m.simulateCombat(actor)
 		} else if r < 0.75 {
 			m.simulateMovement(actor)
@@ -1079,6 +1083,49 @@ func (m *MatchSimulator) simulateRound(roundNum int) {
 			m.simulateChat(actor)
 		}
 	}
+}
+
+func (m *MatchSimulator) simulateObjective(p Player) {
+	m.sendEvent(map[string]interface{}{
+		"type":             "objective_capture",
+		"match_id":         m.matchID,
+		"timestamp":        m.baseTS,
+		"player_guid":      p.GUID,
+		"player_name":      p.Name,
+		"player_team":      p.Team,
+		"objective":        fmt.Sprintf("obj_%d", rand.Intn(3)+1),
+		"objective_status": "complete",
+	})
+}
+
+func (m *MatchSimulator) simulateVehicle(p Player) {
+	vehicleName := "Sherman Tank"
+	if p.Team == "axis" {
+		vehicleName = "Tiger Tank"
+	}
+	// Enter
+	m.sendEvent(map[string]interface{}{
+		"type":        "vehicle_enter",
+		"match_id":    m.matchID,
+		"timestamp":   m.baseTS,
+		"player_guid": p.GUID,
+		"entity":      vehicleName,
+		"seat":        "driver",
+	})
+	// Drive
+	m.baseTS += 2.5
+	// Exit or Die
+	eventType := "vehicle_exit"
+	if rand.Float32() < 0.2 {
+		eventType = "vehicle_death"
+	}
+	m.sendEvent(map[string]interface{}{
+		"type":        eventType,
+		"match_id":    m.matchID,
+		"timestamp":   m.baseTS,
+		"player_guid": p.GUID,
+		"entity":      vehicleName,
+	})
 }
 
 func (m *MatchSimulator) simulateCombat(attacker Player) {
@@ -1122,32 +1169,48 @@ func (m *MatchSimulator) simulateCombat(attacker Player) {
 			"victim_x": vX, "victim_y": vY, "victim_z": vZ,
 		})
 
-		if rand.Float32() < 0.35 || hitloc == "head" {
-			m.sendEvent(map[string]interface{}{
-				"type": "kill", "match_id": m.matchID, "timestamp": m.baseTS + 0.15,
-				"attacker_name": attacker.Name, "attacker_guid": attacker.GUID, "attacker_team": attacker.Team,
-				"victim_name": victim.Name, "victim_guid": victim.GUID, "victim_team": victim.Team,
-				"weapon": weapon, "hitloc": hitloc,
-				"attacker_x": aX, "attacker_y": aY, "attacker_z": aZ,
-				"victim_x": vX, "victim_y": vY, "victim_z": vZ,
-			})
+			// Kill (35% chance after damage)
+			if rand.Float32() < 0.35 || hitloc == "head" {
+				killType := "kill"
+				weaponName := weapon
+				
+				// Extra flair (Special Kills)
+				specialRoll := rand.Float32()
+				if specialRoll < 0.05 {
+					killType = "bash"
+					weaponName = "MoH::Bash"
+				} else if specialRoll < 0.10 {
+					killType = "explosion"
+					weaponName = "Grenade"
+				}
 
-			if hitloc == "head" {
 				m.sendEvent(map[string]interface{}{
-					"type": "headshot", "match_id": m.matchID, "timestamp": m.baseTS + 0.16,
+					"type":          killType,
+					"match_id":      m.matchID,
+					"timestamp":     m.baseTS + 0.15,
+					"attacker_name": attacker.Name, "attacker_guid": attacker.GUID, "attacker_team": attacker.Team,
+					"victim_name": victim.Name, "victim_guid": victim.GUID, "victim_team": victim.Team,
+					"weapon": weaponName, "hitloc": hitloc,
+					"attacker_x": aX, "attacker_y": aY, "attacker_z": aZ,
+					"victim_x": vX, "victim_y": vY, "victim_z": vZ,
+				})
+
+				if hitloc == "head" {
+					m.sendEvent(map[string]interface{}{
+						"type": "headshot", "match_id": m.matchID, "timestamp": m.baseTS + 0.16,
+						"attacker_name": attacker.Name, "attacker_guid": attacker.GUID,
+						"victim_name": victim.Name, "victim_guid": victim.GUID,
+						"weapon": weapon,
+					})
+				}
+
+				m.sendEvent(map[string]interface{}{
+					"type": "death", "match_id": m.matchID, "timestamp": m.baseTS + 0.17,
+					"player_name": victim.Name, "player_guid": victim.GUID, "player_team": victim.Team,
 					"attacker_name": attacker.Name, "attacker_guid": attacker.GUID,
-					"victim_name": victim.Name, "victim_guid": victim.GUID,
-					"weapon": weapon,
+					"weapon": weapon, "pos_x": vX, "pos_y": vY, "pos_z": vZ,
 				})
 			}
-
-			m.sendEvent(map[string]interface{}{
-				"type": "death", "match_id": m.matchID, "timestamp": m.baseTS + 0.17,
-				"player_name": victim.Name, "player_guid": victim.GUID, "player_team": victim.Team,
-				"attacker_name": attacker.Name, "attacker_guid": attacker.GUID,
-				"weapon": weapon, "pos_x": vX, "pos_y": vY, "pos_z": vZ,
-			})
-		}
 	}
 }
 
@@ -1171,11 +1234,18 @@ func (m *MatchSimulator) simulateMovement(actor Player) {
 func (m *MatchSimulator) simulateInteraction(actor Player) {
 	x, y, z := m.generatePosition()
 	eventType := []string{"item_pickup", "ladder_mount", "door_open"}[rand.Intn(3)]
-	m.sendEvent(map[string]interface{}{
+	event := map[string]interface{}{
 		"type": eventType, "match_id": m.matchID, "timestamp": m.baseTS,
 		"player_name": actor.Name, "player_guid": actor.GUID,
 		"pos_x": x, "pos_y": y, "pos_z": z,
-	})
+	}
+
+	if eventType == "item_pickup" {
+		items := []string{"health_25", "health_50", "ammo_pistol", "ammo_rifle", "armor_light", "armor_heavy"}
+		event["item"] = items[rand.Intn(len(items))]
+	}
+
+	m.sendEvent(event)
 }
 
 func (m *MatchSimulator) simulateChat(actor Player) {

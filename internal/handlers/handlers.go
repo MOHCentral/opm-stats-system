@@ -229,6 +229,12 @@ func (h *Handler) parseFormToEvent(form url.Values) models.RawEvent {
 	event.Count, _ = strconv.Atoi(form.Get("count"))
 	event.Duration, _ = strconv.ParseFloat(form.Get("duration"), 64)
 
+	// Parse SMF ID fields (Int64 for member IDs)
+	event.PlayerSMFID = parseInt64(form.Get("player_smf_id"))
+	event.AttackerSMFID = parseInt64(form.Get("attacker_smf_id"))
+	event.VictimSMFID = parseInt64(form.Get("victim_smf_id"))
+	event.TargetSMFID = parseInt64(form.Get("target_smf_id"))
+
 	// Parse float fields (positions)
 	event.PosX = parseFloat32(form.Get("pos_x"))
 	event.PosY = parseFloat32(form.Get("pos_y"))
@@ -250,6 +256,11 @@ func (h *Handler) parseFormToEvent(form url.Values) models.RawEvent {
 	event.Driven = parseFloat32(form.Get("driven"))
 
 	return event
+}
+
+func parseInt64(s string) int64 {
+	i, _ := strconv.ParseInt(s, 10, 64)
+	return i
 }
 
 func parseFloat32(s string) float32 {
@@ -506,12 +517,12 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			sum(hs) as headshots,
 			sum(sf) as shots_fired,
 			sum(sh) as shots_hit,
-			toUInt64(0) as playtime,
-			toUInt64(0) as suicides,
-			toUInt64(0) as teamkills,
-			toUInt64(0) as roadkills,
-			toUInt64(0) as bash_kills,
-			toUInt64(0) as grenades,
+			sum(pt) as playtime,
+			sum(sc) as suicides,
+			sum(tk) as teamkills,
+			sum(rk) as roadkills,
+			sum(bk) as bash_kills,
+			sum(gr) as grenades,
 			sum(dmg) as damage,
 			sum(dist) as distance,
 			sum(jmp) as jumps,
@@ -519,75 +530,100 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			sum(ffa_w) as ffa_wins,
 			sum(team_w) as team_wins,
 			sum(l) as losses,
-			toUInt64(0) as rounds,
+			sum(rnd) as rounds,
 			sum(obj) as objectives,
 			if(sum(d) > 0, toFloat64(sum(k))/toFloat64(sum(d)), toFloat64(sum(k))) as kd,
 			if(sum(sf) > 0, (toFloat64(sum(sh))/toFloat64(sum(sf)))*100.0, 0.0) as accuracy
 		FROM (
 			-- Kills (actor is killer)
-			SELECT actor_id as player_id, actor_name as name, toUInt64(1) as k, toUInt64(0) as d, toUInt64(0) as hs, toUInt64(0) as sf, toUInt64(0) as sh, toUInt64(0) as dmg, toFloat64(0) as dist, toUInt64(0) as jmp, toUInt64(0) as w, toUInt64(0) as ffa_w, toUInt64(0) as team_w, toUInt64(0) as l, toUInt64(0) as obj
-			FROM raw_events WHERE event_type='kill' AND actor_id != '' %s
+			-- cols: player_id, name, k, d, hs, sf, sh, pt, sc, tk, rk, bk, gr, dmg, dist, jmp, w, ffa_w, team_w, l, rnd, obj
+			SELECT actor_id as player_id, actor_name as name, toUInt64(1) as k, 0 as d, 0 as hs, 0 as sf, 0 as sh, 0 as pt, 0 as sc, 0 as tk, 0 as rk, 0 as bk, 0 as gr, 0 as dmg, toFloat64(0) as dist, 0 as jmp, 0 as w, 0 as ffa_w, 0 as team_w, 0 as l, 0 as rnd, 0 as obj
+			FROM raw_events WHERE event_type IN ('kill', 'player_bash', 'bash', 'player_roadkill', 'roadkill', 'player_teamkill', 'teamkill') AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Deaths (target is victim)
-			SELECT target_id as player_id, target_name as name, toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
-			FROM raw_events WHERE event_type IN ('kill', 'death') AND target_id != '' %s
+			SELECT target_id as player_id, target_name as name, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('kill', 'death', 'player_bash', 'bash', 'player_roadkill', 'roadkill') AND target_id != '' %s
 			
 			UNION ALL
 			
 			-- Headshots
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 			FROM raw_events WHERE event_type='headshot' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Weapon Fire
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
-			FROM raw_events WHERE event_type='weapon_fire' AND actor_id != '' %s
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('weapon_fire') AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Weapon Hit
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
-			FROM raw_events WHERE event_type='weapon_hit' AND actor_id != '' %s
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('weapon_hit') AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Damage dealt
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(damage), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
-			FROM raw_events WHERE event_type='damage' AND actor_id != '' %s
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, toUInt64(damage), 0, 0, 0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('damage', 'player_pain') AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Distance moved
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(distance), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, toFloat64(distance), 0, 0, 0, 0, 0, 0, 0
 			FROM raw_events WHERE event_type='distance' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Jumps
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0
 			FROM raw_events WHERE event_type='jump' AND actor_id != '' %s
+
+			UNION ALL
+			
+			-- Bash Kills
+			SELECT actor_id as player_id, actor_name as name, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('player_bash', 'bash') AND actor_id != '' %s
+
+			UNION ALL
+			
+			-- Roadkills
+			SELECT actor_id as player_id, actor_name as name, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('player_roadkill', 'roadkill') AND actor_id != '' %s
+
+			UNION ALL
+			
+			-- Grenades (Explosions)
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('explosion', 'grenade_throw', 'grenade_explode') AND actor_id != '' %s
+
+			UNION ALL
+			
+			-- Suicides
+			SELECT actor_id as player_id, actor_name as name, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			FROM raw_events WHERE event_type IN ('player_suicide', 'suicide') AND actor_id != '' %s
 			
 			UNION ALL
 
 			-- Wins/Losses (Match Outcome)
 			-- damage=1 is Win, damage=0 is Loss
 			-- actor_weapon holds gametype
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), 
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 				if(damage=1, toUInt64(1), 0), 
 				if(damage=1 AND actor_weapon IN ('dm','ffa'), toUInt64(1), 0),
 				if(damage=1 AND actor_weapon NOT IN ('dm','ffa'), toUInt64(1), 0),
 				if(damage=0, toUInt64(1), 0), 
-				toUInt64(0)
+				0, 0
 			FROM raw_events WHERE event_type='match_outcome' AND actor_id != '' %s
 
 			UNION ALL
 
 			-- Objectives
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1)
-			FROM raw_events WHERE event_type='objective_update' AND extract(raw_json, 'status')='complete' AND actor_id != '' %s
+			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
+			FROM raw_events WHERE event_type IN ('objective_update', 'objective_capture') AND actor_id != '' %s
 		)
 		GROUP BY player_id
 		HAVING kills > 0 OR deaths > 0 OR wins > 0

@@ -24,14 +24,18 @@ init:
     // ========================================================================
     // SERVER EVENTS (5 events)
     // ========================================================================
-    // server_init, server_start, server_shutdown usually too early/late for script
+    event_subscribe "server_init" "tracker_gameflow_ext.scr::on_server_init"
+    event_subscribe "server_start" "tracker_gameflow_ext.scr::on_server_start"
+    event_subscribe "server_shutdown" "tracker_gameflow_ext.scr::on_server_shutdown"
     event_subscribe "server_spawned" "tracker_gameflow_ext.scr::on_server_spawned"
     event_subscribe "server_console_command" "tracker_gameflow_ext.scr::on_server_console_command"
 
     // ========================================================================
     // MAP EVENTS (4 events)
     // ========================================================================
-    // map_load_start, map_load_end often handled by game_init/game_start
+    event_subscribe "map_load_start" "tracker_gameflow_ext.scr::on_map_load_start"
+    event_subscribe "map_load_end" "tracker_gameflow_ext.scr::on_map_load_end"
+    event_subscribe "map_change_start" "tracker_gameflow_ext.scr::on_map_change_start"
     event_subscribe "map_restart" "tracker_gameflow_ext.scr::on_map_restart"
 
     // ========================================================================
