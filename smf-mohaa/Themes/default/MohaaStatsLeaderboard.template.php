@@ -20,30 +20,22 @@ function template_mohaa_stats_leaderboard()
     
     echo '
     <style>
-        .mohaa-premium-table { width: 100%; border-collapse: collapse; font-family: "Inter", sans-serif; min-width: 800px; }
-        .mohaa-premium-table th { position: sticky; top: 0; background: #1a1f26; color: #fff; padding: 15px; text-transform: uppercase; font-size: 0.85em; letter-spacing: 1px; border-bottom: 2px solid #34495e; z-index: 10; text-align: center; }
-        .mohaa-premium-table th.player-col { text-align: left; padding-left: 20px; }
-        .mohaa-premium-table td { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #cfd8dc; text-align: center; font-variant-numeric: tabular-nums; }
-        .mohaa-premium-table tr.top-rank td { background: rgba(255, 215, 0, 0.05); border-bottom: 1px solid rgba(255, 215, 0, 0.1); }
-        .mohaa-premium-table tr:hover td { background: rgba(255,255,255,0.05); color: #fff; }
-        .mohaa-premium-table tr.top-rank:hover td { background: rgba(255, 215, 0, 0.1); }
-        .rank-badge { font-size: 1.5em; display: inline-block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
-        .rank-num { font-weight: bold; color: #546e7a; font-size: 1.1em; }
-        .player-info { display: flex; align-items: center; gap: 12px; }
-        .player-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 0.9em; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .player-name { color: #fff; text-decoration: none; font-weight: 600; font-size: 1.05em; transition: color 0.2s; }
-        .player-name:hover { color: #3498db; }
-        .active-sort { color: #3498db !important; border-bottom: 2px solid #3498db; padding-bottom: 4px; }
-        .stat-col.sorted { background: rgba(52, 152, 219, 0.05); font-weight: bold; color: #fff; }
-        .stat-positive { color: #00e676; }
-        .stat-negative { color: #e57373; }
-        .stat-highlight { color: #fff; font-weight: bold; }
-        .empty-state { text-align: center; padding: 60px; color: #7f8c8d; }
+    <style>
+        .mohaa-hero-stat { text-align: center; padding: 20px 15px; background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); margin-bottom: 20px; border-radius: 12px; color: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .mohaa-hero-stat h1 { color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.2); margin: 5px 0 5px 0; font-size: 2em; }
+        .mohaa-hero-stat p { color: #ecf0f1; font-size: 1em; opacity: 0.9; }
         
-        .mohaa-loading { opacity: 0.5; pointer-events: none; transition: opacity 0.2s; }
+        .ag-theme-alpine { --ag-foreground-color: #2c3e50; --ag-header-foreground-color: #fff; --ag-header-background-color: #2c3e50; --ag-row-hover-color: rgba(52, 152, 219, 0.1); --ag-selected-row-background-color: rgba(52, 152, 219, 0.2); }
+        .ag-theme-alpine .ag-header-cell { font-family: "Inter", sans-serif; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; }
+        .ag-theme-alpine .ag-cell { font-family: "Inter", sans-serif; display: flex; align-items: center; justify-content: center; }
+        .player-cell { justify-content: flex-start !important; }
+        
+        .rank-badge { font-size: 1.4em; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }
+        .player-avatar-small { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #34495e; color: #fff; font-size: 10px; margin-right: 8px; font-weight: bold; }
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/ag-grid-community/dist/ag-grid-community.min.js"></script>
     
     <div id="mohaa-leaderboard-dynamic">
     ';
@@ -93,10 +85,10 @@ function template_mohaa_stats_leaderboard()
 
     // Hero Section
     echo '
-    <div class="mohaa-hero-stat" style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.1) 100%); margin-bottom: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-        <div style="font-size: 4em; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.2));">', $info['icon'], '</div>
-        <h1 style="font-size: 2.5em; margin: 0; color: #fff; text-transform: uppercase; letter-spacing: 2px;">', $info['title'], '</h1>
-        <p style="font-size: 1.2em; color: #aab7c4; max-width: 600px; margin: 10px auto 0;">', $info['desc'], '</p>
+    <div class="mohaa-hero-stat">
+        <div style="font-size: 3em; margin-bottom: 5px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">', $info['icon'], '</div>
+        <h1 style="font-size: 2em; text-transform: uppercase; letter-spacing: 2px;">', $info['title'], '</h1>
+        <p style="max-width: 600px; margin: 5px auto 0;">', $info['desc'], '</p>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -164,89 +156,84 @@ function template_mohaa_stats_leaderboard()
     echo '</div>
     </div>';
 
-    // LEADERBOARD TABLE
-    // Premium Leaderboard Table
+    // LEADERBOARD TABLE - AG GRID
     echo '
-    <div style="overflow-x: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-        <table class="mohaa-premium-table">
-            <thead>
-                <tr>
-                    <th class="rank-col">Rank</th>
-                    <th class="player-col">Player</th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kills;period=', $current_period, '" class="', ($current_stat == 'kills' ? 'active-sort' : ''), '">Kills</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=deaths;period=', $current_period, '" class="', ($current_stat == 'deaths' ? 'active-sort' : ''), '">Deaths</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kd;period=', $current_period, '" class="', ($current_stat == 'kd' ? 'active-sort' : ''), '">K/D</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=headshots;period=', $current_period, '" class="', ($current_stat == 'headshots' ? 'active-sort' : ''), '">HS</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=accuracy;period=', $current_period, '" class="', ($current_stat == 'accuracy' ? 'active-sort' : ''), '">Acc%</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=wins;period=', $current_period, '" class="', ($current_stat == 'wins' ? 'active-sort' : ''), '">Wins</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=rounds;period=', $current_period, '" class="', ($current_stat == 'rounds' ? 'active-sort' : ''), '">Rounds</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=objectives;period=', $current_period, '" class="', ($current_stat == 'objectives' ? 'active-sort' : ''), '">Obj</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=distance;period=', $current_period, '" class="', ($current_stat == 'distance' ? 'active-sort' : ''), '">Dist</a></th>
-                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=playtime;period=', $current_period, '" class="', ($current_stat == 'playtime' ? 'active-sort' : ''), '">Time</a></th>
-                </tr>
-            </thead>
-            <tbody>';
-
-    if (empty($leaderboard)) {
-        echo '
-            <tr>
-                <td colspan="12" class="empty-state">
-                    <div style="font-size: 3em; margin-bottom: 15px;">🎮</div>
-                    <div style="font-size: 1.2em;">No data found for this period.</div>
-                    <div style="opacity: 0.6;">Be the first to claim a spot!</div>
-                </td>
-            </tr>';
-    } else {
-        foreach ($leaderboard as $rank => $player) {
-            $rankNum = $rank + 1;
+    <div id="myGrid" class="ag-theme-alpine" style="height: 600px; width: 100%; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+    
+    <script>
+        (function() {
+            var rowData = ', json_encode($leaderboard), ';
+            var scriptUrl = "', $scripturl, '";
             
-            // Rank Badge Logic
-            $rankDisplay = '<span class="rank-num">#' . $rankNum . '</span>';
-            if ($rankNum === 1) $rankDisplay = '<span class="rank-badge gold">🥇</span>';
-            if ($rankNum === 2) $rankDisplay = '<span class="rank-badge silver">🥈</span>';
-            if ($rankNum === 3) $rankDisplay = '<span class="rank-badge bronze">🥉</span>';
+            var rankRenderer = function(params) {
+                var rank = params.node.rowIndex + 1;
+                if (rank === 1) return "<span class=\"rank-badge\">🥇</span>";
+                if (rank === 2) return "<span class=\"rank-badge\">🥈</span>";
+                if (rank === 3) return "<span class=\"rank-badge\">🥉</span>";
+                return "#" + rank;
+            };
             
-            // Calculated Stats
-            $kd = $player['deaths'] > 0 ? round($player['kills'] / $player['deaths'], 2) : $player['kills'];
-            $kdColor = $kd >= 2.0 ? '#00e676' : ($kd >= 1.0 ? '#81c784' : '#e57373');
-            $acc = round($player['accuracy'] ?? 0, 1);
-            $dist = round(($player['distance_km'] ?? 0) / 1000, 1);
-            $time = format_playtime($player['playtime_seconds'] ?? 0);
+            var playerRenderer = function(params) {
+                if (!params.value) return "";
+                var name = params.data.name;
+                var id = params.data.id;
+                var initial = name.charAt(0).toUpperCase();
+                var color = (params.node.rowIndex < 3) ? "#f1c40f" : "#34495e";
+                
+                return `<div class="player-info" style="display:flex;align-items:center;">
+                    <div class="player-avatar-small" style="background:${color}">${initial}</div>
+                    <a href="${scriptUrl}?action=mohaastats;sa=player;id=${id}" style="font-weight:600;text-decoration:none;color:#2980b9;">${name}</a>
+                </div>`;
+            };
             
-            // Row Highlight (Alternating is handled by CSS, but Top 3 get special glow)
-            $rowClass = $rankNum <= 3 ? 'top-rank' : '';
+            var kdGetter = function(params) {
+                var kills = parseInt(params.data.kills || 0);
+                var deaths = parseInt(params.data.deaths || 0);
+                return deaths > 0 ? (kills / deaths).toFixed(2) : kills;
+            };
             
-            echo '
-            <tr class="', $rowClass, '">
-                <td class="rank-col">', $rankDisplay, '</td>
-                <td class="player-col">
-                    <div class="player-info">
-                        <div class="player-avatar" style="background-color: ', ($rankNum <= 3 ? '#ffd700' : '#546e7a'), ';">
-                            ', strtoupper(substr($player['name'], 0, 1)), '
-                        </div>
-                        <a href="', $scripturl, '?action=mohaastats;sa=player;id=', $player['id'], '" class="player-name">
-                            ', htmlspecialchars($player['name']), '
-                        </a>
-                    </div>
-                </td>
-                <td class="stat-col ', ($current_stat == 'kills' ? 'sorted' : ''), '">', number_format($player['kills']), '</td>
-                <td class="stat-col ', ($current_stat == 'deaths' ? 'sorted' : ''), '">', number_format($player['deaths']), '</td>
-                <td class="stat-col ', ($current_stat == 'kd' ? 'sorted' : ''), '" style="color: ', $kdColor, ';">', $kd, '</td>
-                <td class="stat-col ', ($current_stat == 'headshots' ? 'sorted' : ''), '">', number_format($player['headshots']), '</td>
-                <td class="stat-col ', ($current_stat == 'accuracy' ? 'sorted' : ''), '">', $acc, '%</td>
-                <td class="stat-col ', ($current_stat == 'wins' ? 'sorted' : ''), '">', number_format($player['wins'] ?? 0), '</td>
-                <td class="stat-col ', ($current_stat == 'rounds' ? 'sorted' : ''), '">', number_format($player['rounds'] ?? 0), '</td>
-                <td class="stat-col ', ($current_stat == 'objectives' ? 'sorted' : ''), '">', number_format($player['objectives'] ?? 0), '</td>
-                <td class="stat-col ', ($current_stat == 'distance' ? 'sorted' : ''), '">', $dist, ' km</td>
-                <td class="stat-col ', ($current_stat == 'playtime' ? 'sorted' : ''), '">', $time, '</td>
-            </tr>';
-        }
-    }
-
-    echo '
-        </tbody>
-    </table>
-    </div>';
+            var kdStyle = function(params) {
+                var val = parseFloat(params.value);
+                if (val >= 2.0) return { color: "#27ae60", fontWeight: "bold" };
+                if (val >= 1.0) return { color: "#2980b9" };
+                return { color: "#e74c3c" };
+            };
+            
+            var gridOptions = {
+                rowData: rowData,
+                columnDefs: [
+                    { headerName: "#", width: 70, cellRenderer: rankRenderer, sortable: false, pinned: "left" },
+                    { field: "name", headerName: "Player", minWidth: 200, cellRenderer: playerRenderer, cellClass: "player-cell", pinned: "left" },
+                    { field: "kills", headerName: "Kills", width: 100, type: "numericColumn", sortable: true, comparator: (a,b) => a-b },
+                    { field: "deaths", headerName: "Deaths", width: 100, type: "numericColumn", sortable: true, comparator: (a,b) => a-b },
+                    { headerName: "K/D", width: 100, valueGetter: kdGetter, cellStyle: kdStyle, type: "numericColumn", sortable: true, comparator: (a,b) => parseFloat(a)-parseFloat(b) },
+                    { field: "headshots", headerName: "HS", width: 90, type: "numericColumn", sortable: true, comparator: (a,b) => a-b },
+                    { field: "accuracy", headerName: "Acc %", width: 90, valueFormatter: p => p.value + "%", type: "numericColumn", sortable: true, comparator: (a,b) => a-b },
+                    { field: "wins", headerName: "Wins", width: 90, type: "numericColumn", sortable: true, comparator: (a,b) => a-b },
+                    { field: "rounds", headerName: "Rounds", width: 100, type: "numericColumn", sortable: true, comparator: (a,b) => a-b },
+                    { field: "objectives", headerName: "Obj", width: 90, type: "numericColumn", sortable: true, comparator: (a,b) => a-b },
+                    { field: "distance_km", headerName: "Dist (km)", width: 120, valueFormatter: p => (p.value/1000).toFixed(1), type: "numericColumn", sortable: true, comparator: (a,b) => a-b },
+                    { field: "playtime_seconds", headerName: "Time", width: 120, valueFormatter: p => Math.floor(p.value/60) + "m", type: "numericColumn", sortable: true, comparator: (a,b) => a-b }
+                ],
+                defaultColDef: {
+                    resizable: true,
+                    filter: true,
+                    flex: 1,
+                    minWidth: 100
+                },
+                pagination: true,
+                paginationPageSize: 20,
+                animateRows: true,
+                domLayout: "autoHeight"
+            };
+            
+            var eGridDiv = document.querySelector("#myGrid");
+            new agGrid.Grid(eGridDiv, gridOptions);
+            
+            // Expose for PJAX to re-init if needed? 
+            // Actually PJAX replaces the whole container, so re-executing this script works.
+        })();
+    </script>';
 
     // Pagination
     if (!empty($context['page_index'])) {
@@ -308,26 +295,26 @@ function template_mohaa_stats_leaderboard()
                         title: {
                             display: true,
                             text: "Top 10 Performers - ', ucfirst($current_stat), '",
-                            color: "#bdc3c7",
+                            color: "#2c3e50",
                             font: { size: 16 }
                         },
                         tooltip: {
                             mode: "index",
                             intersect: false,
-                            backgroundColor: "rgba(0,0,0,0.8)",
-                            titleColor: "#f39c12",
+                            backgroundColor: "rgba(44, 62, 80, 0.9)",
+                            titleColor: "#ecf0f1",
                             bodyFont: { size: 13 }
                         }
                     },
                     scales: {
                         y: {
                             beginAtZero: true,
-                            grid: { color: "rgba(255,255,255,0.05)" },
-                            ticks: { color: "#95a5a6" }
+                            grid: { color: "rgba(0,0,0,0.05)" },
+                            ticks: { color: "#7f8c8d" }
                         },
                         x: {
                             grid: { display: false },
-                            ticks: { color: "#ecf0f1", font: { weight: "bold" } }
+                            ticks: { color: "#34495e", font: { weight: "bold" } }
                         }
                     },
                     animation: {
