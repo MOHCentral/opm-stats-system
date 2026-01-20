@@ -22,16 +22,16 @@ func NewAdvancedStatsService(ch driver.Conn) *AdvancedStatsService {
 
 // PeakPerformance shows when a player performs best
 type PeakPerformance struct {
-	BestHour        HourStats     `json:"best_hour"`
-	BestDay         DayStats      `json:"best_day"`
-	BestMap         MapPeakStats  `json:"best_map"`
-	BestWeapon      WeaponPeak    `json:"best_weapon"`
-	HourlyBreakdown []HourStats   `json:"hourly_breakdown"`
-	DailyBreakdown  []DayStats    `json:"daily_breakdown"`
-	Streaks         StreakStats   `json:"streaks"`
-	MostAccurateAt  string        `json:"most_accurate_at"`
-	MostWinsAt      string        `json:"most_wins_at"`
-	MostLossesAt    string        `json:"most_losses_at"`
+	BestHour        HourStats    `json:"best_hour"`
+	BestDay         DayStats     `json:"best_day"`
+	BestMap         MapPeakStats `json:"best_map"`
+	BestWeapon      WeaponPeak   `json:"best_weapon"`
+	HourlyBreakdown []HourStats  `json:"hourly_breakdown"`
+	DailyBreakdown  []DayStats   `json:"daily_breakdown"`
+	Streaks         StreakStats  `json:"streaks"`
+	MostAccurateAt  string       `json:"most_accurate_at"`
+	MostWinsAt      string       `json:"most_wins_at"`
+	MostLossesAt    string       `json:"most_losses_at"`
 }
 
 type HourStats struct {
@@ -55,11 +55,11 @@ type DayStats struct {
 }
 
 type MapPeakStats struct {
-	MapName  string  `json:"map_name"`
-	Kills    int64   `json:"kills"`
-	Deaths   int64   `json:"deaths"`
-	KDRatio  float64 `json:"kd_ratio"`
-	WinRate  float64 `json:"win_rate"`
+	MapName string  `json:"map_name"`
+	Kills   int64   `json:"kills"`
+	Deaths  int64   `json:"deaths"`
+	KDRatio float64 `json:"kd_ratio"`
+	WinRate float64 `json:"win_rate"`
 }
 
 type WeaponPeak struct {
@@ -235,8 +235,8 @@ func (s *AdvancedStatsService) GetPeakPerformance(ctx context.Context, guid stri
 
 // DrillDownRequest specifies what to drill into
 type DrillDownRequest struct {
-	Stat      string `json:"stat"`       // e.g., "kills", "headshots", "accuracy"
-	Dimension string `json:"dimension"`  // e.g., "weapon", "map", "hour", "victim", "hitloc"
+	Stat      string `json:"stat"`      // e.g., "kills", "headshots", "accuracy"
+	Dimension string `json:"dimension"` // e.g., "weapon", "map", "hour", "victim", "hitloc"
 	Limit     int    `json:"limit"`
 }
 
@@ -363,14 +363,14 @@ func (s *AdvancedStatsService) GetDrillDown(ctx context.Context, guid string, st
 
 // ComboMetrics are creative stat combinations
 type ComboMetrics struct {
-	WeaponOnMap       []WeaponMapCombo  `json:"weapon_on_map"`        // Best weapon per map
-	TimeOfDayWeapon   []TimeWeaponCombo `json:"time_of_day_weapon"`   // Best weapon by time
-	VictimPatterns    []VictimPattern   `json:"victim_patterns"`      // Who you dominate
-	KillerPatterns    []KillerPattern   `json:"killer_patterns"`      // Who dominates you
-	DistanceByWeapon  []DistanceWeapon  `json:"distance_by_weapon"`   // Avg kill distance per weapon
-	StanceByMap       []StanceMapCombo  `json:"stance_by_map"`        // Playstyle per map
-	HitlocByWeapon    []HitlocWeapon    `json:"hitloc_by_weapon"`     // Accuracy zone per weapon
-	WeaponProgression []WeaponProgress  `json:"weapon_progression"`   // Skill improvement over time
+	WeaponOnMap       []WeaponMapCombo  `json:"weapon_on_map"`      // Best weapon per map
+	TimeOfDayWeapon   []TimeWeaponCombo `json:"time_of_day_weapon"` // Best weapon by time
+	VictimPatterns    []VictimPattern   `json:"victim_patterns"`    // Who you dominate
+	KillerPatterns    []KillerPattern   `json:"killer_patterns"`    // Who dominates you
+	DistanceByWeapon  []DistanceWeapon  `json:"distance_by_weapon"` // Avg kill distance per weapon
+	StanceByMap       []StanceMapCombo  `json:"stance_by_map"`      // Playstyle per map
+	HitlocByWeapon    []HitlocWeapon    `json:"hitloc_by_weapon"`   // Accuracy zone per weapon
+	WeaponProgression []WeaponProgress  `json:"weapon_progression"` // Skill improvement over time
 }
 
 type WeaponMapCombo struct {
@@ -388,11 +388,11 @@ type TimeWeaponCombo struct {
 }
 
 type VictimPattern struct {
-	VictimName    string  `json:"victim_name"`
-	Kills         int64   `json:"kills"`
-	DeathsTo      int64   `json:"deaths_to"`
-	Ratio         float64 `json:"ratio"`
-	FavoriteWeapon string `json:"favorite_weapon"`
+	VictimName     string  `json:"victim_name"`
+	Kills          int64   `json:"kills"`
+	DeathsTo       int64   `json:"deaths_to"`
+	Ratio          float64 `json:"ratio"`
+	FavoriteWeapon string  `json:"favorite_weapon"`
 }
 
 type KillerPattern struct {
@@ -417,17 +417,17 @@ type StanceMapCombo struct {
 }
 
 type HitlocWeapon struct {
-	WeaponName  string  `json:"weapon_name"`
-	HeadPct     float64 `json:"head_pct"`
-	TorsoPct    float64 `json:"torso_pct"`
-	LimbPct     float64 `json:"limb_pct"`
+	WeaponName string  `json:"weapon_name"`
+	HeadPct    float64 `json:"head_pct"`
+	TorsoPct   float64 `json:"torso_pct"`
+	LimbPct    float64 `json:"limb_pct"`
 }
 
 type WeaponProgress struct {
-	WeaponName string    `json:"weapon_name"`
-	Month      string    `json:"month"`
-	Kills      int64     `json:"kills"`
-	Accuracy   float64   `json:"accuracy"`
+	WeaponName string  `json:"weapon_name"`
+	Month      string  `json:"month"`
+	Kills      int64   `json:"kills"`
+	Accuracy   float64 `json:"accuracy"`
 }
 
 // GetComboMetrics returns cross-dimensional stat combinations
@@ -595,12 +595,12 @@ func (s *AdvancedStatsService) GetComboMetrics(ctx context.Context, guid string)
 
 // VehicleStats represents vehicle-related statistics
 type VehicleStats struct {
-	VehicleUses     int64         `json:"vehicle_uses"`
-	VehicleKills    int64         `json:"vehicle_kills"`
-	VehicleDeaths   int64         `json:"vehicle_deaths"`
-	TotalDriven     float64       `json:"total_driven_km"`
-	VehicleTypes    []VehicleType `json:"vehicle_types"`
-	TurretStats     TurretStats   `json:"turret_stats"`
+	VehicleUses   int64         `json:"vehicle_uses"`
+	VehicleKills  int64         `json:"vehicle_kills"`
+	VehicleDeaths int64         `json:"vehicle_deaths"`
+	TotalDriven   float64       `json:"total_driven_km"`
+	VehicleTypes  []VehicleType `json:"vehicle_types"`
+	TurretStats   TurretStats   `json:"turret_stats"`
 }
 
 type VehicleType struct {
@@ -612,8 +612,8 @@ type VehicleType struct {
 }
 
 type TurretStats struct {
-	TurretUses  int64 `json:"turret_uses"`
-	TurretKills int64 `json:"turret_kills"`
+	TurretUses   int64 `json:"turret_uses"`
+	TurretKills  int64 `json:"turret_kills"`
 	TurretDeaths int64 `json:"turret_deaths"`
 }
 
@@ -676,15 +676,15 @@ func (s *AdvancedStatsService) GetVehicleStats(ctx context.Context, guid string)
 
 // GameFlowStats represents round/objective/team statistics
 type GameFlowStats struct {
-	RoundsPlayed     int64              `json:"rounds_played"`
-	RoundsWon        int64              `json:"rounds_won"`
-	RoundsLost       int64              `json:"rounds_lost"`
-	RoundWinRate     float64            `json:"round_win_rate"`
-	ObjectivesTotal  int64              `json:"objectives_total"`
-	ObjectivesByType []ObjectiveStat    `json:"objectives_by_type"`
-	FirstBloods      int64              `json:"first_bloods"`
-	ClutchWins       int64              `json:"clutch_wins"`
-	TeamStats        TeamStats          `json:"team_stats"`
+	RoundsPlayed     int64           `json:"rounds_played"`
+	RoundsWon        int64           `json:"rounds_won"`
+	RoundsLost       int64           `json:"rounds_lost"`
+	RoundWinRate     float64         `json:"round_win_rate"`
+	ObjectivesTotal  int64           `json:"objectives_total"`
+	ObjectivesByType []ObjectiveStat `json:"objectives_by_type"`
+	FirstBloods      int64           `json:"first_bloods"`
+	ClutchWins       int64           `json:"clutch_wins"`
+	TeamStats        TeamStats       `json:"team_stats"`
 }
 
 type ObjectiveStat struct {
@@ -755,7 +755,7 @@ func (s *AdvancedStatsService) GetGameFlowStats(ctx context.Context, guid string
 }
 
 // =============================================================================
-// WORLD INTERACTION STATS  
+// WORLD INTERACTION STATS
 // =============================================================================
 
 // WorldStats represents world interaction statistics
@@ -810,11 +810,11 @@ func (s *AdvancedStatsService) GetWorldStats(ctx context.Context, guid string) (
 
 // BotStats represents bot-related statistics
 type BotStats struct {
-	BotKills       int64           `json:"bot_kills"`
-	DeathsToBots   int64           `json:"deaths_to_bots"`
-	BotKDRatio     float64         `json:"bot_kd_ratio"`
-	BotsByType     []BotTypeStat   `json:"bots_by_type"`
-	AvgBotKillDist float64         `json:"avg_bot_kill_distance"`
+	BotKills       int64         `json:"bot_kills"`
+	DeathsToBots   int64         `json:"deaths_to_bots"`
+	BotKDRatio     float64       `json:"bot_kd_ratio"`
+	BotsByType     []BotTypeStat `json:"bots_by_type"`
+	AvgBotKillDist float64       `json:"avg_bot_kill_distance"`
 }
 
 type BotTypeStat struct {
@@ -823,7 +823,7 @@ type BotTypeStat struct {
 	Deaths  int64  `json:"deaths"`
 }
 
-// GetBotStats returns bot-related statistics  
+// GetBotStats returns bot-related statistics
 func (s *AdvancedStatsService) GetBotStats(ctx context.Context, guid string) (*BotStats, error) {
 	stats := &BotStats{}
 

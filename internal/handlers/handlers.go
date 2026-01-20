@@ -31,30 +31,32 @@ type Config struct {
 }
 
 type Handler struct {
-	pool         *worker.Pool
-	pg           *pgxpool.Pool
-	ch           driver.Conn
-	redis        *redis.Client
-	logger       *zap.SugaredLogger
-	playerStats  *logic.PlayerStatsService
-	serverStats  *logic.ServerStatsService
-	gamification *logic.GamificationService
-	matchReport  *logic.MatchReportService
-	jwtSecret    []byte
+	pool          *worker.Pool
+	pg            *pgxpool.Pool
+	ch            driver.Conn
+	redis         *redis.Client
+	logger        *zap.SugaredLogger
+	playerStats   *logic.PlayerStatsService
+	serverStats   *logic.ServerStatsService
+	gamification  *logic.GamificationService
+	matchReport   *logic.MatchReportService
+	advancedStats *logic.AdvancedStatsService
+	jwtSecret     []byte
 }
 
 func New(cfg Config) *Handler {
 	return &Handler{
-		pool:         cfg.WorkerPool,
-		pg:           cfg.Postgres,
-		ch:           cfg.ClickHouse,
-		redis:        cfg.Redis,
-		logger:       cfg.Logger.Sugar(),
-		playerStats:  logic.NewPlayerStatsService(cfg.ClickHouse),
-		serverStats:  logic.NewServerStatsService(cfg.ClickHouse),
-		gamification: logic.NewGamificationService(cfg.ClickHouse),
-		matchReport:  logic.NewMatchReportService(cfg.ClickHouse),
-		jwtSecret:    []byte(cfg.JWTSecret),
+		pool:          cfg.WorkerPool,
+		pg:            cfg.Postgres,
+		ch:            cfg.ClickHouse,
+		redis:         cfg.Redis,
+		logger:        cfg.Logger.Sugar(),
+		playerStats:   logic.NewPlayerStatsService(cfg.ClickHouse),
+		serverStats:   logic.NewServerStatsService(cfg.ClickHouse),
+		gamification:  logic.NewGamificationService(cfg.ClickHouse),
+		matchReport:   logic.NewMatchReportService(cfg.ClickHouse),
+		advancedStats: logic.NewAdvancedStatsService(cfg.ClickHouse),
+		jwtSecret:     []byte(cfg.JWTSecret),
 	}
 }
 
@@ -980,6 +982,126 @@ func (h *Handler) GetPlayerDeepStats(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Errorw("Failed to get deep stats", "guid", guid, "error", err)
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate deep stats")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, stats)
+}
+
+// GetPlayerPeakPerformance returns when a player performs best (time analysis)
+func (h *Handler) GetPlayerPeakPerformance(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	peak, err := h.advancedStats.GetPeakPerformance(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get peak performance", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate peak performance")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, peak)
+}
+
+// GetPlayerDrillDown drills into a specific stat by dimension
+func (h *Handler) GetPlayerDrillDown(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	stat := r.URL.Query().Get("stat")
+	dimension := r.URL.Query().Get("dimension")
+	limitStr := r.URL.Query().Get("limit")
+	ctx := r.Context()
+
+	limit := 10
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+
+	if stat == "" {
+		stat = "kills"
+	}
+	if dimension == "" {
+		dimension = "weapon"
+	}
+
+	result, err := h.advancedStats.GetDrillDown(ctx, guid, stat, dimension, limit)
+	if err != nil {
+		h.logger.Errorw("Failed to get drill-down", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate drill-down")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, result)
+}
+
+// GetPlayerComboMetrics returns cross-dimensional stat combinations
+func (h *Handler) GetPlayerComboMetrics(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	combo, err := h.advancedStats.GetComboMetrics(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get combo metrics", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate combo metrics")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, combo)
+}
+
+// GetPlayerVehicleStats returns vehicle and turret statistics
+func (h *Handler) GetPlayerVehicleStats(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	stats, err := h.advancedStats.GetVehicleStats(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get vehicle stats", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate vehicle stats")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, stats)
+}
+
+// GetPlayerGameFlowStats returns round/objective/team statistics
+func (h *Handler) GetPlayerGameFlowStats(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	stats, err := h.advancedStats.GetGameFlowStats(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get game flow stats", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate game flow stats")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, stats)
+}
+
+// GetPlayerWorldStats returns world interaction statistics  
+func (h *Handler) GetPlayerWorldStats(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	stats, err := h.advancedStats.GetWorldStats(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get world stats", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate world stats")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, stats)
+}
+
+// GetPlayerBotStats returns bot-related statistics
+func (h *Handler) GetPlayerBotStats(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	stats, err := h.advancedStats.GetBotStats(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get bot stats", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate bot stats")
 		return
 	}
 

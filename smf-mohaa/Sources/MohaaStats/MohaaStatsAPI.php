@@ -165,19 +165,17 @@ class MohaaStatsAPIClient
     // War Room Enhanced endpoints
     public function getPlayerPeakPerformance(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/peak-performance'); }
     public function getPlayerComboMetrics(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/combos'); }
-    public function getPlayerDrilldown(string $guid, string $stat = 'kd', array $dimensions = ['weapon', 'map'], int $limit = 10): ?array { 
+    public function getPlayerDrilldown(string $guid, string $stat = 'kills', string $dimension = 'weapon', int $limit = 10): ?array { 
         return $this->get('/stats/player/' . urlencode($guid) . '/drilldown', [
             'stat' => $stat,
-            'dimensions' => implode(',', $dimensions),
+            'dimension' => $dimension,
             'limit' => $limit
         ]); 
     }
-    public function getPlayerDrilldownNested(string $guid, string $dimension, string $value, string $childDimension, string $stat = 'kd'): ?array {
-        return $this->get('/stats/player/' . urlencode($guid) . '/drilldown/' . urlencode($dimension) . '/' . urlencode($value), [
-            'child_dimension' => $childDimension,
-            'stat' => $stat
-        ]);
-    }
+    public function getPlayerVehicleStats(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/vehicles'); }
+    public function getPlayerGameFlowStats(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/game-flow'); }
+    public function getPlayerWorldStats(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/world'); }
+    public function getPlayerBotStats(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/bots'); }
     public function getPlayerWarRoomData(string $guid): ?array { return $this->get('/stats/player/' . urlencode($guid) . '/war-room'); }
     
     // Enhanced Leaderboards

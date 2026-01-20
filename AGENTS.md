@@ -95,6 +95,16 @@
 -   **Command Reg**: `registercmd "name" "callback"`.
 -   **Variables**: Use `local.` scope for temporary vars.
 
+#### Scripting Example
+```morpheus
+// Subscribe to kill event
+event_subscribe "player_kill" "tracker.scr::handle_kill"
+
+handle_kill local.attacker local.victim local.inflictor local.hitloc local.mod:
+    println ("Kill: " + local.attacker.netname + " -> " + local.victim.netname)
+end
+```
+
 ---
 
 ## ✅ Project Status (Snapshot)
@@ -106,21 +116,47 @@
     1.  Restart Docker containers (fix stale mounts).
     2.  Data Seeder.
     3.  Achievement Logic Implementation.
-    3.  Achievement Logic Implementation.
+    3.  Achievement Logic Implementation (See `Feature Concepts`).
     4.  Tournament Brackets.
 
 ---
 
-## 🔮 Future Feature Concepts
+## 🧩 Component Details
+
+### SMF Plugins (`smf-plugins/`)
+-   **Structure**:
+    -   `mohaa_stats_core/`: API client, base definitions.
+    -   `mohaa_stats_profile/`: Profile tabs.
+    -   `mohaa_stats_leaderboards/`: Ranking pages.
+    -   `mohaa_stats_heatmaps/`: Canvas/JS visualizations.
+-   **Config**: Settings mapped in Admin → Configuration → MOHAA Stats.
+
+### API Server (`api-server/`)
+-   **Endpoints**:
+    -   `POST /events`: Ingest 30 atomic events.
+    -   `GET /health`: Status check.
+-   **Payload**: `{ client_id, event_type, timestamp, ...args }`
+
+---
+
+## 🔮 Future Feature Concepts (The "War Room")
 
 ### 1. Team System (Single Allegiance)
 -   **Rule**: Players can join **only one** team.
--   **Mechanic**: Team stats are aggregated from members.
--   **Competition**: Teams (not just players) join tournaments and get ranked.
+-   **Impact**: Team stats aggregated from members. Tournaments are team-based.
 
 ### 2. Match-Specific Achievements
--   **Concept**: Achievements that reset per match.
--   **Example**: "Get 5 Headshots *in this match*" (Non-cumulative).
--   **Usage**: Unlock special badges only valid for the match/tournament result.
+-   **Concept**: Non-cumulative unlocks (e.g., "5 Headshots _this_ match").
+-   **Usage**: Provide short-loop feedback during tournaments.
+
+### 3. Peak Performance Analytics
+-   **Temporal**: "You are 20% more lethal between 20:00-23:00".
+-   **Contextual**: "Best Map: V2 Rocket (+12% Win Rate)".
+-   **Drill-Down**: Click any stat (K/D) -> Break down by Map/Weapon/Time.
+
+### 4. Combo Metrics
+-   **Run & Gun Index**: % of kills while moving velocity > 100.
+-   **Clutch Factor**: Win rate when HP < 25%.
+-   **Medkit Efficiency**: Survival time after pickup.
 
 *This file acts as the primary instruction set for Copilot, Claude, Gemini, and Antigravity.*

@@ -235,6 +235,13 @@ function MohaaPlayers_Dashboard(): void
             'maps' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/maps'],
             'performance' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/performance'],
             'deep' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/deep'],
+            // Advanced Stats - Peak Performance, Combos, Vehicles, Game Flow, World, Bots
+            'peak' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/peak-performance'],
+            'combos' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/combos'],
+            'vehicles' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/vehicles'],
+            'gameflow' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/game-flow'],
+            'world' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/world'],
+            'bots' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/bots'],
         ];
         
         $playerResults = $api->getMultiple($playerRequests);
@@ -280,6 +287,13 @@ function MohaaPlayers_Dashboard(): void
                 'real_name' => $user_info['name'],
             ],
             'global' => $results['stats'] ?? [],
+            // Advanced Stats - available for template use
+            'peak_performance' => $playerResults['peak'] ?? [],
+            'combo_metrics' => $playerResults['combos'] ?? [],
+            'vehicle_stats' => $playerResults['vehicles'] ?? [],
+            'game_flow' => $playerResults['gameflow'] ?? [],
+            'world_stats' => $playerResults['world'] ?? [],
+            'bot_stats' => $playerResults['bots'] ?? [],
         ];
     } else {
         $context['mohaa_has_identity'] = false;

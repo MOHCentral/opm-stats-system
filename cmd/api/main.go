@@ -169,20 +169,14 @@ func main() {
 			r.Get("/player/{guid}/performance", h.GetPlayerPerformanceHistory)
 			r.Get("/player/{guid}/playstyle", h.GetPlayerPlaystyle) // [NEW]
 
-			// War Room Enhanced endpoints
+			// Advanced Stats endpoints - "When" analysis, drill-down, combinations
 			r.Get("/player/{guid}/peak-performance", h.GetPlayerPeakPerformance)
 			r.Get("/player/{guid}/combos", h.GetPlayerComboMetrics)
-			r.Get("/player/{guid}/drilldown", h.GetPlayerDrilldown)
-			r.Get("/player/{guid}/drilldown/{dimension}/{value}", h.GetPlayerDrilldownNested)
-			r.Get("/player/{guid}/war-room", h.GetPlayerWarRoomData)
-
-			// Drilldown options
-			r.Get("/drilldown/options", h.GetDrilldownOptions)
-
-			// Enhanced leaderboards
-			r.Get("/leaderboard/contextual", h.GetContextualLeaderboard)
-			r.Get("/leaderboard/combos", h.GetComboLeaderboard)
-			r.Get("/leaderboard/peak", h.GetPeakPerformanceLeaderboard)
+			r.Get("/player/{guid}/drilldown", h.GetPlayerDrillDown)
+			r.Get("/player/{guid}/vehicles", h.GetPlayerVehicleStats)
+			r.Get("/player/{guid}/game-flow", h.GetPlayerGameFlowStats)
+			r.Get("/player/{guid}/world", h.GetPlayerWorldStats)
+			r.Get("/player/{guid}/bots", h.GetPlayerBotStats)
 
 			r.Get("/map/{map}/heatmap", h.GetMapHeatmap)
 
