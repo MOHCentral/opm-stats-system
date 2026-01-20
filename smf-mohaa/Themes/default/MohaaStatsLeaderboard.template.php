@@ -497,12 +497,6 @@ function template_mohaa_stats_dashboard()
 
     echo '
     <div class="mohaa-dashboard">
-        <!-- DEBUG PROBE -->
-        <div style="background:red; color:white; padding:10px;">
-            DEBUG: Template Loaded.<br>
-            Widgets Count: ' . count($widgets) . '<br>
-            Data Keys: ' . implode(',', array_keys($cardsData)) . '
-        </div>
 
         <!-- War Room Header -->
         <div class="war-room-header">

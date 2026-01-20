@@ -686,7 +686,75 @@ function MohaaPlayers_LinkIdentity(int $memberId, string $guid, string $playerNa
     
     return $smcFunc['db_insert_id']('{db_prefix}mohaa_identities');
 }
-function MohaaPlayers_MenuButtons(array &$buttons): void {}
+/**
+ * Add menu button
+ */
+function MohaaPlayers_MenuButtons(array &$buttons): void
+{
+    global $txt, $scripturl, $modSettings;
+
+    if (empty($modSettings['mohaa_stats_enabled']))
+        return;
+
+    loadLanguage('MohaaStats');
+
+    // Find the 'home' button to insert after
+    $counter = 0;
+    foreach ($buttons as $name => $button) {
+        $counter++;
+        if ($name == 'home') {
+            break;
+        }
+    }
+
+    $mohaa_button = [
+        'mohaastats' => [
+            'title' => $txt['mohaa_stats'],
+            'href' => $scripturl . '?action=mohaadashboard',
+            'show' => true,
+            'sub_buttons' => [
+                'dashboard' => [
+                    'title' => $txt['mohaa_dashboard'],
+                    'href' => $scripturl . '?action=mohaadashboard',
+                    'show' => true,
+                ],
+                'leaderboards' => [
+                    'title' => $txt['mohaa_leaderboards'],
+                    'href' => $scripturl . '?action=mohaaleaderboard',
+                    'show' => true,
+                ],
+                'matches' => [
+                    'title' => $txt['mohaa_matches'],
+                    'href' => $scripturl . '?action=mohaamatches',
+                    'show' => true,
+                ],
+                'servers' => [
+                    'title' => $txt['mohaa_servers'],
+                    'href' => $scripturl . '?action=mohaaservers',
+                    'show' => true,
+                ],
+                'achievements' => [
+                    'title' => $txt['mohaa_achievements'],
+                    'href' => $scripturl . '?action=mohaaachievements',
+                    'show' => true,
+                ],
+                'tournaments' => [
+                    'title' => $txt['mohaa_tournaments'],
+                    'href' => $scripturl . '?action=mohaatournaments',
+                    'show' => true,
+                ],
+            ],
+            'is_last' => true,
+        ],
+    ];
+
+    // Insert the button
+    $buttons = array_merge(
+        array_slice($buttons, 0, $counter, true),
+        $mohaa_button,
+        array_slice($buttons, $counter, null, true)
+    );
+}
 
 /**
  * Redirect ?action=mohaaidentity to the profile area
