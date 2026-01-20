@@ -509,42 +509,42 @@ function template_mohaa_stats_dashboard()
     // Definition of all 40 widgets
     $widgets = [
         // A. Lethality
-        'kills' => ['label' => 'Kills', 'icon' => '??'],
-        'deaths' => ['label' => 'Deaths', 'icon' => '??'],
-        'kd' => ['label' => 'K/D Ratio', 'icon' => '??'],
-        'headshots' => ['label' => 'Headshots', 'icon' => '??'],
-        'accuracy' => ['label' => 'Accuracy', 'icon' => '??'],
-        'shots_fired' => ['label' => 'Trigger Happy', 'icon' => '??'],
-        'damage' => ['label' => 'Damage Dealer', 'icon' => '??'],
-        'bash_kills' => ['label' => 'Executioner', 'icon' => '??'],
-        'grenade_kills' => ['label' => 'Grenadier', 'icon' => '??'],
-        'roadkills' => ['label' => 'Road Rage', 'icon' => '??'],
-        'telefrags' => ['label' => 'Telefrags', 'icon' => '??'],
-        'crushed' => ['label' => 'Crushed', 'icon' => '??'],
-        'teamkills' => ['label' => 'Betrayals', 'icon' => '??'],
-        'suicides' => ['label' => 'Suicides', 'icon' => '??'],
+        'kills' => ['label' => 'Kills', 'icon' => '🗡️'],
+        'deaths' => ['label' => 'Deaths', 'icon' => '🪦'],
+        'kd' => ['label' => 'K/D Ratio', 'icon' => '⚖️'],
+        'headshots' => ['label' => 'Headshots', 'icon' => '🤯'],
+        'accuracy' => ['label' => 'Accuracy', 'icon' => '🎯'],
+        'shots_fired' => ['label' => 'Trigger Happy', 'icon' => '💥'],
+        'damage' => ['label' => 'Damage Dealer', 'icon' => '🩸'],
+        'bash_kills' => ['label' => 'Executioner', 'icon' => '🔨'],
+        'grenade_kills' => ['label' => 'Grenadier', 'icon' => '💣'],
+        'roadkills' => ['label' => 'Road Rage', 'icon' => '🚗'],
+        'telefrags' => ['label' => 'Telefrags', 'icon' => '🌌'],
+        'crushed' => ['label' => 'Crushed', 'icon' => '🥞'],
+        'teamkills' => ['label' => 'Betrayals', 'icon' => '🔪'],
+        'suicides' => ['label' => 'Suicides', 'icon' => '💀'],
 
         // B. Weapon
-        'reloads' => ['label' => 'Reloader', 'icon' => '??'],
-        'weapon_swaps' => ['label' => 'Fickle', 'icon' => '??'],
-        'no_ammo' => ['label' => 'Empty Clip', 'icon' => '??'],
-        'looter' => ['label' => 'Looter', 'icon' => '??'],
+        'reloads' => ['label' => 'Reloader', 'icon' => '🔄'],
+        'weapon_swaps' => ['label' => 'Fickle', 'icon' => '🔀'],
+        'no_ammo' => ['label' => 'Empty Clip', 'icon' => '⛽'],
+        'looter' => ['label' => 'Looter', 'icon' => '🎒'],
 
         // C. Movement
-        'distance' => ['label' => 'Marathon Man', 'icon' => '???'],
-        'sprinted' => ['label' => 'Sprinter', 'icon' => '???'],
-        'swam' => ['label' => 'Swimmer', 'icon' => '???'],
-        'driven' => ['label' => 'Driver', 'icon' => '??'],
-        'jumps' => ['label' => 'Bunny Hopper', 'icon' => '??'],
-        'crouch_time' => ['label' => 'Tactical Crouch', 'icon' => '??'],
-        'prone_time' => ['label' => 'Camper', 'icon' => '???'],
-        'ladders' => ['label' => 'Mountaineer', 'icon' => '??'],
+        'distance' => ['label' => 'Marathon Man', 'icon' => '🏃'],
+        'sprinted' => ['label' => 'Sprinter', 'icon' => '⚡'],
+        'swam' => ['label' => 'Swimmer', 'icon' => '🏊'],
+        'driven' => ['label' => 'Driver', 'icon' => '🚙'],
+        'jumps' => ['label' => 'Bunny Hopper', 'icon' => '🐇'],
+        'crouch_time' => ['label' => 'Tactical Crouch', 'icon' => '🦵'],
+        'prone_time' => ['label' => 'Camper', 'icon' => '⛺'],
+        'ladders' => ['label' => 'Mountaineer', 'icon' => '🧗'],
 
         // D. Survival
-        'health_picked' => ['label' => 'Glutton', 'icon' => '??'],
-        'ammo_picked' => ['label' => 'Hoarder', 'icon' => '??'],
-        'armor_picked' => ['label' => 'Tank', 'icon' => '???'],
-        'items_picked' => ['label' => 'Scavenger', 'icon' => '??'],
+        'health_picked' => ['label' => 'Glutton', 'icon' => '🍗'],
+        'ammo_picked' => ['label' => 'Hoarder', 'icon' => '📦'],
+        'armor_picked' => ['label' => 'Tank', 'icon' => '🛡️'],
+        'items_picked' => ['label' => 'Scavenger', 'icon' => '🗑️'],
 
         // E. Objectives
         'wins' => ['label' => 'Wins', 'icon' => '🏆'],
@@ -556,14 +556,14 @@ function template_mohaa_stats_dashboard()
         'games_finished' => ['label' => 'Ironman', 'icon' => '🎮'],
 
         // F. Vehicles
-        'vehicle_enter' => ['label' => 'Pilot', 'icon' => '??'],
-        'turret_enter' => ['label' => 'Gunner', 'icon' => '??'],
-        'vehicle_kills' => ['label' => 'Saboteur', 'icon' => '??'],
+        'vehicle_enter' => ['label' => 'Pilot', 'icon' => '✈️'],
+        'turret_enter' => ['label' => 'Gunner', 'icon' => '🔫'],
+        'vehicle_kills' => ['label' => 'Saboteur', 'icon' => '🧨'],
 
         // G. Social
-        'chat_msgs' => ['label' => 'Chatterbox', 'icon' => '??'],
-        'spectating' => ['label' => 'Spectator', 'icon' => '??'],
-        'doors_opened' => ['label' => 'Door Monitor', 'icon' => '??'],
+        'chat_msgs' => ['label' => 'Chatterbox', 'icon' => '💬'],
+        'spectating' => ['label' => 'Spectator', 'icon' => '👁️'],
+        'doors_opened' => ['label' => 'Door Monitor', 'icon' => '🚪'],
     ];
 
     echo '
