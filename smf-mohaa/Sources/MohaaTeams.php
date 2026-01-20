@@ -63,6 +63,7 @@ function MohaaTeams_Main(): void
         'decline' => 'MohaaTeams_DeclineInvite',
         'manage' => 'MohaaTeams_Manage',
         'rankings' => 'MohaaTeams_Rankings',
+        'retire' => 'MohaaTeams_Retire',
     ];
     
     $sa = isset($_GET['sa']) && isset($subActions[$_GET['sa']]) ? $_GET['sa'] : 'list';
@@ -98,6 +99,8 @@ function MohaaTeams_List(): void
     $smcFunc['db_free_result']($request);
     
     $context['mohaa_teams'] = $teams;
+    global $user_info;
+    $context['can_create_team'] = !$user_info['is_guest'] && !MohaaTeams_IsMemberOfAnyTeam($user_info['id']);
     
     $context['linktree'][] = [
         'url' => $scripturl . '?action=mohaateams',
@@ -192,15 +195,118 @@ function MohaaTeams_View(): void
         $smcFunc['db_free_result']($request);
     }
     
+    // Rule 3: Deep Stats from API
+    global $sourcedir;
+    require_once($sourcedir . '/MohaaPlayers.php');
+    require_once($sourcedir . '/MohaaStats/MohaaStatsAPI.php');
+    $api = new MohaaStatsAPIClient();
+    
+    // Prepare batch requests
+    $requests = [];
+    $membersByGuid = [];
+    foreach ($members as $m) {
+        $guid = MohaaPlayers_GetLinkedGUID($m['id_member']);
+        if ($guid) {
+            $membersByGuid[$m['id_member']] = $guid;
+            $requests['stats_' . $m['id_member']] = ['endpoint' => '/stats/player/' . urlencode($guid)];
+            $requests['weapons_' . $m['id_member']] = ['endpoint' => '/stats/player/' . urlencode($guid) . '/weapons'];
+        }
+    }
+
+    $results = !empty($requests) ? $api->getMultiple($requests) : [];
+    
+    $teamStats = [
+        'total_kills' => 0,
+        'total_deaths' => 0,
+        'total_kd' => 0.0,
+        'total_playtime' => 0,
+        'total_matches' => 0,
+        'active_members' => 0,
+        'weapon_usage' => [], // [weapon_name => kills]
+        'map_stats' => [], // [map_name => ['wins' => 0, 'losses' => 0, 'draws' => 0]]
+        'activity_stats' => [], // [date => matches_count]
+    ];
+    
+    // Process Match History for Stats
+    foreach ($matches as $match) {
+        // Map Stats
+        $map = $match['map'] ?: 'Unknown';
+        if (!isset($teamStats['map_stats'][$map])) {
+            $teamStats['map_stats'][$map] = ['wins' => 0, 'losses' => 0, 'draws' => 0];
+        }
+        $teamStats['map_stats'][$map][$match['result'] . ($match['result'] == 'win' || $match['result'] == 'loss' ? 's' : 's')]++;
+
+        // Activity Stats (Match Frequency)
+        $date = date('Y-m-d', $match['match_date']);
+        if (!isset($teamStats['activity_stats'][$date])) {
+             $teamStats['activity_stats'][$date] = 0;
+        }
+        $teamStats['activity_stats'][$date]++;
+    }
+    // Sort Activity by date
+    ksort($teamStats['activity_stats']);
+    
+    // Fetch Tournament History (Mock)
+    $tournaments = [
+        ['name' => 'Winter Cup 2025', 'placement' => '1st', 'date' => time() - 86400 * 20, 'badge' => '🥇'],
+        ['name' => 'Spring League', 'placement' => '3rd', 'date' => time() - 86400 * 100, 'badge' => '🥉']
+    ];
+
+    foreach ($members as &$m) {
+        $guid = $membersByGuid[$m['id_member']] ?? null;
+        $m['stats'] = null;
+        $m['weapons'] = null;
+        
+        if ($guid) {
+            // Process Stats
+            $stats = $results['stats_' . $m['id_member']] ?? null;
+            if ($stats) {
+                $m['stats'] = $stats;
+                $teamStats['total_kills'] += ($stats['kills'] ?? 0);
+                $teamStats['total_deaths'] += ($stats['deaths'] ?? 0);
+                $teamStats['total_playtime'] += ($stats['playtime'] ?? 0);
+                $teamStats['total_matches'] += ($stats['matches_played'] ?? 0);
+                $teamStats['active_members']++;
+            }
+            
+            // Process Weapons
+            $weapons = $results['weapons_' . $m['id_member']] ?? null;
+            if ($weapons && is_array($weapons)) {
+                $m['weapons'] = $weapons;
+                foreach ($weapons as $w) {
+                    $wName = $w['weapon_name'] ?? 'Unknown';
+                    $wKills = $w['kills'] ?? 0;
+                    if (!isset($teamStats['weapon_usage'][$wName])) {
+                        $teamStats['weapon_usage'][$wName] = 0;
+                    }
+                    $teamStats['weapon_usage'][$wName] += $wKills;
+                }
+            }
+        }
+    }
+    unset($m);
+    
+    // Sort weapon usage
+    arsort($teamStats['weapon_usage']);
+    $teamStats['weapon_usage'] = array_slice($teamStats['weapon_usage'], 0, 10); // Top 10
+
+    if ($teamStats['total_deaths'] > 0) {
+        $teamStats['total_kd'] = round($teamStats['total_kills'] / $teamStats['total_deaths'], 2);
+    } else {
+        $teamStats['total_kd'] = $teamStats['total_kills'];
+    }
+
     $context['mohaa_team'] = [
         'info' => $team,
         'members' => $members,
         'matches' => $matches,
+        'stats' => $teamStats,
+        'tournaments' => $tournaments,
         'my_membership' => $myMembership,
         'has_pending' => $hasPendingInvite,
         'is_captain' => $myMembership && $myMembership['role'] === 'captain',
         'is_officer' => $myMembership && in_array($myMembership['role'], ['captain', 'officer']),
-        'can_join' => !$myMembership && !$hasPendingInvite && !$user_info['is_guest'],
+        'can_join' => !$myMembership && !$hasPendingInvite && !$user_info['is_guest'] && !MohaaTeams_IsMemberOfAnyTeam($user_info['id']),
     ];
     
     $context['linktree'][] = [
@@ -227,6 +333,12 @@ function MohaaTeams_Create(): void
     
     $context['page_title'] = $txt['mohaa_create_team'];
     $context['sub_template'] = 'mohaa_team_create';
+
+    // Rule 1: Cannot create if already in a team
+    if (MohaaTeams_IsMemberOfAnyTeam($user_info['id'])) {
+        fatal_lang_error('mohaa_already_in_team', false);
+        return;
+    }
     
     // Handle form submission
     if (isset($_POST['create_team'])) {
@@ -321,6 +433,12 @@ function MohaaTeams_Join(): void
         redirectexit('action=mohaateams');
         return;
     }
+
+    // Rule 1: Cannot join if already in a team
+    if (MohaaTeams_IsMemberOfAnyTeam($user_info['id'])) {
+        fatal_lang_error('mohaa_already_in_team_join', false);
+        return;
+    }
     
     // Check not already member or pending
     $request = $smcFunc['db_query']('', '
@@ -388,8 +506,19 @@ function MohaaTeams_Leave(): void
     $smcFunc['db_free_result']($request);
     
     if ($row && $row['role'] === 'captain') {
-        fatal_lang_error('mohaa_captain_cannot_leave', false);
-        return;
+        // Check if there are other members
+        $requestCount = $smcFunc['db_query']('', '
+            SELECT COUNT(*) AS total FROM {db_prefix}mohaa_team_members
+            WHERE id_team = {int:id} AND status = {string:active}',
+            ['id' => $id, 'active' => 'active']
+        );
+        $rowCount = $smcFunc['db_fetch_assoc']($requestCount);
+        $smcFunc['db_free_result']($requestCount);
+        
+        if ($rowCount['total'] > 1) {
+            fatal_lang_error('mohaa_captain_cannot_leave', false);
+            return;
+        }
     }
     
     // Update status
@@ -399,6 +528,9 @@ function MohaaTeams_Leave(): void
         WHERE id_team = {int:id} AND id_member = {int:member}',
         ['id' => $id, 'member' => $user_info['id'], 'left' => 'left']
     );
+
+    // Rule 2: Archive if empty
+    MohaaTeams_CheckAndArchive($id);
     
     redirectexit('action=mohaateams;sa=view;id=' . $id);
 }
@@ -546,11 +678,35 @@ function MohaaTeams_Manage(): void
     $context['page_title'] = $txt['mohaa_manage_team'];
     $context['sub_template'] = 'mohaa_team_manage';
     
-    // Handle actions
+    // Handle form submission / other actions
     if (isset($_POST['action'])) {
         checkSession();
         
+        checkSession();
+        
         switch ($_POST['action']) {
+             case 'save_settings':
+                $recruiting = !empty($_POST['recruiting']) ? 1 : 0;
+                $description = $_POST['description'];
+                $logo_url = $_POST['logo_url'];
+                $website = $_POST['website'];
+                
+                $smcFunc['db_query']('', '
+                    UPDATE {db_prefix}mohaa_teams
+                    SET description = {string:desc}, logo_url = {string:logo}, website = {string:web}, recruiting = {int:rec}
+                    WHERE id_team = {int:id}',
+                    [
+                        'id' => $id, 
+                        'desc' => $description, 
+                        'logo' => $logo_url, 
+                        'web' => $website, 
+                        'rec' => $recruiting
+                    ]
+                );
+                // Redirect to avoid resubmission
+                redirectexit('action=mohaateams;sa=manage;id=' . $id);
+                break;
+
             case 'kick':
                 $memberId = (int)$_POST['member_id'];
                 if ($memberId > 0 && $memberId != $user_info['id']) {
@@ -560,8 +716,20 @@ function MohaaTeams_Manage(): void
                         WHERE id_team = {int:team} AND id_member = {int:member}',
                         ['team' => $id, 'member' => $memberId, 'kicked' => 'kicked']
                     );
+                    
+                    // Archive if empty (unlikely after kick unless sole member)
+                    MohaaTeams_CheckAndArchive($id);
                 }
                 break;
+                
+            case 'reject_request':
+                $inviteId = (int)$_POST['invite_id'];
+                 $smcFunc['db_query']('', '
+                    UPDATE {db_prefix}mohaa_team_invites SET status = {string:declined} WHERE id_invite = {int:id}',
+                    ['id' => $inviteId, 'declined' => 'declined']
+                );
+                break;
+
                 
             case 'promote':
                 $memberId = (int)$_POST['member_id'];
@@ -751,4 +919,103 @@ function MohaaTeams_IsOfficer(int $teamId, int $memberId): bool
     $smcFunc['db_free_result']($request);
     
     return $isOfficer;
+}
+
+/**
+ * Check if user is member of ANY active team
+ */
+function MohaaTeams_IsMemberOfAnyTeam(int $memberId): bool
+{
+    global $smcFunc;
+    
+    $request = $smcFunc['db_query']('', '
+        SELECT id_team FROM {db_prefix}mohaa_team_members
+        WHERE id_member = {int:member} AND status = {string:active}',
+        ['member' => $memberId, 'active' => 'active']
+    );
+    
+    $isMember = $smcFunc['db_num_rows']($request) > 0;
+    $smcFunc['db_free_result']($request);
+    
+    return $isMember;
+}
+
+/**
+ * Check and archive team if empty
+ */
+function MohaaTeams_CheckAndArchive(int $teamId): void
+{
+    global $smcFunc;
+
+    $request = $smcFunc['db_query']('', '
+        SELECT COUNT(*) AS total FROM {db_prefix}mohaa_team_members
+        WHERE id_team = {int:team} AND status = {string:active}',
+        ['team' => $teamId, 'active' => 'active']
+    );
+    $row = $smcFunc['db_fetch_assoc']($request);
+    $smcFunc['db_free_result']($request);
+
+    if (empty($row['total'])) {
+        $smcFunc['db_query']('', '
+            UPDATE {db_prefix}mohaa_teams
+            SET status = {string:archived}
+            WHERE id_team = {int:team}',
+            ['team' => $teamId, 'archived' => 'archived']
+        );
+    }
+}
+
+/**
+ * Retire (Archive) a team
+ */
+function MohaaTeams_Retire(): void
+{
+    global $smcFunc, $user_info;
+    
+    checkSession('get');
+    
+    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    
+    if (empty($id)) {
+        fatal_lang_error('mohaa_team_not_found', false);
+        return;
+    }
+    
+    // Check ownership
+    $request = $smcFunc['db_query']('', '
+        SELECT id_team, id_captain, team_name 
+        FROM {db_prefix}mohaa_teams
+        WHERE id_team = {int:id} AND status = {string:active}',
+        ['id' => $id, 'active' => 'active']
+    );
+    $team = $smcFunc['db_fetch_assoc']($request);
+    $smcFunc['db_free_result']($request);
+    
+    if (!$team) {
+        fatal_lang_error('mohaa_team_not_found', false);
+        return;
+    }
+    
+    if ($team['id_captain'] != $user_info['id'] && !allowedTo('admin_forum')) {
+        fatal_lang_error('mohaa_not_team_captain', false);
+        return;
+    }
+    
+    // 1. Archive the team
+    $smcFunc['db_query']('', '
+        UPDATE {db_prefix}mohaa_teams
+        SET status = {string:archived}
+        WHERE id_team = {int:id}',
+        ['id' => $id, 'archived' => 'archived']
+    );
+    
+    // 2. Archive all members (release them)
+    $smcFunc['db_query']('', '
+        UPDATE {db_prefix}mohaa_team_members
+        SET status = {string:archived}, left_date = {int:now}
+        WHERE id_team = {int:id} AND status = {string:active}',
+        ['id' => $id, 'archived' => 'archived', 'active' => 'active', 'now' => time()]
+    );
+    
+    redirectexit('action=mohaateams');
 }

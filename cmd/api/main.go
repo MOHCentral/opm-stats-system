@@ -148,16 +148,9 @@ func main() {
 			r.Get("/matches", h.GetMatches)
 			r.Get("/weapons", h.GetGlobalWeaponStats)
 
-			r.Get("/leaderboard", h.GetLeaderboard)            // [UPDATED] Unified handler
-			r.Get("/leaderboard/cards", h.GetLeaderboardCards) // [NEW] Summary cards
-			r.Get("/leaderboard/global", h.GetLeaderboard)     // Redirect to unified handler
-			// Actually I replaced GetGlobalLeaderboard method with GetLeaderboard, so I MUST update the route name.
-			// The replace_file_content replaced the contents but kept the receiver method signature?
-			// No, I changed the function name to GetLeaderboard in the replacement content.
-			// So GetGlobalLeaderboard no longer exists on *Handler.
-
-			// New routes:
 			r.Get("/leaderboard", h.GetLeaderboard)
+			r.Get("/leaderboard/cards", h.GetLeaderboardCards)
+			r.Get("/leaderboard/global", h.GetLeaderboard)
 			r.Get("/leaderboard/weapon/{weapon}", h.GetWeaponLeaderboard)
 			r.Get("/leaderboard/map/{map}", h.GetMapLeaderboard)
 
@@ -199,11 +192,9 @@ func main() {
 			r.Get("/{id}/stats", h.GetTournamentStats)
 		})
 
-		// Achievement endpoints
-		r.Route("/achievements", func(r chi.Router) {
-			r.Get("/match/{match_id}", h.GetMatchAchievements)
-			r.Get("/tournament/{tournament_id}", h.GetTournamentAchievements)
-		})
+		// Achievement endpoints - match/tournament specific
+		r.Get("/achievements/match/{match_id}", h.GetMatchAchievements)
+		r.Get("/achievements/tournament/{tournament_id}", h.GetTournamentAchievements)
 
 		// Auth endpoints
 		r.Route("/auth", func(r chi.Router) {

@@ -21,7 +21,7 @@ function template_mohaa_teams_list()
     <div class="windowbg" style="display: flex; justify-content: space-between; align-items: center;">
         <p>', $txt['mohaa_teams_intro'], '</p>';
 
-    if (!$user_info['is_guest']) {
+    if (!empty($context['can_create_team'])) {
         echo '
         <a href="', $scripturl, '?action=mohaateams;sa=create" class="button">', $txt['mohaa_create_team'], '</a>';
     }
@@ -140,6 +140,7 @@ function template_mohaa_team_view()
                 <span>📅 Founded: ', timeformat($team['founded_date']), '</span>
             </div>
         </div>
+        </div>
         <div class="team-stats-large">
             <div class="stat">
                 <div class="value">', $team['rating'], '</div>
@@ -150,12 +151,16 @@ function template_mohaa_team_view()
                 <div class="label">Wins</div>
             </div>
             <div class="stat">
-                <div class="value">', $team['losses'], '</div>
-                <div class="label">Losses</div>
+                <div class="value">', number_format($context['mohaa_team']['stats']['total_kills']), '</div>
+                <div class="label">Total Kills</div>
             </div>
             <div class="stat">
-                <div class="value">', $team['draws'], '</div>
-                <div class="label">Draws</div>
+                <div class="value">', $context['mohaa_team']['stats']['total_kd'], '</div>
+                <div class="label">Team K/D</div>
+            </div>
+            <div class="stat full-width">
+                <div class="value">', format_playtime($context['mohaa_team']['stats']['total_playtime']), '</div>
+                <div class="label">Total Playtime</div>
             </div>
         </div>
     </div>';
@@ -181,89 +186,184 @@ function template_mohaa_team_view()
         <a href="', $scripturl, '?action=mohaateams;sa=manage;id=', $team['id_team'], '" class="button">', $txt['mohaa_manage'], '</a>';
     }
 
-    echo '
-    </div>';
-
-    // Members
-    echo '
-    <div class="cat_bar"><h4 class="catbg">', $txt['mohaa_roster'], ' (', count($members), ')</h4></div>
-    <div class="mohaa-roster windowbg">';
-
-    foreach ($members as $m) {
-        $roleIcon = match($m['role']) {
-            'captain' => '👑',
-            'officer' => '⭐',
-            'substitute' => '🔄',
-            default => '🎮',
-        };
-
+    if ($context['mohaa_team']['is_captain']) {
         echo '
-        <div class="roster-member">
-            <div class="member-avatar">';
-
-        if (!empty($m['avatar'])) {
-            echo '<img src="', $m['avatar'], '" alt="" />';
-        } else {
-            echo '<div class="default-avatar">', strtoupper(substr($m['member_name'], 0, 1)), '</div>';
-        }
-
-        echo '
-            </div>
-            <div class="member-info">
-                <a href="', $scripturl, '?action=profile;u=', $m['id_member'], '">', htmlspecialchars($m['real_name'] ?: $m['member_name']), '</a>
-                <span class="role">', $roleIcon, ' ', ucfirst($m['role']), '</span>
-            </div>
-        </div>';
+        <a href="', $scripturl, '?action=mohaateams;sa=retire;id=', $team['id_team'], ';', $context['session_var'], '=', $context['session_id'], '" class="button" style="background-color: #d32f2f; color: white;" onclick="return confirm(\'Are you sure you want to RETIRE this team? This will archive the team and remove all members.\');">Retire Team</a>';
     }
 
     echo '
     </div>';
 
-    // Match history
+    // --- TAB NAVIGATION ---
+    echo '
+    <div class="mohaa-tabs windowbg">
+        <button class="mohaa-tab active" onclick="openTab(event, \'tab-dashboard\')">📊 Dashboard</button>
+        <button class="mohaa-tab" onclick="openTab(event, \'tab-roster\')">👥 Roster (' . count($members) . ')</button>
+        <button class="mohaa-tab" onclick="openTab(event, \'tab-matches\')">⚔️ Matches</button>
+    </div>';
+
+    // --- DASHBOARD TAB ---
+    echo '<div id="tab-dashboard" class="mohaa-tab-content" style="display: block;">
+        <div class="mohaa-dashboard-grid">
+            <!-- Left Column: Stats Cards -->
+            <div class="dashboard-col-left">
+                <div class="cat_bar"><h4 class="catbg">Performance Overview</h4></div>
+                <div class="windowbg stats-overview">
+                    <div class="stat-row">
+                        <div class="stat-item">
+                            <span class="label">Matches</span>
+                            <span class="value">', $team['wins'] + $team['losses'] + $team['draws'], '</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="label">Win Rate</span>
+                            <span class="value">', ($team['wins'] + $team['losses'] > 0 ? round(($team['wins'] / ($team['wins'] + $team['losses'])) * 100) . '%' : 'N/A'), '</span>
+                        </div>
+                    </div>
+                </div>
+                
+                 <div class="cat_bar"><h4 class="catbg">Team Composition</h4></div>
+                 <div class="windowbg">
+                    <canvas id="weaponChart"></canvas>
+                 </div>
+            </div>
+
+            <!-- Right Column: Graphs -->
+            <div class="dashboard-col-right">
+                <div class="cat_bar"><h4 class="catbg">Win / Loss Ratio</h4></div>
+                <div class="windowbg chart-container">
+                    <canvas id="wlChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>';
+
+    // --- ROSTER TAB ---
+    echo '<div id="tab-roster" class="mohaa-tab-content" style="display: none;">
+        <div class="cat_bar"><h4 class="catbg">Active Roster</h4></div>
+        <div class="windowbg">
+            <table class="table_grid" style="width: 100%;">
+                <thead>
+                    <tr class="title_bar">
+                        <th>Player</th>
+                        <th>Role</th>
+                        <th>K/D</th>
+                        <th>Kills</th>
+                        <th>Playtime</th>
+                        <th>Joined</th>
+                    </tr>
+                </thead>
+                <tbody>';
+    
+    foreach ($members as $m) {
+        $kd = !empty($m['stats']) ? ($m['stats']['deaths'] > 0 ? round($m['stats']['kills'] / $m['stats']['deaths'], 2) : $m['stats']['kills']) : '-';
+        $kills = !empty($m['stats']) ? number_format($m['stats']['kills']) : '-';
+        $pt = !empty($m['stats']) ? format_playtime($m['stats']['playtime']) : '-';
+        
+        $roleIcon = match($m['role']) { 'captain' => '👑', 'officer' => '⭐', 'substitute' => '🔄', default => '🎮' };
+
+        echo '
+                    <tr class="windowbg">
+                        <td>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                '. (!empty($m['avatar']) ? '<img src="'.$m['avatar'].'" style="width:30px; height:30px; border-radius:50%;">' : '<div class="default-avatar-small">'.strtoupper(substr($m['member_name'], 0, 1)).'</div>') .'
+                                <a href="', $scripturl, '?action=profile;u=', $m['id_member'], '">', htmlspecialchars($m['real_name'] ?: $m['member_name']), '</a>
+                            </div>
+                        </td>
+                        <td>', $roleIcon, ' ', ucfirst($m['role']), '</td>
+                        <td><strong>', $kd, '</strong></td>
+                        <td>', $kills, '</td>
+                        <td>', $pt, '</td>
+                        <td>', timeformat($m['joined_date']), '</td>
+                    </tr>';
+    }
+    echo '      </tbody>
+            </table>
+        </div>
+    </div>';
+
+    // --- MATCHES TAB ---
+    echo '<div id="tab-matches" class="mohaa-tab-content" style="display: none;">';
     if (!empty($matches)) {
         echo '
-        <div class="cat_bar"><h4 class="catbg">', $txt['mohaa_match_history'], '</h4></div>
+        <div class="cat_bar"><h4 class="catbg">Match History</h4></div>
         <table class="table_grid" style="width: 100%;">
             <thead>
                 <tr class="title_bar">
-                    <th>', $txt['mohaa_result'], '</th>
-                    <th>', $txt['mohaa_opponent'], '</th>
-                    <th>', $txt['mohaa_score'], '</th>
-                    <th>', $txt['mohaa_map'], '</th>
-                    <th>', $txt['mohaa_date'], '</th>
+                    <th>Result</th>
+                    <th>Opponent</th>
+                    <th>Score</th>
+                    <th>Map</th>
+                    <th>Date</th>
                 </tr>
             </thead>
             <tbody>';
-
         foreach ($matches as $match) {
-            $resultClass = match($match['result']) {
-                'win' => 'result-win',
-                'loss' => 'result-loss',
-                default => 'result-draw',
-            };
-
+            $resultClass = match($match['result']) { 'win' => 'result-win', 'loss' => 'result-loss', default => 'result-draw' };
             echo '
                 <tr class="windowbg">
                     <td><span class="match-result ', $resultClass, '">', strtoupper($match['result']), '</span></td>
-                    <td>';
-
-            if (!empty($match['id_opponent'])) {
-                echo '<a href="', $scripturl, '?action=mohaateams;sa=view;id=', $match['id_opponent'], '">', htmlspecialchars($match['opponent_team_name']), '</a>';
-            } else {
-                echo htmlspecialchars($match['opponent_name'] ?: 'Unknown');
-            }
-
-            echo '</td>
+                    <td>', (!empty($match['id_opponent']) ? '<a href="'.$scripturl.'?action=mohaateams;sa=view;id='.$match['id_opponent'].'">'.htmlspecialchars($match['opponent_team_name']).'</a>' : htmlspecialchars($match['opponent_name'] ?: 'Unknown')), '</td>
                     <td><strong>', $match['team_score'], ' - ', $match['opponent_score'], '</strong></td>
                     <td>', htmlspecialchars($match['map'] ?: '-'), '</td>
                     <td>', timeformat($match['match_date']), '</td>
                 </tr>';
         }
-
-        echo '
-            </tbody>
-        </table>';
+        echo '</tbody></table>';
+    } else {
+        echo '<div class="windowbg"><p class="centertext">No matches recorded yet.</p></div>';
     }
+    echo '</div>';
+
+    // --- CHART JS ---
+    echo '
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("mohaa-tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("mohaa-tab");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+
+        const weaponData = ' . json_encode($context['mohaa_team']['stats']['weapon_usage'] ?? []) . ';
+        const wins = ' . $team['wins'] . ';
+        const losses = ' . $team['losses'] . ';
+        const draws = ' . $team['draws'] . ';
+
+        if (Object.keys(weaponData).length > 0) {
+            new Chart(document.getElementById("weaponChart"), {
+                type: "doughnut",
+                data: {
+                    labels: Object.keys(weaponData),
+                    datasets: [{
+                        data: Object.values(weaponData),
+                        backgroundColor: ["#4ade80", "#60a5fa", "#f472b6", "#fbbf24", "#a78bfa"],
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: "right" } } }
+            });
+        }
+
+        new Chart(document.getElementById("wlChart"), {
+            type: "pie",
+            data: {
+                labels: ["Wins", "Losses", "Draws"],
+                datasets: [{
+                    data: [wins, losses, draws],
+                    backgroundColor: ["#4ade80", "#f87171", "#fbbf24"]
+                }]
+            },
+            options: { responsive: true }
+        });
+    </script>';
 
     echo '
     <style>
@@ -273,8 +373,10 @@ function template_mohaa_team_view()
         .team-details h2 { margin: 0 0 10px; }
         .team-tag { color: #4a5d23; }
         .team-meta span { display: block; margin-top: 5px; color: #666; }
+        .team-meta span { display: block; margin-top: 5px; color: #666; }
         .team-stats-large { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .team-stats-large .stat { background: #f5f5f5; padding: 15px; text-align: center; border-radius: 8px; }
+        .team-stats-large .stat.full-width { grid-column: span 2; }
         .team-stats-large .value { font-size: 1.8em; font-weight: bold; color: #4a5d23; }
         .team-stats-large .label { color: #666; font-size: 0.9em; }
         .mohaa-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
@@ -287,6 +389,25 @@ function template_mohaa_team_view()
         .result-win { background: #4ade80; color: #166534; }
         .result-loss { background: #f87171; color: #991b1b; }
         .result-draw { background: #fbbf24; color: #92400e; }
+        
+        /* Tabs */
+        .mohaa-tabs { overflow: hidden; display:flex; gap: 5px; padding: 10px; border-bottom: 3px solid #4a5d23; }
+        .mohaa-tabs button { background-color: inherit; float: left; border: none; outline: none; cursor: pointer; padding: 10px 20px; transition: 0.3s; font-size: 16px; border-radius: 5px 5px 0 0; font-weight: bold; color: #555; }
+        .mohaa-tabs button:hover { background-color: #e0e0e0; }
+        .mohaa-tabs button.active { background-color: #4a5d23; color: white; }
+        
+        /* Dashboard */
+        .mohaa-tab-content { display: none; padding-top: 20px; animation: fadeEffect 0.5s; }
+        .mohaa-dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 800px) { .mohaa-dashboard-grid { grid-template-columns: 1fr; } }
+        
+        .stat-row { display: flex; justify-content: space-around; padding: 10px; }
+        .stat-item { text-align: center; }
+        .stat-item .value { display: block; font-size: 2em; font-weight: bold; color: #4a5d23; }
+        .stat-item .label { font-size: 0.9em; color: #666; }
+        
+        .default-avatar-small { width: 30px; height: 30px; border-radius: 50%; background: #4a5d23; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: bold; }
+        @keyframes fadeEffect { from {opacity: 0;} to {opacity: 1;} }
     </style>';
 }
 
@@ -364,6 +485,7 @@ function template_mohaa_team_manage()
                                 <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '" />
                                 <input type="hidden" name="invite_id" value="', $req['id_invite'], '" />
                                 <button type="submit" name="action" value="approve_request" class="button">', $txt['mohaa_approve'], '</button>
+                                <button type="submit" name="action" value="reject_request" class="button button_red" style="background:#d32f2f;">', $txt['mohaa_decline'], '</button>
                             </form>
                         </td>
                     </tr>';
@@ -422,6 +544,32 @@ function template_mohaa_team_manage()
             </tbody>
         </table>
     </div>';
+    echo '
+    <div class="windowbg">
+        <h4 style="margin-top: 0;">Invite Player</h4>
+        <form action="', $scripturl, '?action=mohaateams;sa=invite;id=', $team['id_team'], '" method="post">
+            <dl class="settings">
+                <dt><label for="player_id">Member ID:</label></dt>
+                <dd>
+                    <input type="number" name="player_id" id="player_id" required />
+                    <span class="smalltext">Enter the SMF Member ID of the player you want to invite.</span>
+                </dd>
+            </dl>
+            <input type="submit" name="invite_player" value="Send Invite" class="button" />
+            <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '" />
+        </form>
+    </div>';
+}
+
+/**
+ * Helper: Format playtime (seconds to human readable)
+ */
+function format_playtime($seconds)
+{
+    if (!$seconds) return '0h 0m';
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds / 60) % 60);
+    return $hours . 'h ' . $minutes . 'm';
 }
 
 /**

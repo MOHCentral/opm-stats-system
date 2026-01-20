@@ -231,24 +231,24 @@ type PlayerStats struct {
 	WinRate   float64 `json:"win_rate"`
 
 	// Granular Combat Metrics
-	LongRangeKills    int64 `json:"long_range_kills"`    // >100m
-	CloseRangeKills   int64 `json:"close_range_kills"`   // <5m
-	WallbangKills     int64 `json:"wallbang_kills"`      
-	CollateralKills   int64 `json:"collateral_kills"`
-	
+	LongRangeKills  int64 `json:"long_range_kills"`  // >100m
+	CloseRangeKills int64 `json:"close_range_kills"` // <5m
+	WallbangKills   int64 `json:"wallbang_kills"`
+	CollateralKills int64 `json:"collateral_kills"`
+
 	// Stance Metrics
-	KillsWhileProne    int64 `json:"kills_while_prone"`
-	KillsWhileCrouching int64 `json:"kills_while_crouching"`
-	KillsWhileStanding  int64 `json:"kills_while_standing"`
-	KillsWhileMoving    int64 `json:"kills_while_moving"`
+	KillsWhileProne      int64 `json:"kills_while_prone"`
+	KillsWhileCrouching  int64 `json:"kills_while_crouching"`
+	KillsWhileStanding   int64 `json:"kills_while_standing"`
+	KillsWhileMoving     int64 `json:"kills_while_moving"`
 	KillsWhileStationary int64 `json:"kills_while_stationary"`
 
 	// Movement Metrics
-	TotalDistance   float64 `json:"total_distance_km"`
-	SprintDistance  float64 `json:"sprint_distance_km"`
-	JumpCount       int64   `json:"jump_count"`
-	CrouchTime      float64 `json:"crouch_time_seconds"`
-	ProneTime       float64 `json:"prone_time_seconds"`
+	TotalDistance  float64 `json:"total_distance_km"`
+	SprintDistance float64 `json:"sprint_distance_km"`
+	JumpCount      int64   `json:"jump_count"`
+	CrouchTime     float64 `json:"crouch_time_seconds"`
+	ProneTime      float64 `json:"prone_time_seconds"`
 }
 
 // WeaponStats per-weapon statistics
@@ -275,38 +275,38 @@ type MapStats struct {
 
 // LeaderboardEntry for leaderboard display with ALL stats
 type LeaderboardEntry struct {
-	Rank       int     `json:"rank"`
-	PlayerID   string  `json:"id"`
-	PlayerName string  `json:"name"`
-	
+	Rank       int    `json:"rank"`
+	PlayerID   string `json:"id"`
+	PlayerName string `json:"name"`
+
 	// Combat Stats
-	Kills      int64   `json:"kills"`
-	Deaths     int64   `json:"deaths"`
-	Headshots  int64   `json:"headshots"`
+	Kills      uint64  `json:"kills"`
+	Deaths     uint64  `json:"deaths"`
+	Headshots  uint64  `json:"headshots"`
 	Accuracy   float64 `json:"accuracy"`
-	ShotsFired int64   `json:"shots_fired"`
-	ShotsHit   int64   `json:"shots_hit"`
-	Damage     int64   `json:"damage"`
-	
+	ShotsFired uint64  `json:"shots_fired"`
+	ShotsHit   uint64  `json:"shots_hit"`
+	Damage     uint64  `json:"damage"`
+
 	// Special Kills
-	Suicides   int64   `json:"suicides"`
-	TeamKills  int64   `json:"teamkills"`
-	Roadkills  int64   `json:"roadkills"`
-	BashKills  int64   `json:"bash_kills"`
-	Grenades   int64   `json:"grenades_thrown"`
-	
+	Suicides  uint64 `json:"suicides"`
+	TeamKills uint64 `json:"teamkills"`
+	Roadkills uint64 `json:"roadkills"`
+	BashKills uint64 `json:"bash_kills"`
+	Grenades  uint64 `json:"grenades_thrown"`
+
 	// Game Flow
-	Wins       int64   `json:"wins"`
-	Losses     int64   `json:"losses"`
-	Rounds     int64   `json:"rounds"`
-	Objectives int64   `json:"objectives"`
-	
+	Wins       uint64 `json:"wins"`
+	Losses     uint64 `json:"losses"`
+	Rounds     uint64 `json:"rounds"`
+	Objectives uint64 `json:"objectives"`
+
 	// Movement
-	Distance   float64 `json:"distance_km"`
-	Jumps      int64   `json:"jumps"`
-	
+	Distance float64 `json:"distance_km"`
+	Jumps    uint64  `json:"jumps"`
+
 	// Time
-	Playtime   int64   `json:"playtime_seconds"`
+	Playtime uint64 `json:"playtime_seconds"`
 }
 
 // HeatmapData for spatial analysis

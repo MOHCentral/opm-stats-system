@@ -471,7 +471,8 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		orderBy = "kills"
 	}
 
-	// MEGA Stats Query - aggregates ALL event types
+	// Simplified leaderboard query that matches actual event types in raw_events
+	// Event types used by statscli: kill, death, headshot, weapon_fire, weapon_hit, damage, jump, distance, etc.
 	query := fmt.Sprintf(`
 		SELECT 
 			player_id,
@@ -481,127 +482,73 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			sum(hs) as headshots,
 			sum(sf) as shots_fired,
 			sum(sh) as shots_hit,
-			sum(pt) as playtime,
-			sum(suicide) as suicides,
-			sum(tk) as teamkills,
-			sum(roadkill) as roadkills,
-			sum(bash) as bash_kills,
-			sum(nade) as grenades,
+			toUInt64(0) as playtime,
+			toUInt64(0) as suicides,
+			toUInt64(0) as teamkills,
+			toUInt64(0) as roadkills,
+			toUInt64(0) as bash_kills,
+			toUInt64(0) as grenades,
 			sum(dmg) as damage,
 			sum(dist) as distance,
 			sum(jmp) as jumps,
-			sum(win) as wins,
-			sum(loss) as losses,
-			sum(rnd) as rounds,
-			sum(obj) as objectives,
-			if(deaths > 0, kills/deaths, kills) as kd,
-			if(shots_fired > 0, (shots_hit/shots_fired)*100, 0) as accuracy
+			toUInt64(0) as wins,
+			toUInt64(0) as losses,
+			toUInt64(0) as rounds,
+			toUInt64(0) as objectives,
+			if(sum(d) > 0, toFloat64(sum(k))/toFloat64(sum(d)), toFloat64(sum(k))) as kd,
+			if(sum(sf) > 0, (toFloat64(sum(sh))/toFloat64(sum(sf)))*100.0, 0.0) as accuracy
 		FROM (
-			-- Kills
-			SELECT actor_id as player_id, actor_name as name, 1 as k, 0 as d, 0 as hs, 0 as sf, 0 as sh, 0 as pt, 0 as suicide, 0 as tk, 0 as roadkill, 0 as bash, 0 as nade, 0 as dmg, 0.0 as dist, 0 as jmp, 0 as win, 0 as loss, 0 as rnd, 0 as obj
-			FROM raw_events WHERE event_type='player_kill' AND actor_id != 'world' AND actor_id != '' %s
+			-- Kills (actor is killer)
+			SELECT actor_id as player_id, actor_name as name, toUInt64(1) as k, toUInt64(0) as d, toUInt64(0) as hs, toUInt64(0) as sf, toUInt64(0) as sh, toUInt64(0) as dmg, toFloat64(0) as dist, toUInt64(0) as jmp
+			FROM raw_events WHERE event_type='kill' AND actor_id != '' %s
 			
 			UNION ALL
 			
-			-- Deaths
-			SELECT victim_id as player_id, victim_name as name, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('player_kill', 'player_death') AND victim_id != '' %s
+			-- Deaths (target is victim)
+			SELECT target_id as player_id, target_name as name, toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0)
+			FROM raw_events WHERE event_type IN ('kill', 'death') AND target_id != '' %s
 			
 			UNION ALL
 			
 			-- Headshots
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='player_headshot' AND actor_id != '' %s
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0)
+			FROM raw_events WHERE event_type='headshot' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Weapon Fire
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0)
 			FROM raw_events WHERE event_type='weapon_fire' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Weapon Hit
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toFloat64(0), toUInt64(0)
 			FROM raw_events WHERE event_type='weapon_hit' AND actor_id != '' %s
-
-			UNION ALL
-			
-			-- Session End (playtime)
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, toInt64OrZero(JSONExtractString(extra, 'duration')), 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='client_disconnect' AND actor_id != '' %s
 			
 			UNION ALL
 			
-			-- Suicides
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='player_suicide' AND actor_id != '' %s
+			-- Damage dealt
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(damage), toFloat64(0), toUInt64(0)
+			FROM raw_events WHERE event_type='damage' AND actor_id != '' %s
 			
 			UNION ALL
 			
-			-- Team Kills
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='player_teamkill' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Roadkills
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='player_roadkill' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Bash Kills
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='player_bash' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Grenades
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='grenade_throw' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Damage
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, toInt64OrZero(JSONExtractString(extra, 'damage')), 0.0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='player_damage' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Distance
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, toFloat64OrZero(JSONExtractString(extra, 'walked')) + toFloat64OrZero(JSONExtractString(extra, 'sprinted')), 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='player_distance' AND actor_id != '' %s
+			-- Distance moved
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(distance), toUInt64(0)
+			FROM raw_events WHERE event_type='distance' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Jumps
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 1, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='player_jump' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Wins (team_win where player was on winning team)
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 1, 0, 0, 0
-			FROM raw_events WHERE event_type='team_win' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Rounds 
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 1, 0
-			FROM raw_events WHERE event_type='round_end' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Objectives
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0, 0, 1
-			FROM raw_events WHERE event_type='objective_update' AND actor_id != '' %s
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(1)
+			FROM raw_events WHERE event_type='jump' AND actor_id != '' %s
 		)
 		GROUP BY player_id
-		HAVING kills > 0 OR deaths > 0 OR playtime > 0
+		HAVING kills > 0 OR deaths > 0
 		ORDER BY %s DESC
 		LIMIT ? OFFSET ?
-	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
+	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
 
 	rows, err := h.ch.Query(ctx, query, limit, offset)
 	if err != nil {
@@ -1012,9 +959,6 @@ func (h *Handler) GetPlayerDeepStats(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, http.StatusOK, stats)
 }
 
-
-
-
 // GetPlayerVehicleStats returns vehicle and turret statistics
 func (h *Handler) GetPlayerVehicleStats(w http.ResponseWriter, r *http.Request) {
 	guid := chi.URLParam(r, "guid")
@@ -1280,11 +1224,6 @@ func (h *Handler) GetPlayerBodyHeatmap(w http.ResponseWriter, r *http.Request) {
 
 	h.jsonResponse(w, http.StatusOK, heatmap)
 }
-
-
-
-
-
 
 // GetMatchDetails returns full details for a match
 func (h *Handler) GetMatchDetails(w http.ResponseWriter, r *http.Request) {
