@@ -23,6 +23,7 @@ function MohaaPlayers_Actions(array &$actions): void
     $actions['mohaacompare'] = ['MohaaPlayers.php', 'MohaaPlayers_Compare'];
     $actions['mohaaidentity'] = ['MohaaPlayers.php', 'MohaaPlayers_IdentityRedirect'];
     $actions['mohaalazyload'] = ['MohaaPlayers.php', 'MohaaPlayers_LazyLoadTab'];
+    $actions['mohaadrilldown'] = ['MohaaPlayers.php', 'MohaaPlayers_DrillDown'];
 }
 
 /**
@@ -77,6 +78,46 @@ function MohaaPlayers_LazyLoadTab(): void
     
     header('Content-Type: application/json');
     echo json_encode($result ?? [], JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/**
+ * AJAX endpoint for drill-down stat analysis
+ * Returns JSON breakdown of a stat by a specific dimension
+ */
+function MohaaPlayers_DrillDown(): void
+{
+    global $user_info;
+    
+    // Allow guest access for public profiles (use provided GUID)
+    $stat = isset($_GET['stat']) ? trim($_GET['stat']) : '';
+    $dimension = isset($_GET['dimension']) ? trim($_GET['dimension']) : '';
+    $guid = isset($_GET['guid']) ? trim($_GET['guid']) : '';
+    
+    // If no GUID provided and user is logged in, use their linked GUID
+    if (empty($guid) && !$user_info['is_guest']) {
+        $guid = MohaaPlayers_GetLinkedGUID($user_info['id']);
+    }
+    
+    if (empty($guid) || empty($stat) || empty($dimension)) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'missing_parameters', 'breakdown' => []]);
+        exit;
+    }
+    
+    require_once(__DIR__ . '/MohaaStats/MohaaStatsAPI.php');
+    $api = new MohaaStatsAPIClient();
+    
+    // Call the drilldown API endpoint
+    $result = $api->getPlayerDrilldown($guid, $stat, $dimension);
+    
+    // Normalize response
+    if (!isset($result['breakdown']) || !is_array($result['breakdown'])) {
+        $result = ['breakdown' => []];
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode($result, JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_UNESCAPED_UNICODE);
     exit;
 }
 

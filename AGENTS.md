@@ -26,6 +26,8 @@
 
 ### 2. API Layer (Go)
 -   **Service**: `cmd/api/` (Port 8080).
+-   **Role**: **Event Dump/Ingestion ONLY**.
+-   **Restriction**: Does NOT store player profiles/metadata.
 -   **Pattern**: Ingest Handler -> Buffered Channel -> Worker Pool -> Batch Insert.
 -   **Databases**:
     -   **ClickHouse (OLAP)**: `raw_events`, Materialized Views for aggregates.
@@ -34,6 +36,7 @@
 
 ### 3. Frontend Layer (SMF Forum)
 -   **Tech**: PHP 8.x, Simple Machines Forum 2.1.
+-   **Role**: **Player Data Authority** (Profiles, stats tables, identity linking).
 -   **Plugin Source**: `smf-mohaa/Sources/` (Single Source of Truth).
 -   **Templates**: `smf-mohaa/Themes/default/`.
 -   **Visualization**: ApexCharts.js + HTMX.
@@ -144,6 +147,12 @@ end
 ### 1. Team System (Single Allegiance)
 -   **Rule**: Players can join **only one** team.
 -   **Impact**: Team stats aggregated from members. Tournaments are team-based.
+-   **Team Leaderboard Widgets**: (Click any widget -> Detailed Team Leaderboard)
+    -   **Dominance**: Win/Loss Ratio, Avg Placement, Flawless Victories (Zero Deaths), Comeback Kings, Fastest Win.
+    -   **Aggression**: K/D Spread (Team Kills - Deaths), Damage Per Minute (DPM), Wolf Pack (Assist % on Kills).
+    -   **Economy**: Gold Hoarded, Resource Deniers, Support Points (Heals/Shields).
+    -   **Shade**: Friendly Fire Incidents ("Most Reckless"), Damage Taken Survived ("Bullet Magnets"), Bot Hunters.
+    -   **Consistency**: Longest Win Streak, Rivalry Record (vs Top 5), Veteran Status (Total Hours).
 
 ### 2. Match-Specific Achievements
 -   **Concept**: Non-cumulative unlocks (e.g., "5 Headshots _this_ match").
@@ -158,5 +167,84 @@ end
 -   **Run & Gun Index**: % of kills while moving velocity > 100.
 -   **Clutch Factor**: Win rate when HP < 25%.
 -   **Medkit Efficiency**: Survival time after pickup.
+
+### 5. Tournament Ecosystem
+-   **Format**: Supports both **Team** and **FFA** (Free-For-All) brackets.
+-   **General Stats**:
+    -   **Giant Killer**: Lowest seed defeating highest seed.
+    -   **Survival Clock**: Total time spent alive in-match.
+    -   **Upset Frequency**: % of lower seed victories.
+    -   **Prize Pool Efficiency**: Winnings per minute played.
+-   **Team Stats**:
+    -   **Avg Margin of Victory**: Point difference (Dominance).
+    -   **Synergy**: Assists per Kill (Wolf Pack rating).
+    -   **First Strike**: % of matches getting First Blood/Objective.
+    -   **Iron Wall**: Fewest deaths conceded in bracket.
+    -   **Comeback (Gyakuten)**: Wins after trailing at midpoint.
+-   **FFA Stats**:
+    -   **King of the Hill**: Duration holding #1 spot.
+    -   **Vengeance Ratio**: Kills on players who last killed you.
+    -   **Third-Party King**: Final blows on engaged targets.
+    -   **Ghost Award**: Deepest run with fewest engagements.
+-   **Meta & Scheduling**:
+    -   **Meta Breaker**: Highest rank with non-meta loadout.
+    -   **Prime Time**: Heatmap of match activity hours.
+    -   **Forfeit Rate**: Tracking no-shows.
+
+### 6. Stats & Analytics (The "When" Engine)
+**Analysis Philosophy**: "When are you best?" vs "When are you worst?"
+
+-   **Drill-Down Everything**: Clicking any stat (e.g., "Accuracy") explodes into time-based and map-based graphs.
+-   **Granular "When" Questions**:
+    -   *When* most accurate? (Hour of day, specific weapon, specific map).
+    -   *When* most wins? (Team composition, Server).
+    -   *When* most loses? (After 2 hours play session - fatigue).
+    -   *When* most team wins? (With specific clan mates).
+    -   *When* most rounds played? (Weekend vs Weekday).
+    -   *When* most objective completed? (Attacking side vs Defending).
+
+### 7. Event Dictionary (Atomic Data)
+These are the raw events ingested by the API.
+
+#### Combat Events
+| Event | Description | Parameters |
+|-------|-------------|------------|
+| `player_kill` | Elimination | attacker, victim, inflictor, loc, mod |
+| `player_death` | Death | player, inflictor |
+| `player_damage` | Taken damage | player, attacker, damage, mod |
+| `player_pain` | Pain reaction | player, attacker, damage, loc |
+| `player_headshot` | Headshot | attacker, victim, weapon |
+| `player_suicide` | Self-kill | player |
+| `player_bash` | Melee kill | attacker, victim |
+| `weapon_fire` | Fired shot | owner, weapon, ammo |
+| `weapon_hit` | Bullet impact | owner, target, loc |
+| `grenade_throw` | Nade toss | owner, projectile |
+
+#### Movement & Interaction
+| Event | Description | Parameters |
+|-------|-------------|------------|
+| `player_jump` | Jumped | player |
+| `player_crouch` | Crouched | player |
+| `player_prone` | Proned | player |
+| `player_distance` | Moved dist | player, walked, sprinted, swam |
+| `item_pickup` | Looted item | player, item, amount |
+| `ladder_mount` | Ladder use | player, ladder |
+
+#### Vehicle & World
+| Event | Description | Parameters |
+|-------|-------------|------------|
+| `vehicle_enter` | Driving | player, vehicle |
+| `vehicle_death` | Vehicle kill | vehicle, attacker |
+| `turret_enter` | Gunner | player, turret |
+| `door_open` | Interaction | door, activator |
+| `objective_update`| Game state | index, status |
+
+#### Game Flow
+| Event | Description | Parameters |
+|-------|-------------|------------|
+| `round_start` | Round loop | (none) |
+| `team_win` | Team victory | teamnum |
+| `client_connect` | Player join | clientNum |
+| `bot_killed` | PvE kill | bot, attacker |
 
 *This file acts as the primary instruction set for Copilot, Claude, Gemini, and Antigravity.*

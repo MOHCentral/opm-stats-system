@@ -1078,7 +1078,7 @@ func (h *Handler) GetPlayerGameFlowStats(w http.ResponseWriter, r *http.Request)
 	h.jsonResponse(w, http.StatusOK, stats)
 }
 
-// GetPlayerWorldStats returns world interaction statistics  
+// GetPlayerWorldStats returns world interaction statistics
 func (h *Handler) GetPlayerWorldStats(w http.ResponseWriter, r *http.Request) {
 	guid := chi.URLParam(r, "guid")
 	ctx := r.Context()

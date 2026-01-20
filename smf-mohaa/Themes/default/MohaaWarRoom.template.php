@@ -235,23 +235,13 @@ function template_mohaa_war_room()
         </div>
         
         <!-- ======================= PEAK PERFORMANCE TAB ======================= -->
-        <div id="tab-peak" class="tab-content" style="display: none;" data-lazy="peak" data-loaded="false">
-            <div class="lazy-loading-placeholder">
-                <div style="text-align: center; padding: 60px;">
-                    <div style="font-size: 2em; margin-bottom: 15px;">⏳</div>
-                    <div>Loading Peak Performance data...</div>
-                </div>
-            </div>
+        <div id="tab-peak" class="tab-content" style="display: none;">
+            ', template_war_room_peak_performance_content($data), '
         </div>
         
         <!-- ======================= SIGNATURE MOVES TAB ======================= -->
-        <div id="tab-signature" class="tab-content" style="display: none;" data-lazy="signature" data-loaded="false">
-            <div class="lazy-loading-placeholder">
-                <div style="text-align: center; padding: 60px;">
-                    <div style="font-size: 2em; margin-bottom: 15px;">⏳</div>
-                    <div>Loading Signature Metrics...</div>
-                </div>
-            </div>
+        <div id="tab-signature" class="tab-content" style="display: none;">
+            ', template_war_room_signature_content($data), '
         </div>
         
         <!-- ======================= COMBAT TAB ======================= -->
@@ -392,12 +382,21 @@ function template_mohaa_war_room()
                     <h3>🎯 Objectives</h3>
                     ', template_war_room_objectives_content($player), '
                 </div>
+                
+                <!-- Vehicle Stats Section -->
+                ', template_war_room_vehicle_section($data), '
+                
+                <!-- Bot Stats Section -->
+                ', template_war_room_bot_section($data), '
             </div>
         </div>
         
         <!-- ======================= INTERACTION TAB ======================= -->
         <div id="tab-interaction" class="tab-content" style="display: none;">
             ', template_war_room_interaction_content($player), '
+            
+            <!-- World Interaction Stats -->
+            ', template_war_room_world_section($data), '
         </div>
         
         <!-- ======================= MAPS TAB ======================= -->
@@ -793,7 +792,199 @@ function template_mohaa_war_room()
         
         // Make showTab available globally
         window.showTab = showTab;
+        
+        // =============================================================================
+        // DRILL-DOWN SYSTEM - Click any stat for deeper breakdown
+        // =============================================================================
+        var drilldownModal = null;
+        
+        function initDrilldown() {
+            // Attach click handlers to all drilldown-stat elements
+            document.querySelectorAll(".drilldown-stat").forEach(function(el) {
+                el.addEventListener("click", function(e) {
+                    e.preventDefault();
+                    var stat = this.getAttribute("data-stat");
+                    var dimension = this.getAttribute("data-dimension");
+                    if (stat && dimension) {
+                        openDrilldown(stat, dimension);
+                    }
+                });
+            });
+        }
+        
+        function openDrilldown(stat, dimension) {
+            // Create modal if not exists
+            if (!drilldownModal) {
+                drilldownModal = document.createElement("div");
+                drilldownModal.id = "drilldown-modal";
+                drilldownModal.innerHTML = "<div class=\"drilldown-overlay\" onclick=\"closeDrilldown()\"></div>" +
+                    "<div class=\"drilldown-content\">" +
+                    "<div class=\"drilldown-header\">" +
+                    "<h3 id=\"drilldown-title\">Loading...</h3>" +
+                    "<button onclick=\"closeDrilldown()\" class=\"drilldown-close\">&times;</button>" +
+                    "</div>" +
+                    "<div id=\"drilldown-body\" style=\"padding: 20px; max-height: 60vh; overflow-y: auto;\"></div>" +
+                    "</div>";
+                document.body.appendChild(drilldownModal);
+            }
+            
+            // Show modal
+            drilldownModal.style.display = "block";
+            document.getElementById("drilldown-title").textContent = "Loading " + stat + " by " + dimension + "...";
+            document.getElementById("drilldown-body").innerHTML = "<div style=\"text-align: center; padding: 40px;\"><div class=\"loading-spinner\"></div><div>Analyzing data...</div></div>";
+            
+            // Fetch drilldown data
+            var playerGuid = "' . ($data['player_stats']['guid'] ?? '') . '";
+            var url = "' . $scripturl . '?action=mohaadrilldown;stat=" + encodeURIComponent(stat) + ";dimension=" + encodeURIComponent(dimension) + ";guid=" + encodeURIComponent(playerGuid);
+            
+            fetch(url)
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    renderDrilldownData(stat, dimension, data);
+                })
+                .catch(function(err) {
+                    console.error("Drilldown error:", err);
+                    document.getElementById("drilldown-body").innerHTML = "<div style=\"text-align: center; padding: 40px; color: #f44336;\">Failed to load data. Please try again.</div>";
+                });
+        }
+        
+        function renderDrilldownData(stat, dimension, data) {
+            var title = stat.replace(/_/g, " ").toUpperCase() + " by " + dimension.toUpperCase();
+            document.getElementById("drilldown-title").textContent = title;
+            
+            var breakdown = data.breakdown || [];
+            if (breakdown.length === 0) {
+                document.getElementById("drilldown-body").innerHTML = "<div style=\"text-align: center; padding: 40px; opacity: 0.7;\">No data available for this breakdown.</div>";
+                return;
+            }
+            
+            var html = "<table class=\"clean-table\" style=\"width: 100%;\">";
+            html += "<thead><tr><th style=\"text-align: left;\">" + dimension.charAt(0).toUpperCase() + dimension.slice(1) + "</th><th style=\"text-align: right;\">Count</th><th style=\"text-align: right;\">%</th></tr></thead>";
+            html += "<tbody>";
+            
+            var total = breakdown.reduce(function(sum, item) { return sum + (item.value || 0); }, 0);
+            
+            breakdown.forEach(function(item) {
+                var pct = total > 0 ? (item.value / total * 100).toFixed(1) : 0;
+                html += "<tr>";
+                html += "<td style=\"font-weight: bold;\">" + (item.label || "Unknown") + "</td>";
+                html += "<td style=\"text-align: right;\">" + (item.value || 0).toLocaleString() + "</td>";
+                html += "<td style=\"text-align: right; color: #4caf50;\">" + pct + "%</td>";
+                html += "</tr>";
+            });
+            
+            html += "</tbody></table>";
+            
+            // Add chart if more than 3 items
+            if (breakdown.length > 2 && breakdown.length <= 20) {
+                html += "<div id=\"drilldown-chart\" style=\"margin-top: 20px; min-height: 250px;\"></div>";
+                
+                setTimeout(function() {
+                    var chartEl = document.getElementById("drilldown-chart");
+                    if (chartEl && typeof ApexCharts !== "undefined") {
+                        var labels = breakdown.map(function(item) { return item.label || "Unknown"; });
+                        var values = breakdown.map(function(item) { return item.value || 0; });
+                        
+                        new ApexCharts(chartEl, {
+                            chart: { type: "bar", height: 250, toolbar: { show: false }, background: "transparent" },
+                            series: [{ name: stat, data: values }],
+                            xaxis: { categories: labels, labels: { style: { colors: "#888" } } },
+                            colors: ["#4caf50"],
+                            theme: { mode: "dark" },
+                            plotOptions: { bar: { borderRadius: 4, horizontal: labels.length > 8 } }
+                        }).render();
+                    }
+                }, 100);
+            }
+            
+            document.getElementById("drilldown-body").innerHTML = html;
+        }
+        
+        function closeDrilldown() {
+            if (drilldownModal) {
+                drilldownModal.style.display = "none";
+            }
+        }
+        
+        // Initialize drilldown on page load
+        document.addEventListener("DOMContentLoaded", initDrilldown);
+        window.closeDrilldown = closeDrilldown;
     </script>
+    
+    <style>
+        /* Drill-down Modal Styles */
+        #drilldown-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+        }
+        .drilldown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+        }
+        .drilldown-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--mohaa-card-bg, #1e2a3a);
+            border-radius: 12px;
+            min-width: 400px;
+            max-width: 90%;
+            max-height: 80vh;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        .drilldown-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .drilldown-header h3 {
+            margin: 0;
+            color: #fff;
+        }
+        .drilldown-close {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.5em;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+        .drilldown-close:hover {
+            opacity: 1;
+        }
+        .drilldown-stat {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .drilldown-stat:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #4caf50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
     ';
 }
 
@@ -1481,386 +1672,6 @@ function template_war_room_interaction_content($player) {
     </div>';
 }
 
-// ============================================================================
-// PEAK PERFORMANCE TAB
-// Shows when and where the player performs best
-// ============================================================================
-
-function template_war_room_peak_performance_content($data) {
-    $peak = $data['peak_performance'] ?? [];
-    
-    if (empty($peak)) {
-        return '
-        <div class="centertext" style="padding: 40px; opacity: 0.7;">
-            <div style="font-size: 3em; margin-bottom: 15px;">📊</div>
-            <div>Peak performance analysis requires more match data.</div>
-            <div style="font-size: 0.9em; opacity: 0.7;">Play more matches to unlock insights!</div>
-        </div>';
-    }
-    
-    $bestConditions = $peak['best_conditions'] ?? [];
-    $timeOfDay = $peak['time_of_day'] ?? [];
-    $dayOfWeek = $peak['day_of_week'] ?? [];
-    $maps = $peak['maps'] ?? [];
-    $fatigue = $peak['session_fatigue'] ?? [];
-    $momentum = $peak['match_momentum'] ?? [];
-    
-    // Build hourly K/D data for heatmap
-    $hourlyData = [];
-    foreach ($timeOfDay as $h) {
-        $hourlyData[] = [
-            'hour' => $h['hour'] ?? 0,
-            'kdr' => $h['kdr'] ?? 0,
-            'kills' => $h['kills'] ?? 0,
-        ];
-    }
-    $hourlyJson = json_encode($hourlyData);
-    
-    // Day of week data
-    $dayData = [];
-    $dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    foreach ($dayOfWeek as $d) {
-        $dayData[] = [
-            'day' => $dayNames[$d['day_of_week'] ?? 0] ?? 'Unknown',
-            'kdr' => $d['kdr'] ?? 0,
-            'kills' => $d['kills'] ?? 0,
-        ];
-    }
-    $dayJson = json_encode($dayData);
-    
-    return '
-    <div class="mohaa-grid">
-        <!-- Best Conditions Summary Card -->
-        <div class="windowbg stat-card" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(33, 150, 243, 0.1));">
-            <h3 style="text-align: center; margin-bottom: 20px;">⚡ Your Optimal Conditions</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; text-align: center;">
-                <div class="peak-stat-box">
-                    <div style="font-size: 2em; margin-bottom: 5px;">🕐</div>
-                    <div style="font-size: 1.8em; font-weight: bold; color: #4caf50;">'.htmlspecialchars($bestConditions['best_hour_label'] ?? '8PM - 10PM').'</div>
-                    <div style="opacity: 0.7;">Best Time to Play</div>
-                    <div style="font-size: 0.8em; color: #4caf50;">+'.number_format($bestConditions['hour_kdr_boost'] ?? 0, 0).'% K/D vs Average</div>
-                </div>
-                <div class="peak-stat-box">
-                    <div style="font-size: 2em; margin-bottom: 5px;">📅</div>
-                    <div style="font-size: 1.8em; font-weight: bold; color: #2196f3;">'.htmlspecialchars($bestConditions['best_day'] ?? 'Saturday').'</div>
-                    <div style="opacity: 0.7;">Best Day</div>
-                    <div style="font-size: 0.8em; color: #2196f3;">+'.number_format($bestConditions['day_kdr_boost'] ?? 0, 0).'% K/D vs Average</div>
-                </div>
-                <div class="peak-stat-box">
-                    <div style="font-size: 2em; margin-bottom: 5px;">🗺️</div>
-                    <div style="font-size: 1.8em; font-weight: bold; color: #ff9800;">'.htmlspecialchars($bestConditions['best_map'] ?? 'Unknown').'</div>
-                    <div style="opacity: 0.7;">Best Map</div>
-                    <div style="font-size: 0.8em; color: #ff9800;">'.number_format($bestConditions['map_kdr'] ?? 0, 2).' K/D</div>
-                </div>
-                <div class="peak-stat-box">
-                    <div style="font-size: 2em; margin-bottom: 5px;">⏱️</div>
-                    <div style="font-size: 1.8em; font-weight: bold; color: #9c27b0;">'.($bestConditions['optimal_session_mins'] ?? 45).' min</div>
-                    <div style="opacity: 0.7;">Optimal Session</div>
-                    <div style="font-size: 0.8em; color: #9c27b0;">Before fatigue sets in</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Hourly Performance Chart -->
-        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
-            <h3>🕐 Performance by Hour</h3>
-            <div id="peak-hourly-chart" style="height: 250px;"></div>
-        </div>
-        
-        <!-- Day of Week Chart -->
-        <div class="windowbg stat-card">
-            <h3>📅 Performance by Day</h3>
-            <div id="peak-day-chart" style="height: 200px;"></div>
-        </div>
-        
-        <!-- Session Fatigue -->
-        <div class="windowbg stat-card">
-            <h3>😓 Session Fatigue Analysis</h3>
-            '.template_war_room_fatigue_content($fatigue).'
-        </div>
-        
-        <!-- Match Momentum -->
-        <div class="windowbg stat-card">
-            <h3>📈 Match Momentum</h3>
-            '.template_war_room_momentum_content($momentum).'
-        </div>
-        
-        <!-- Top Maps -->
-        <div class="windowbg stat-card">
-            <h3>🗺️ Best Maps</h3>
-            '.template_war_room_peak_maps_content($maps).'
-        </div>
-    </div>
-    
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        // Hourly chart
-        var hourlyData = '.$hourlyJson.';
-        if (hourlyData.length > 0 && typeof ApexCharts !== "undefined") {
-            var hourlyOptions = {
-                series: [{
-                    name: "K/D Ratio",
-                    data: hourlyData.map(h => ({x: h.hour + ":00", y: parseFloat(h.kdr).toFixed(2)}))
-                }],
-                chart: {
-                    type: "heatmap",
-                    height: 250,
-                    toolbar: { show: false },
-                    background: "transparent"
-                },
-                dataLabels: { enabled: true },
-                colors: ["#4caf50"],
-                theme: { mode: "dark" },
-                xaxis: {
-                    labels: { style: { colors: "#aaa" } }
-                },
-                yaxis: {
-                    labels: { style: { colors: "#aaa" } }
-                }
-            };
-            new ApexCharts(document.querySelector("#peak-hourly-chart"), hourlyOptions).render();
-        }
-        
-        // Day of week chart
-        var dayData = '.$dayJson.';
-        if (dayData.length > 0 && typeof ApexCharts !== "undefined") {
-            var dayOptions = {
-                series: [{
-                    name: "K/D Ratio",
-                    data: dayData.map(d => parseFloat(d.kdr))
-                }],
-                chart: {
-                    type: "bar",
-                    height: 200,
-                    toolbar: { show: false },
-                    background: "transparent"
-                },
-                plotOptions: {
-                    bar: { borderRadius: 4, horizontal: false }
-                },
-                xaxis: {
-                    categories: dayData.map(d => d.day),
-                    labels: { style: { colors: "#aaa" } }
-                },
-                yaxis: {
-                    labels: { style: { colors: "#aaa" } }
-                },
-                colors: ["#2196f3"],
-                theme: { mode: "dark" }
-            };
-            new ApexCharts(document.querySelector("#peak-day-chart"), dayOptions).render();
-        }
-    });
-    </script>';
-}
-
-function template_war_room_fatigue_content($fatigue) {
-    if (empty($fatigue)) {
-        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">Not enough session data.</div>';
-    }
-    
-    $segments = [
-        ['label' => 'First 15 min', 'key' => 'first_15_kdr', 'color' => '#4caf50'],
-        ['label' => '15-30 min', 'key' => 'mid_15_kdr', 'color' => '#8bc34a'],
-        ['label' => '30-60 min', 'key' => 'late_30_kdr', 'color' => '#ff9800'],
-        ['label' => '60+ min', 'key' => 'overtime_kdr', 'color' => '#f44336'],
-    ];
-    
-    $html = '<div style="padding: 10px;">';
-    foreach ($segments as $s) {
-        $kdr = $fatigue[$s['key']] ?? 0;
-        $width = min(100, ($kdr / 3) * 100); // Scale to max ~3.0 K/D
-        $html .= '
-        <div style="margin-bottom: 12px;">
-            <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
-                <span>'.$s['label'].'</span>
-                <strong style="color: '.$s['color'].'">'.number_format($kdr, 2).' K/D</strong>
-            </div>
-            <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
-                <div style="width: '.$width.'%; height: 100%; background: '.$s['color'].'; border-radius: 4px;"></div>
-            </div>
-        </div>';
-    }
-    $html .= '<div style="font-size: 0.8em; opacity: 0.7; margin-top: 10px; text-align: center;">
-        Optimal session: '.($fatigue['optimal_session_minutes'] ?? 45).' minutes
-    </div>';
-    $html .= '</div>';
-    
-    return $html;
-}
-
-function template_war_room_momentum_content($momentum) {
-    if (empty($momentum)) {
-        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">Not enough match data.</div>';
-    }
-    
-    $html = '<div style="padding: 10px;">';
-    
-    // After win/loss stats
-    $afterWin = $momentum['kdr_after_win'] ?? 0;
-    $afterLoss = $momentum['kdr_after_loss'] ?? 0;
-    $streak = $momentum['best_streak_kdr'] ?? 0;
-    
-    $html .= '
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-        <div style="text-align: center; padding: 15px; background: rgba(76, 175, 80, 0.1); border-radius: 8px;">
-            <div style="font-size: 1.5em; font-weight: bold; color: #4caf50;">'.number_format($afterWin, 2).'</div>
-            <div style="font-size: 0.8em; opacity: 0.7;">K/D After Wins</div>
-        </div>
-        <div style="text-align: center; padding: 15px; background: rgba(244, 67, 54, 0.1); border-radius: 8px;">
-            <div style="font-size: 1.5em; font-weight: bold; color: #f44336;">'.number_format($afterLoss, 2).'</div>
-            <div style="font-size: 0.8em; opacity: 0.7;">K/D After Losses</div>
-        </div>
-    </div>';
-    
-    // Insight
-    $diff = $afterWin - $afterLoss;
-    $insight = $diff > 0.3 ? '🔥 You thrive on momentum! Keep the wins rolling.' 
-                         : ($diff < -0.1 ? '💪 You perform well under pressure after losses.' 
-                         : '⚖️ Your performance is consistent regardless of previous results.');
-    
-    $html .= '<div style="font-size: 0.9em; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; text-align: center;">'.$insight.'</div>';
-    $html .= '</div>';
-    
-    return $html;
-}
-
-function template_war_room_peak_maps_content($maps) {
-    if (empty($maps)) {
-        return '<div style="opacity: 0.6; padding: 20px; text-align: center;">No map data available.</div>';
-    }
-    
-    $html = '<div style="padding: 10px;">';
-    $count = 0;
-    foreach ($maps as $m) {
-        if ($count++ >= 5) break;
-        $mapName = $m['map'] ?? 'Unknown';
-        $kdr = $m['kdr'] ?? 0;
-        $matches = $m['matches'] ?? 0;
-        $winRate = $m['win_rate'] ?? 0;
-        
-        $html .= '
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; margin-bottom: 8px; background: rgba(0,0,0,0.05); border-radius: 6px;">
-            <div>
-                <div style="font-weight: bold;">'.htmlspecialchars($mapName).'</div>
-                <div style="font-size: 0.8em; opacity: 0.7;">'.$matches.' matches</div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-weight: bold; color: #4caf50;">'.number_format($kdr, 2).' K/D</div>
-                <div style="font-size: 0.8em; color: #2196f3;">'.number_format($winRate, 0).'% WR</div>
-            </div>
-        </div>';
-    }
-    $html .= '</div>';
-    
-    return $html;
-}
-
-// ============================================================================
-// SIGNATURE MOVES TAB  
-// Cross-event combo metrics and play style analysis
-// ============================================================================
-
-function template_war_room_signature_content($data) {
-    $combo = $data['combo_metrics'] ?? [];
-    
-    if (empty($combo)) {
-        return '
-        <div class="centertext" style="padding: 40px; opacity: 0.7;">
-            <div style="font-size: 3em; margin-bottom: 15px;">🎯</div>
-            <div>Signature analysis requires more diverse gameplay data.</div>
-            <div style="font-size: 0.9em; opacity: 0.7;">Play more matches to unlock insights!</div>
-        </div>';
-    }
-    
-    $moveCombat = $combo['movement_combat'] ?? [];
-    $signature = $combo['signature'] ?? [];
-    $health = $combo['health_objective'] ?? [];
-    $economy = $combo['economy_survival'] ?? [];
-    
-    // Play style badge
-    $playStyle = $signature['play_style'] ?? 'Soldier';
-    $playStyleIcon = template_war_room_playstyle_icon($playStyle);
-    
-    return '
-    <div class="mohaa-grid">
-        <!-- Play Style Badge (Hero Section) -->
-        <div class="windowbg stat-card" style="grid-column: 1 / -1; text-align: center; background: linear-gradient(135deg, rgba(156, 39, 176, 0.1), rgba(33, 150, 243, 0.1));">
-            <div style="font-size: 5em; margin: 20px 0;">'.$playStyleIcon.'</div>
-            <div style="font-size: 2em; font-weight: bold; text-transform: uppercase;">'.htmlspecialchars($playStyle).'</div>
-            <div style="opacity: 0.7; margin: 10px 0; max-width: 400px; margin-left: auto; margin-right: auto;">'.template_war_room_playstyle_desc($playStyle).'</div>
-        </div>
-        
-        <!-- Signature Stats Grid -->
-        <div class="windowbg stat-card">
-            <h3>🏃 Movement + Combat</h3>
-            '.template_war_room_move_combat_content($moveCombat).'
-        </div>
-        
-        <div class="windowbg stat-card">
-            <h3>🎯 Signature Metrics</h3>
-            '.template_war_room_signature_metrics_content($signature).'
-        </div>
-        
-        <div class="windowbg stat-card">
-            <h3>❤️ Health & Objective</h3>
-            '.template_war_room_health_obj_content($health).'
-        </div>
-        
-        <div class="windowbg stat-card">
-            <h3>💰 Economy & Survival</h3>
-            '.template_war_room_economy_content($economy).'
-        </div>
-        
-        <!-- Combo Radar Chart -->
-        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
-            <h3>📊 Your Combat DNA</h3>
-            <div id="signature-radar-chart" style="height: 350px;"></div>
-        </div>
-    </div>
-    
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        if (typeof ApexCharts !== "undefined") {
-            var radarOptions = {
-                series: [{
-                    name: "Your Stats",
-                    data: [
-                        '.($moveCombat['run_gun_index'] ?? 50).',
-                        '.($moveCombat['bunny_hop_efficiency'] ?? 50).',
-                        '.($signature['clutch_rate'] ?? 50).',
-                        '.($health['objective_focus'] ?? 50).',
-                        '.($economy['scavenger_score'] ?? 50).',
-                        '.($signature['first_blood_rate'] ?? 50).'
-                    ]
-                }],
-                chart: {
-                    type: "radar",
-                    height: 350,
-                    toolbar: { show: false },
-                    background: "transparent"
-                },
-                xaxis: {
-                    categories: ["Run & Gun", "Bunny Hop", "Clutch", "Objective", "Scavenger", "First Blood"],
-                    labels: { style: { colors: "#aaa", fontSize: "11px" } }
-                },
-                yaxis: {
-                    show: false,
-                    min: 0,
-                    max: 100
-                },
-                stroke: { width: 2 },
-                fill: { opacity: 0.3 },
-                markers: { size: 4 },
-                colors: ["#9c27b0"],
-                theme: { mode: "dark" }
-            };
-            new ApexCharts(document.querySelector("#signature-radar-chart"), radarOptions).render();
-        }
-    });
-    </script>';
-}
-
 function template_war_room_playstyle_icon($style) {
     $icons = [
         'Rusher' => '🏃',
@@ -1993,4 +1804,549 @@ function template_war_room_progress_bar($label, $value, $color, $subtext = '') {
         </div>
         '.($subtext ? '<div style="font-size: 0.75em; opacity: 0.6; margin-top: 2px;">'.$subtext.'</div>' : '').'
     </div>';
+}
+
+// =============================================================================
+// PEAK PERFORMANCE TAB - "When" Analysis
+// =============================================================================
+function template_war_room_peak_performance_content($data) {
+    $peak = $data['peak_performance'] ?? [];
+    
+    if (empty($peak)) {
+        return '
+        <div class="mohaa-grid">
+            <div class="windowbg stat-card" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                <div style="font-size: 3em; margin-bottom: 15px;">📊</div>
+                <div style="font-size: 1.2em; opacity: 0.7;">Peak performance analysis requires more match data.</div>
+                <div style="margin-top: 10px; opacity: 0.5;">Play more matches to unlock time-based insights!</div>
+            </div>
+        </div>';
+    }
+    
+    $bestHour = $peak['best_hour'] ?? [];
+    $bestDay = $peak['best_day'] ?? [];
+    $bestMap = $peak['best_map'] ?? [];
+    $bestWeapon = $peak['best_weapon'] ?? [];
+    $hourlyBreakdown = $peak['hourly_breakdown'] ?? [];
+    $dailyBreakdown = $peak['daily_breakdown'] ?? [];
+    
+    $mostAccurateAt = $peak['most_accurate_at'] ?? 'N/A';
+    $mostWinsAt = $peak['most_wins_at'] ?? 'N/A';
+    $mostLossesAt = $peak['most_losses_at'] ?? 'N/A';
+    
+    $output = '<div class="mohaa-grid">';
+    
+    // Hero Summary Card
+    $output .= '
+    <div class="windowbg stat-card" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(33, 150, 243, 0.1));">
+        <h3 style="text-align: center; margin-bottom: 20px;">⚡ Your Optimal Combat Conditions</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; text-align: center;">
+            <div class="drilldown-stat" data-stat="kills" data-dimension="hour" style="cursor: pointer;">
+                <div style="font-size: 2em; margin-bottom: 5px;">🕐</div>
+                <div style="font-size: 1.6em; font-weight: bold; color: #4caf50;">'.sprintf('%02d:00', $bestHour['hour'] ?? 20).'</div>
+                <div style="opacity: 0.7;">Best Hour</div>
+                <div style="font-size: 0.8em; color: #4caf50;">K/D: '.number_format($bestHour['kd_ratio'] ?? 0, 2).'</div>
+            </div>
+            
+            <div class="drilldown-stat" data-stat="kills" data-dimension="day" style="cursor: pointer;">
+                <div style="font-size: 2em; margin-bottom: 5px;">📅</div>
+                <div style="font-size: 1.6em; font-weight: bold; color: #2196f3;">'.htmlspecialchars($bestDay['day_of_week'] ?? 'Weekend').'</div>
+                <div style="opacity: 0.7;">Best Day</div>
+                <div style="font-size: 0.8em; color: #2196f3;">K/D: '.number_format($bestDay['kd_ratio'] ?? 0, 2).'</div>
+            </div>
+            
+            <div class="drilldown-stat" data-stat="kills" data-dimension="map" style="cursor: pointer;">
+                <div style="font-size: 2em; margin-bottom: 5px;">🗺️</div>
+                <div style="font-size: 1.6em; font-weight: bold; color: #ff9800;">'.htmlspecialchars($bestMap['map_name'] ?? 'Unknown').'</div>
+                <div style="opacity: 0.7;">Best Map</div>
+                <div style="font-size: 0.8em; color: #ff9800;">'.number_format($bestMap['kills'] ?? 0).' kills</div>
+            </div>
+            
+            <div class="drilldown-stat" data-stat="kills" data-dimension="weapon" style="cursor: pointer;">
+                <div style="font-size: 2em; margin-bottom: 5px;">🔫</div>
+                <div style="font-size: 1.6em; font-weight: bold; color: #9c27b0;">'.htmlspecialchars($bestWeapon['weapon_name'] ?? 'Unknown').'</div>
+                <div style="opacity: 0.7;">Signature Weapon</div>
+                <div style="font-size: 0.8em; color: #9c27b0;">'.number_format($bestWeapon['kills'] ?? 0).' kills</div>
+            </div>
+        </div>
+    </div>';
+    
+    // "When" Analysis Cards
+    $output .= '
+    <div class="windowbg stat-card">
+        <h3>🎯 When Most Accurate</h3>
+        <div style="text-align: center; padding: 20px;">
+            <div style="font-size: 3em; font-weight: bold; color: #4caf50;">'.$mostAccurateAt.'</div>
+            <div style="opacity: 0.7; margin-top: 5px;">Your aim is sharpest at this hour</div>
+        </div>
+    </div>
+    
+    <div class="windowbg stat-card">
+        <h3>🏆 When Most Wins</h3>
+        <div style="text-align: center; padding: 20px;">
+            <div style="font-size: 3em; font-weight: bold; color: #2196f3;">'.$mostWinsAt.'</div>
+            <div style="opacity: 0.7; margin-top: 5px;">Peak victory hour</div>
+        </div>
+    </div>
+    
+    <div class="windowbg stat-card">
+        <h3>💀 When Most Losses</h3>
+        <div style="text-align: center; padding: 20px;">
+            <div style="font-size: 3em; font-weight: bold; color: #f44336;">'.$mostLossesAt.'</div>
+            <div style="opacity: 0.7; margin-top: 5px;">Avoid playing at this hour!</div>
+        </div>
+    </div>';
+    
+    // Hourly Performance Chart
+    if (!empty($hourlyBreakdown)) {
+        $hours = [];
+        $kds = [];
+        foreach ($hourlyBreakdown as $h) {
+            $hours[] = sprintf('%02d:00', $h['hour'] ?? 0);
+            $kds[] = $h['kd_ratio'] ?? 0;
+        }
+        $output .= '
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>📈 Hourly K/D Performance</h3>
+            <div id="chart-hourly-performance" style="min-height: 280px;"></div>
+            <script>
+                (function() {
+                    var hourlyChart = new ApexCharts(document.getElementById("chart-hourly-performance"), {
+                        chart: { type: "bar", height: 280, toolbar: { show: false }, background: "transparent" },
+                        series: [{ name: "K/D", data: '.json_encode($kds).' }],
+                        xaxis: { categories: '.json_encode($hours).', labels: { style: { colors: "#888" } } },
+                        colors: ["#4caf50"],
+                        theme: { mode: "dark" },
+                        plotOptions: { bar: { borderRadius: 4, columnWidth: "60%" } },
+                        yaxis: { labels: { style: { colors: "#888" }, formatter: function(val) { return val.toFixed(2); } } },
+                        tooltip: { theme: "dark" }
+                    });
+                    hourlyChart.render();
+                })();
+            </script>
+        </div>';
+    }
+    
+    // Daily Performance
+    if (!empty($dailyBreakdown)) {
+        $output .= '
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>📊 Performance by Day of Week</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; padding: 15px 0;">
+        ';
+        foreach ($dailyBreakdown as $day) {
+            $dayName = $day['day_of_week'] ?? 'Unknown';
+            $kd = $day['kd_ratio'] ?? 0;
+            $kills = $day['kills'] ?? 0;
+            $color = $kd >= 1.5 ? '#4caf50' : ($kd >= 1 ? '#ff9800' : '#f44336');
+            
+            $output .= '
+            <div class="drilldown-stat" data-stat="kills" data-dimension="day" style="cursor: pointer; text-align: center; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-weight: bold;">'.htmlspecialchars($dayName).'</div>
+                <div style="font-size: 1.5em; font-weight: bold; color: '.$color.';">'.number_format($kd, 2).'</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">'.number_format($kills).' kills</div>
+            </div>';
+        }
+        $output .= '</div></div>';
+    }
+    
+    $output .= '</div>'; // End grid
+    return $output;
+}
+
+// =============================================================================
+// SIGNATURE TAB - Combo Metrics & Playstyle
+// =============================================================================
+function template_war_room_signature_content($data) {
+    $combo = $data['combo_metrics'] ?? [];
+    
+    if (empty($combo)) {
+        return '
+        <div class="mohaa-grid">
+            <div class="windowbg stat-card" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                <div style="font-size: 3em; margin-bottom: 15px;">🎯</div>
+                <div style="font-size: 1.2em; opacity: 0.7;">Signature analysis requires more gameplay data.</div>
+                <div style="margin-top: 10px; opacity: 0.5;">Keep fragging to unlock your unique playstyle profile!</div>
+            </div>
+        </div>';
+    }
+    
+    $weaponOnMap = $combo['weapon_on_map'] ?? [];
+    $victimPatterns = $combo['victim_patterns'] ?? [];
+    $killerPatterns = $combo['killer_patterns'] ?? [];
+    $distanceByWeapon = $combo['distance_by_weapon'] ?? [];
+    $hitlocByWeapon = $combo['hitloc_by_weapon'] ?? [];
+    
+    $output = '<div class="mohaa-grid">';
+    
+    // Weapon Mastery by Map
+    if (!empty($weaponOnMap)) {
+        $output .= '
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>🗺️ Best Weapon Per Map</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">';
+        
+        foreach (array_slice($weaponOnMap, 0, 6) as $wm) {
+            $mapName = $wm['map_name'] ?? 'Unknown';
+            $weaponName = $wm['weapon_name'] ?? 'Unknown';
+            $kills = $wm['kills'] ?? 0;
+            
+            $output .= '
+            <div class="drilldown-stat" data-stat="kills" data-dimension="map" style="cursor: pointer; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 0.9em; opacity: 0.7; margin-bottom: 5px;">'.htmlspecialchars($mapName).'</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #ff9800;">'.htmlspecialchars($weaponName).'</div>
+                <div style="font-size: 0.85em; color: #4caf50;">'.number_format($kills).' kills</div>
+            </div>';
+        }
+        $output .= '</div></div>';
+    }
+    
+    // Victim Patterns (Who you dominate)
+    if (!empty($victimPatterns)) {
+        $output .= '
+        <div class="windowbg stat-card">
+            <h3>😈 Favorite Victims</h3>
+            <div style="max-height: 300px; overflow-y: auto;">';
+        
+        foreach (array_slice($victimPatterns, 0, 5) as $v) {
+            $victimName = $v['victim_name'] ?? 'Unknown';
+            $kills = $v['kills'] ?? 0;
+            $deaths = $v['deaths_to'] ?? 0;
+            $ratio = $v['ratio'] ?? ($deaths > 0 ? $kills / $deaths : $kills);
+            $weapon = $v['favorite_weapon'] ?? '';
+            
+            $color = $ratio >= 2 ? '#4caf50' : ($ratio >= 1 ? '#ff9800' : '#f44336');
+            
+            $output .= '
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                <div>
+                    <div style="font-weight: bold;">'.htmlspecialchars($victimName).'</div>
+                    <div style="font-size: 0.8em; opacity: 0.7;">with '.htmlspecialchars($weapon).'</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: bold; color: '.$color.';">'.number_format($kills).' / '.number_format($deaths).'</div>
+                    <div style="font-size: 0.8em; color: '.$color.';">'.number_format($ratio, 1).'x</div>
+                </div>
+            </div>';
+        }
+        $output .= '</div></div>';
+    }
+    
+    // Killer Patterns (Who dominates you)
+    if (!empty($killerPatterns)) {
+        $output .= '
+        <div class="windowbg stat-card">
+            <h3>💀 Nemeses</h3>
+            <div style="max-height: 300px; overflow-y: auto;">';
+        
+        foreach (array_slice($killerPatterns, 0, 5) as $k) {
+            $killerName = $k['killer_name'] ?? 'Unknown';
+            $deaths = $k['deaths_to'] ?? 0;
+            $kills = $k['kills_against'] ?? 0;
+            $weapon = $k['most_used_weapon'] ?? '';
+            
+            $output .= '
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                <div>
+                    <div style="font-weight: bold; color: #f44336;">'.htmlspecialchars($killerName).'</div>
+                    <div style="font-size: 0.8em; opacity: 0.7;">uses '.htmlspecialchars($weapon).'</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: bold;">You: '.number_format($kills).'</div>
+                    <div style="font-size: 0.8em; color: #f44336;">Them: '.number_format($deaths).'</div>
+                </div>
+            </div>';
+        }
+        $output .= '</div></div>';
+    }
+    
+    // Distance by Weapon
+    if (!empty($distanceByWeapon)) {
+        $output .= '
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>📏 Engagement Distance by Weapon</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">';
+        
+        foreach (array_slice($distanceByWeapon, 0, 6) as $dw) {
+            $weaponName = $dw['weapon_name'] ?? 'Unknown';
+            $avgDist = $dw['avg_distance'] ?? 0;
+            $maxDist = $dw['max_distance'] ?? 0;
+            
+            $distanceLabel = $avgDist > 100 ? 'Long Range' : ($avgDist > 30 ? 'Mid Range' : 'Close Range');
+            $distColor = $avgDist > 100 ? '#2196f3' : ($avgDist > 30 ? '#ff9800' : '#f44336');
+            
+            $output .= '
+            <div style="text-align: center; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-weight: bold;">'.htmlspecialchars($weaponName).'</div>
+                <div style="font-size: 1.5em; font-weight: bold; color: '.$distColor.';">'.number_format($avgDist, 0).'m</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">'.$distanceLabel.'</div>
+                <div style="font-size: 0.75em; opacity: 0.5;">Max: '.number_format($maxDist, 0).'m</div>
+            </div>';
+        }
+        $output .= '</div></div>';
+    }
+    
+    // Accuracy Profile by Weapon (Hitloc distribution)
+    if (!empty($hitlocByWeapon)) {
+        $output .= '
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>🎯 Accuracy Profile by Weapon</h3>
+            <table class="clean-table">
+                <thead>
+                    <tr>
+                        <th>Weapon</th>
+                        <th>Head %</th>
+                        <th>Torso %</th>
+                        <th>Limb %</th>
+                    </tr>
+                </thead>
+                <tbody>';
+        
+        foreach (array_slice($hitlocByWeapon, 0, 8) as $hw) {
+            $weaponName = $hw['weapon_name'] ?? 'Unknown';
+            $headPct = $hw['head_pct'] ?? 0;
+            $torsoPct = $hw['torso_pct'] ?? 0;
+            $limbPct = $hw['limb_pct'] ?? 0;
+            
+            $output .= '
+                    <tr>
+                        <td><strong>'.htmlspecialchars($weaponName).'</strong></td>
+                        <td style="color: #f44336;">'.number_format($headPct, 1).'%</td>
+                        <td style="color: #ff9800;">'.number_format($torsoPct, 1).'%</td>
+                        <td style="color: #2196f3;">'.number_format($limbPct, 1).'%</td>
+                    </tr>';
+        }
+        $output .= '</tbody></table></div>';
+    }
+    
+    $output .= '</div>'; // End grid
+    return $output;
+}
+
+// =============================================================================
+// VEHICLE STATS SECTION
+// =============================================================================
+function template_war_room_vehicle_section($data) {
+    $vehicles = $data['vehicle_stats'] ?? [];
+    
+    if (empty($vehicles)) {
+        return '
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>🚗 Vehicle & Turret Stats</h3>
+            <div style="text-align: center; padding: 30px; opacity: 0.7;">
+                <div style="font-size: 2em; margin-bottom: 10px;">🚙</div>
+                <div>No vehicle data available yet.</div>
+            </div>
+        </div>';
+    }
+    
+    $vehicleKills = $vehicles['vehicle_kills'] ?? 0;
+    $vehicleDeaths = $vehicles['vehicle_deaths'] ?? 0;
+    $roadkills = $vehicles['roadkills'] ?? 0;
+    $turretKills = $vehicles['turret_kills'] ?? 0;
+    $turretDeaths = $vehicles['turret_deaths'] ?? 0;
+    $vehicleTypes = $vehicles['by_vehicle_type'] ?? [];
+    $turretTypes = $vehicles['by_turret_type'] ?? [];
+    
+    $output = '
+    <div class="windowbg stat-card">
+        <h3>🚗 Vehicle Combat</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center;">
+            <div class="drilldown-stat" data-stat="vehicle_kills" data-dimension="vehicle" style="cursor: pointer; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 2em; font-weight: bold; color: #4caf50;">'.number_format($vehicleKills).'</div>
+                <div style="font-size: 0.9em; opacity: 0.7;">Vehicle Kills</div>
+            </div>
+            <div style="padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 2em; font-weight: bold; color: #f44336;">'.number_format($vehicleDeaths).'</div>
+                <div style="font-size: 0.9em; opacity: 0.7;">Vehicle Deaths</div>
+            </div>
+            <div style="padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 2em; font-weight: bold; color: #ff9800;">'.number_format($roadkills).'</div>
+                <div style="font-size: 0.9em; opacity: 0.7;">Roadkills</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="windowbg stat-card">
+        <h3>🔫 Turret Stats</h3>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; text-align: center;">
+            <div class="drilldown-stat" data-stat="turret_kills" data-dimension="turret" style="cursor: pointer; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 2em; font-weight: bold; color: #4caf50;">'.number_format($turretKills).'</div>
+                <div style="font-size: 0.9em; opacity: 0.7;">Turret Kills</div>
+            </div>
+            <div style="padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 2em; font-weight: bold; color: #f44336;">'.number_format($turretDeaths).'</div>
+                <div style="font-size: 0.9em; opacity: 0.7;">Turret Deaths</div>
+            </div>
+        </div>
+    </div>';
+    
+    // Vehicle breakdown
+    if (!empty($vehicleTypes)) {
+        $output .= '
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>🚙 Kills by Vehicle Type</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">';
+        
+        foreach ($vehicleTypes as $v) {
+            $output .= '
+            <div style="text-align: center; padding: 12px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-weight: bold;">'.htmlspecialchars($v['vehicle_name'] ?? 'Unknown').'</div>
+                <div style="font-size: 1.5em; font-weight: bold; color: #4caf50;">'.number_format($v['kills'] ?? 0).'</div>
+            </div>';
+        }
+        $output .= '</div></div>';
+    }
+    
+    return $output;
+}
+
+// =============================================================================
+// BOT STATS SECTION
+// =============================================================================
+function template_war_room_bot_section($data) {
+    $bots = $data['bot_stats'] ?? [];
+    
+    if (empty($bots) || (($bots['bot_kills'] ?? 0) == 0 && ($bots['bot_deaths'] ?? 0) == 0)) {
+        return ''; // Don't show empty bot section
+    }
+    
+    $botKills = $bots['bot_kills'] ?? 0;
+    $botDeaths = $bots['bot_deaths'] ?? 0;
+    $botKd = $botDeaths > 0 ? $botKills / $botDeaths : $botKills;
+    $botNames = $bots['top_bot_victims'] ?? [];
+    
+    $output = '
+    <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+        <h3>🤖 Bot Performance</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+            <div style="text-align: center; padding: 20px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 2em; font-weight: bold; color: #4caf50;">'.number_format($botKills).'</div>
+                <div style="font-size: 0.9em; opacity: 0.7;">Bot Kills</div>
+            </div>
+            <div style="text-align: center; padding: 20px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 2em; font-weight: bold; color: #f44336;">'.number_format($botDeaths).'</div>
+                <div style="font-size: 0.9em; opacity: 0.7;">Deaths to Bots</div>
+            </div>
+            <div style="text-align: center; padding: 20px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 2em; font-weight: bold; color: #2196f3;">'.number_format($botKd, 2).'</div>
+                <div style="font-size: 0.9em; opacity: 0.7;">Bot K/D</div>
+            </div>
+        </div>';
+    
+    if (!empty($botNames)) {
+        $output .= '
+        <div style="margin-top: 15px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 0.9em; opacity: 0.7;">Most Killed Bots</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+        foreach (array_slice($botNames, 0, 5) as $bot) {
+            $output .= '<span style="padding: 5px 10px; background: rgba(0,0,0,0.1); border-radius: 4px; font-size: 0.9em;">'.htmlspecialchars($bot['name'] ?? 'Bot').' ('.number_format($bot['kills'] ?? 0).')</span>';
+        }
+        $output .= '</div></div>';
+    }
+    
+    $output .= '</div>';
+    return $output;
+}
+
+// =============================================================================
+// WORLD INTERACTION SECTION
+// =============================================================================
+function template_war_room_world_section($data) {
+    $world = $data['world_stats'] ?? [];
+    
+    if (empty($world)) {
+        return ''; // Don't show empty section
+    }
+    
+    $ladderClimbs = $world['ladder_climbs'] ?? 0;
+    $doorsOpened = $world['doors_opened'] ?? 0;
+    $fallDamage = $world['fall_damage_taken'] ?? 0;
+    $fallDeaths = $world['fall_deaths'] ?? 0;
+    $chatMessages = $world['chat_messages'] ?? 0;
+    $teamMessages = $world['team_messages'] ?? 0;
+    $pickups = $world['item_pickups'] ?? [];
+    
+    $output = '
+    <div class="mohaa-grid" style="margin-top: 20px;">
+        <div class="windowbg stat-card">
+            <h3>🌍 World Interactions</h3>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">';
+    
+    if ($ladderClimbs > 0) {
+        $output .= '
+            <div style="text-align: center; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 1.5em;">🪜</div>
+                <div style="font-size: 1.5em; font-weight: bold;">'.number_format($ladderClimbs).'</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">Ladders Climbed</div>
+            </div>';
+    }
+    
+    if ($doorsOpened > 0) {
+        $output .= '
+            <div style="text-align: center; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 1.5em;">🚪</div>
+                <div style="font-size: 1.5em; font-weight: bold;">'.number_format($doorsOpened).'</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">Doors Opened</div>
+            </div>';
+    }
+    
+    if ($fallDamage > 0 || $fallDeaths > 0) {
+        $output .= '
+            <div style="text-align: center; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 1.5em;">⬇️</div>
+                <div style="font-size: 1.5em; font-weight: bold; color: #f44336;">'.number_format($fallDamage).'</div>
+                <div style="font-size: 0.8em; opacity: 0.7;">Fall Damage ('.$fallDeaths.' deaths)</div>
+            </div>';
+    }
+    
+    $output .= '
+            </div>
+        </div>
+        
+        <div class="windowbg stat-card">
+            <h3>💬 Communication</h3>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; text-align: center;">
+                <div style="padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                    <div style="font-size: 1.5em;">💬</div>
+                    <div style="font-size: 1.5em; font-weight: bold;">'.number_format($chatMessages).'</div>
+                    <div style="font-size: 0.8em; opacity: 0.7;">Chat Messages</div>
+                </div>
+                <div style="padding: 15px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                    <div style="font-size: 1.5em;">📢</div>
+                    <div style="font-size: 1.5em; font-weight: bold;">'.number_format($teamMessages).'</div>
+                    <div style="font-size: 0.8em; opacity: 0.7;">Team Messages</div>
+                </div>
+            </div>
+        </div>';
+    
+    // Item pickups
+    if (!empty($pickups)) {
+        $output .= '
+        <div class="windowbg stat-card" style="grid-column: 1 / -1;">
+            <h3>📦 Item Pickups</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px;">';
+        
+        foreach ($pickups as $item) {
+            $itemIcon = match(strtolower($item['item_type'] ?? '')) {
+                'health', 'medkit' => '❤️',
+                'ammo' => '🎯',
+                'armor' => '🛡️',
+                'weapon' => '🔫',
+                'grenade' => '💣',
+                default => '📦'
+            };
+            
+            $output .= '
+            <div style="text-align: center; padding: 10px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                <div style="font-size: 1.3em;">'.$itemIcon.'</div>
+                <div style="font-size: 1.2em; font-weight: bold;">'.number_format($item['count'] ?? 0).'</div>
+                <div style="font-size: 0.75em; opacity: 0.7;">'.htmlspecialchars(ucfirst($item['item_type'] ?? 'Unknown')).'</div>
+            </div>';
+        }
+        $output .= '</div></div>';
+    }
+    
+    $output .= '</div>';
+    return $output;
 }
