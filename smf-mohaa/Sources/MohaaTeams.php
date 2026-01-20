@@ -41,7 +41,7 @@ function MohaaTeams_ProfileAreas(array &$profile_areas): void
  */
 function MohaaTeams_Main(): void
 {
-    global $context, $txt, $modSettings;
+    global $context, $txt, $modSettings, $smcFunc, $db_prefix;
     
     if (empty($modSettings['mohaa_stats_enabled'])) {
         fatal_error($txt['mohaa_stats_disabled'], false);
@@ -70,7 +70,118 @@ function MohaaTeams_Main(): void
     
     $sa = isset($_GET['sa']) && isset($subActions[$_GET['sa']]) ? $_GET['sa'] : 'list';
     
+    // Auto-install tables if missing
+    db_extend('packages');
+    
+    $check = $smcFunc['db_query']('', 'SHOW TABLES LIKE {string:table}', ['table' => $db_prefix . 'mohaa_teams']);
+    $needsInstall = ($smcFunc['db_num_rows']($check) == 0);
+    $smcFunc['db_free_result']($check);
+
+    if ($needsInstall) {
+        MohaaTeams_Install();
+    }
+    
     call_user_func($subActions[$sa]);
+}
+
+/**
+ * Auto-install tables
+ */
+function MohaaTeams_Install(): void
+{
+    global $smcFunc, $db_prefix;
+
+    $tables = [
+        'mohaa_teams' => [
+            'columns' => [
+                ['name' => 'id_team', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'auto' => true],
+                ['name' => 'team_name', 'type' => 'varchar', 'size' => 255],
+                ['name' => 'team_tag', 'type' => 'varchar', 'size' => 10],
+                ['name' => 'description', 'type' => 'text', 'default' => ''],
+                ['name' => 'logo_url', 'type' => 'varchar', 'size' => 255, 'default' => ''],
+                ['name' => 'website', 'type' => 'varchar', 'size' => 255, 'default' => ''],
+                ['name' => 'id_captain', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'founded_date', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'status', 'type' => 'varchar', 'size' => 20, 'default' => 'active'],
+                ['name' => 'rating', 'type' => 'int', 'size' => 10, 'default' => 1000],
+                ['name' => 'wins', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'losses', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'recruiting', 'type' => 'tinyint', 'size' => 4, 'unsigned' => true, 'default' => 0],
+            ],
+            'indexes' => [
+                ['type' => 'primary', 'columns' => ['id_team']],
+                ['type' => 'index', 'columns' => ['status']],
+                ['type' => 'index', 'columns' => ['rating']],
+                ['type' => 'unique', 'columns' => ['team_name']],
+            ],
+        ],
+        'mohaa_team_members' => [
+            'columns' => [
+                ['name' => 'id_team', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'id_member', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'role', 'type' => 'varchar', 'size' => 20, 'default' => 'member'],
+                ['name' => 'joined_date', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'status', 'type' => 'varchar', 'size' => 20, 'default' => 'active'],
+            ],
+            'indexes' => [
+                ['type' => 'primary', 'columns' => ['id_team', 'id_member']],
+                ['type' => 'index', 'columns' => ['id_member']],
+            ],
+        ],
+        'mohaa_team_invites' => [
+            'columns' => [
+                ['name' => 'id_invite', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'auto' => true],
+                ['name' => 'id_team', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'id_member', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'id_inviter', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'invite_type', 'type' => 'varchar', 'size' => 20, 'default' => 'invite'],
+                ['name' => 'status', 'type' => 'varchar', 'size' => 20, 'default' => 'pending'],
+                ['name' => 'created_date', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+            ],
+            'indexes' => [
+                ['type' => 'primary', 'columns' => ['id_invite']],
+                ['type' => 'index', 'columns' => ['id_team']],
+                ['type' => 'index', 'columns' => ['id_member']],
+            ],
+        ],
+        'mohaa_team_matches' => [
+            'columns' => [
+                ['name' => 'id_match', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'auto' => true],
+                ['name' => 'id_team', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'id_opponent', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'match_date', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'result', 'type' => 'varchar', 'size' => 10, 'default' => 'win'],
+                ['name' => 'map', 'type' => 'varchar', 'size' => 100, 'default' => ''],
+                ['name' => 'score_us', 'type' => 'int', 'size' => 10, 'default' => 0],
+                ['name' => 'score_them', 'type' => 'int', 'size' => 10, 'default' => 0],
+            ],
+            'indexes' => [
+                ['type' => 'primary', 'columns' => ['id_match']],
+                ['type' => 'index', 'columns' => ['id_team']],
+                ['type' => 'index', 'columns' => ['match_date']],
+            ],
+        ],
+        'mohaa_team_challenges' => [
+            'columns' => [
+                ['name' => 'id_challenge', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'auto' => true],
+                ['name' => 'id_team_challenger', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'id_team_target', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'challenge_date', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'match_date', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'game_mode', 'type' => 'varchar', 'size' => 50, 'default' => 'tdm'],
+                ['name' => 'map', 'type' => 'varchar', 'size' => 100, 'default' => ''],
+                ['name' => 'status', 'type' => 'varchar', 'size' => 20, 'default' => 'pending'],
+            ],
+            'indexes' => [
+                ['type' => 'primary', 'columns' => ['id_challenge']],
+                ['type' => 'index', 'columns' => ['id_team_target']],
+            ],
+        ]
+    ];
+
+    foreach ($tables as $table => $data) {
+        $smcFunc['db_create_table']('{db_prefix}' . $table, $data['columns'], $data['indexes']);
+    }
 }
 
 /**

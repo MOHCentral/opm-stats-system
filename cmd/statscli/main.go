@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,7 +24,7 @@ import (
 const (
 	APIURL        = "http://localhost:8080/api/v1/ingest/events"
 	ServerToken   = "test-token"
-	Concurrency   = 20
+	Concurrency   = 2
 	PostgresURL   = "postgres://mohaa:admin123@localhost:5432/mohaa_stats?sslmode=disable"
 	ClickHouseURL = "http://localhost:8123"
 	MySQLDSN      = "smf:smf_password@tcp(localhost:3306)/smf?charset=utf8mb4"
@@ -152,6 +153,23 @@ func main() {
 		if len(players) > 0 {
 			seedEventsWithPlayers(numMatches, players)
 		}
+	case "seed-player":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: statscli seed-player <username|token> [token|matches] [matches]")
+			return
+		}
+		
+		arg2 := ""
+		if len(os.Args) >= 4 {
+			arg2 = os.Args[3]
+		}
+		
+		arg3 := 0
+		if len(os.Args) >= 5 {
+			fmt.Sscanf(os.Args[4], "%d", &arg3)
+		}
+		
+		seedPlayer(os.Args[2], arg2, arg3)
 	case "view":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: statscli view <username> or <guid>")
@@ -174,7 +192,8 @@ func printUsage() {
 
 Usage:
   statscli setup [users]     Create SMF users (default: 1000)
-  statscli seed [matches]    Seed events with existing players (default: 500)
+  statscli seed [matches]    Seed events with existing players
+  statscli seed-player <u...> Seed events for specific user & token
   statscli seed-tournaments  Seed Teams and Tournaments
   statscli full [users] [matches]  Full setup: create users + seed events
   statscli view <user>       View stats for a specific user
@@ -182,8 +201,8 @@ Usage:
   statscli status            Show database status
 
 Examples:
-  statscli full 1000 500     Create 1000 users, run 500 matches
-  statscli view PlayerOne    Show stats for PlayerOne`)
+  statscli seed-player elgan MOH-123 10
+  statscli view PlayerOne`)
 }
 
 // ============================================================================
@@ -216,10 +235,18 @@ func viewUser(identifier string) {
 	// Try to find by name first
 	err = mysql.QueryRow("SELECT id_member, member_name, email_address FROM smf_members WHERE member_name = ?", identifier).Scan(&memberID, &name, &email)
 	if err != nil {
-		// Try by GUID
-		err = mysql.QueryRow("SELECT m.id_member, m.member_name, m.email_address FROM smf_members m JOIN smf_mohaa_identities i ON m.id_member = i.id_member WHERE i.player_guid = ?", identifier).Scan(&memberID, &name, &email)
+		// Try by ID (if numeric)
+		if idVal, errAtoi := strconv.Atoi(identifier); errAtoi == nil {
+			err = mysql.QueryRow("SELECT id_member, member_name, email_address FROM smf_members WHERE id_member = ?", idVal).Scan(&memberID, &name, &email)
+		}
+		
+		// If still not found, try by GUID
 		if err != nil {
-			fmt.Printf("User not found in SMF database.\n")
+			err = mysql.QueryRow("SELECT m.id_member, m.member_name, m.email_address FROM smf_members m JOIN smf_mohaa_identities i ON m.id_member = i.id_member WHERE i.player_guid = ?", identifier).Scan(&memberID, &name, &email)
+		}
+
+		if err != nil {
+			fmt.Printf("User not found in SMF database (searched Name, ID, GUID). Error: %v\n", err)
 			return
 		}
 	}
@@ -592,7 +619,193 @@ func seedEvents(numMatches int) {
 		return
 	}
 
+	// Load tokens for these players from Postgres
+	pg, err := sql.Open("postgres", PostgresURL)
+	if err == nil {
+		defer pg.Close()
+		fmt.Println("Loading player tokens...")
+		for i := range players {
+			var token string
+			// Query for the *latest* valid token
+			err := pg.QueryRow("SELECT token FROM player_tokens WHERE smf_user_id = $1 ORDER BY expires_at DESC LIMIT 1", players[i].SMFUserID).Scan(&token)
+			if err == nil {
+				players[i].Token = token
+			}
+		}
+	} else {
+		fmt.Printf("Warning: Could not connect to Postgres to load tokens: %v. Login simulation may fail.\n", err)
+	}
+
 	fmt.Printf("Loaded %d players from database\n", len(players))
+	seedEventsWithPlayers(numMatches, players)
+}
+
+func seedPlayer(identifier string, tokenOrMatches string, matchesInput int) {
+	// Logic to parse arguments:
+	// Usage 1: seed-player <name> <token> [matches]
+	// Usage 2: seed-player <name> [matches]  (Auto-lookup token)
+	// Usage 3: seed-player <token> [matches] (Lookup user by token)
+
+	var token string
+	var numMatches = 5
+
+	// Heuristic to check if 'tokenOrMatches' is actually the match count (numeric)
+	if val, err := strconv.Atoi(tokenOrMatches); err == nil && val > 0 {
+		numMatches = val
+		// If 2nd arg is number, then token is implicit (or identifier IS the token)
+	} else if tokenOrMatches != "" {
+		token = tokenOrMatches
+		if matchesInput > 0 {
+			numMatches = matchesInput
+		}
+	} else if matchesInput > 0 {
+		numMatches = matchesInput
+	}
+
+	fmt.Printf("Seeding Player: Identifier='%s', Token='%s', Matches=%d\n", identifier, token, numMatches)
+
+	// DB Connections
+	mysql, err := sql.Open("mysql", MySQLDSN)
+	if err != nil {
+		fmt.Printf("Error connecting to MySQL: %v\n", err)
+		return
+	}
+	defer mysql.Close()
+
+	pg, err := sql.Open("postgres", PostgresURL)
+	if err != nil {
+		fmt.Printf("Error connecting to Postgres: %v\n", err)
+		return
+	}
+	defer pg.Close()
+
+	var target Player
+	var memberID int
+
+	// Case A: Identifier is likely a Token/GUID (UUID or starts with MOH-)
+	isTokenLike := strings.Contains(identifier, "-") || strings.HasPrefix(identifier, "MOH")
+	
+	found := false
+	if isTokenLike {
+		// Try to find user by Token in Postgres FIRST
+		var smfID int
+		err := pg.QueryRow("SELECT smf_user_id FROM player_tokens WHERE token = $1", identifier).Scan(&smfID)
+		if err == nil {
+			// Found user ID by token
+			token = identifier
+			identifier = strconv.Itoa(smfID) // treat as ID for next lookup
+			fmt.Printf("✓ Found User ID %d from token '%s'\n", smfID, token)
+		} else {
+			// Maybe identifier is GUID?
+			err = mysql.QueryRow("SELECT m.id_member, m.member_name, i.player_guid FROM smf_members m JOIN smf_mohaa_identities i ON m.id_member = i.id_member WHERE i.player_guid = ?", identifier).Scan(&memberID, &target.Name, &target.GUID)
+			if err == nil {
+				found = true
+				fmt.Printf("✓ Found User '%s' from GUID '%s'\n", target.Name, identifier)
+			}
+		}
+	}
+
+	// Case B: Identifier is Username (or ID from Case A)
+	if !found {
+		// Try by Name
+		err = mysql.QueryRow("SELECT m.id_member, m.member_name, i.player_guid FROM smf_members m JOIN smf_mohaa_identities i ON m.id_member = i.id_member WHERE m.member_name = ?", identifier).Scan(&memberID, &target.Name, &target.GUID)
+		if err != nil {
+			// Try by ID
+			if idVal, errAtoi := strconv.Atoi(identifier); errAtoi == nil {
+				err = mysql.QueryRow("SELECT m.id_member, m.member_name, i.player_guid FROM smf_members m JOIN smf_mohaa_identities i ON m.id_member = i.id_member WHERE m.id_member = ?", idVal).Scan(&memberID, &target.Name, &target.GUID)
+			}
+		}
+
+		if err == nil {
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Printf("User '%s' not found. Ensure they exist and have a GUID (run setup if needed).\n", identifier)
+		return
+	}
+
+	target.SMFUserID = memberID
+
+	// Token Handling
+	if token == "" {
+		// If token wasn't provided or found, look it up
+		err := pg.QueryRow("SELECT token FROM player_tokens WHERE smf_user_id = $1 ORDER BY expires_at DESC LIMIT 1", memberID).Scan(&token)
+		if err != nil {
+			// No token? Generate one.
+			token = uuid.New().String()
+			fmt.Println("⚠ No token found. Generated new one.")
+		} else {
+			fmt.Println("✓ Loaded existing token")
+		}
+	}
+	target.Token = token
+	
+	// Ensure token is saved/updated
+	pg.Exec(`
+		INSERT INTO player_tokens (smf_user_id, player_guid, token, expires_at)
+		VALUES ($1, $2, $3, NOW() + INTERVAL '1 year')
+		ON CONFLICT (token) DO UPDATE SET expires_at = NOW() + INTERVAL '1 year'
+	`, target.SMFUserID, target.GUID, target.Token)
+
+
+	// Set Defaults
+	target.Team = "allies"
+	target.Skill = 0.9
+	target.Style = "aggressive"
+	target.Favorite = "Thompson"
+
+	// FIX: If GUID is legacy/invalid "GUID_ELGAN", update it to a valid UUID
+	if target.GUID == "GUID_ELGAN" || !strings.Contains(target.GUID, "-") {
+		newGUID := uuid.New().String()
+		fmt.Printf("⚠ Found invalid GUID '%s' for user '%s'. Updating to '%s'...\n", target.GUID, target.Name, newGUID)
+		
+		_, err := mysql.Exec("UPDATE smf_mohaa_identities SET player_guid = ? WHERE id_member = ?", newGUID, target.SMFUserID)
+		if err != nil {
+			fmt.Printf("Error updating GUID in MySQL: %v\n", err)
+			return
+		}
+		target.GUID = newGUID
+		fmt.Println("✓ GUID updated in MySQL")
+	}
+
+	fmt.Printf("Target Player: %s (ID: %d, GUID: %s)\n", target.Name, target.SMFUserID, target.GUID)
+
+	// 3. Load ~9 Opponents to ensure a full match
+	rows, err := mysql.Query(`
+		SELECT m.id_member, m.member_name, i.player_guid 
+		FROM smf_members m 
+		JOIN smf_mohaa_identities i ON m.id_member = i.id_member 
+		WHERE m.id_member != ? 
+		LIMIT 9
+	`, memberID)
+	
+	var opponents []Player
+	if err == nil {
+		for rows.Next() {
+			var p Player
+			var uid int
+			rows.Scan(&uid, &p.Name, &p.GUID)
+			p.SMFUserID = uid
+			
+			// Fetch their token too
+			pg.QueryRow("SELECT token FROM player_tokens WHERE smf_user_id = $1 ORDER BY expires_at DESC LIMIT 1", uid).Scan(&p.Token)
+			
+			// Random attributes
+			p.Team = []string{"allies", "axis"}[rand.Intn(2)]
+			p.Skill = 0.5
+			p.Style = "defensive"
+			p.Favorite = weapons[rand.Intn(len(weapons))]
+			
+			opponents = append(opponents, p)
+		}
+		rows.Close()
+	}
+
+	players := append([]Player{target}, opponents...)
+	fmt.Printf("assembled match pool of %d players (Target + %d Opponents)\n", len(players), len(opponents))
+
 	seedEventsWithPlayers(numMatches, players)
 }
 
@@ -672,11 +885,12 @@ func clearData() {
 		mysql.Exec("DELETE FROM smf_mohaa_identities WHERE member_id > 1")
 		mysql.Exec("DELETE FROM smf_members WHERE id_member > 1")
 
-		// Clear Tournaments & Teams
-		mysql.Exec("TRUNCATE TABLE smf_mohaa_tournaments")
-		mysql.Exec("TRUNCATE TABLE smf_mohaa_tournament_registrations")
-		mysql.Exec("TRUNCATE TABLE smf_mohaa_team_members")
-		mysql.Exec("TRUNCATE TABLE smf_mohaa_teams")
+		// Clear Tournaments & Teams (DROP to ensure schema updates)
+		mysql.Exec("DROP TABLE IF EXISTS smf_mohaa_tournaments")
+		mysql.Exec("DROP TABLE IF EXISTS smf_mohaa_tournament_registrations")
+		mysql.Exec("DROP TABLE IF EXISTS smf_mohaa_team_members")
+		mysql.Exec("DROP TABLE IF EXISTS smf_mohaa_teams")
+
 
 		mysql.Close()
 		fmt.Println("✓ SMF test users & tournaments cleared")
@@ -992,6 +1206,7 @@ func (m *MatchSimulator) selectHitloc(skill float32) string {
 }
 
 func (m *MatchSimulator) sendEvent(event map[string]interface{}) {
+	time.Sleep(5 * time.Millisecond)
 	data, _ := json.Marshal(event)
 
 	req, _ := http.NewRequest("POST", APIURL, bytes.NewReader(data))

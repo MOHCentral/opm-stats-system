@@ -26,6 +26,7 @@ function print_help() {
     echo "  ${GREEN}view <user>${NC}    View stats for a specific user"
     echo "  ${GREEN}setup [N]${NC}      Create N users (default 1000)"
     echo "  ${GREEN}seed [N]${NC}       Simulate N matches (default 500)"
+    echo "  ${GREEN}seed-player${NC}    Seed events for specific user"
     echo "  ${GREEN}full-seed${NC}      Run full setup + seed"
     echo "  ${GREEN}seed-tournaments${NC} Create teams and tournaments"
     echo "  ${GREEN}help${NC}           Show this help message"
@@ -104,6 +105,13 @@ case "$1" in
         ;;
     "seed-tournaments")
         ./statscli seed-tournaments
+        ;;
+    "seed-player")
+        if [ -z "$2" ]; then
+          echo "Usage: ./cli seed-player <username|token> [token|matches] [matches]"
+          exit 1
+        fi
+        ./statscli seed-player "$2" "$3" "$4"
         ;;
     "setup")
         ./statscli setup "$2"

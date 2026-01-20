@@ -86,7 +86,7 @@ function MohaaStats_MenuButtons(array &$buttons): void
             ],
             'servers' => [
                 'title' => $txt['mohaa_servers'] ?? 'Servers',
-                'href' => $scripturl . '?action=mohaastats;sa=servers',
+                'href' => $scripturl . '?action=mohaaservers',
                 'show' => true,
             ],
             'maps' => [

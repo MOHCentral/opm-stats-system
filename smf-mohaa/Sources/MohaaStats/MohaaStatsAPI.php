@@ -125,6 +125,14 @@ class MohaaStatsAPIClient
     public function getMapDetails(string $mapId): ?array { return $this->get('/stats/map/' . urlencode($mapId)); }
     public function getMapHeatmap(string $mapId, string $type = 'kills'): ?array { return $this->get('/stats/map/' . urlencode($mapId) . '/heatmap', ['type'=>$type]); }
     public function getMapsList(): ?array { return $this->get('/stats/maps/list'); }
+    public function getMapLeaderboard(string $mapId, int $limit = 25): ?array { return $this->get('/stats/leaderboard/map/' . urlencode($mapId), ['limit' => $limit]); }
+    
+    // Game Type Stats (derived from map prefixes dynamically)
+    public function getGameTypeStats(): ?array { return $this->get('/stats/gametypes'); }
+    public function getGameTypesList(): ?array { return $this->get('/stats/gametypes/list'); }
+    public function getGameTypeDetails(string $gameType): ?array { return $this->get('/stats/gametype/' . urlencode($gameType)); }
+    public function getGameTypeLeaderboard(string $gameType, int $limit = 25): ?array { return $this->get('/stats/leaderboard/gametype/' . urlencode($gameType), ['limit' => $limit]); }
+    
     public function getWeaponsList(): ?array { return $this->get('/stats/weapons/list'); }
     public function getWeaponStats(string $weaponId): ?array { return $this->get('/stats/weapon/' . urlencode($weaponId)); }
     public function initClaim(int $forumUserId): ?array { return $this->post('/auth/claim/init', ['forum_user_id'=>$forumUserId]); }
@@ -139,21 +147,292 @@ class MohaaStatsAPIClient
     public function getAchievement(int $id): ?array { return $this->get('/achievements/' . $id); }
     public function getRecentAchievements(): ?array { return $this->get('/achievements/recent'); }
     
-    // Server methods - stub implementations until Go API has server endpoints
-    public function getServerList(): array { return []; }
-    public function getServerGlobalStats(): array { return ['total_servers' => 0, 'online_servers' => 0, 'total_players' => 0]; }
-    public function getLiveServers(): array { return []; }
-    public function getServerDetails(string $id): ?array { return null; }
-    public function getServerCurrentMatch(string $id): ?array { return null; }
-    public function getServerMatches(string $id, int $limit = 20): array { return []; }
-    public function getServerTopPlayers(string $id, int $limit = 10): array { return []; }
-    public function getServerMapRotation(string $id): array { return []; }
-    public function getServerUptimeHistory(string $id, int $days = 7): array { return []; }
-    public function getServerPlayerHistory(string $id, int $hours = 24): array { return []; }
-    public function getAllServersHistory(int $days = 7): array { return []; }
-    public function getServerHistory(string $id, int $days = 7): array { return []; }
-    public function getHistoricalPlayerCounts(string $id, int $days = 7): array { return []; }
-    public function getHistoricalMatchCounts(string $id, int $days = 7): array { return []; }
+    // =========================================================================
+    // SERVER TRACKING ENDPOINTS - Full API Implementation
+    // =========================================================================
+    
+    /**
+     * Get list of all servers with live status and rankings
+     */
+    public function getServerList(): ?array 
+    { 
+        return $this->get('/servers'); 
+    }
+    
+    /**
+     * Get aggregate stats across all servers
+     */
+    public function getServerGlobalStats(): ?array 
+    { 
+        $data = $this->get('/servers/stats');
+        return $data ?? [
+            'total_servers' => 0, 
+            'online_servers' => 0, 
+            'total_players_now' => 0,
+            'total_kills_today' => 0,
+            'total_matches_today' => 0,
+            'peak_players_today' => 0
+        ]; 
+    }
+    
+    /**
+     * Get server rankings list
+     */
+    public function getServerRankings(int $limit = 50): ?array 
+    { 
+        return $this->get('/servers/rankings', ['limit' => $limit]); 
+    }
+    
+    /**
+     * Get live servers (actually online right now)
+     */
+    public function getLiveServers(): ?array 
+    { 
+        $servers = $this->get('/servers');
+        if ($servers === null) return [];
+        return array_filter($servers, fn($s) => $s['is_online'] ?? false);
+    }
+    
+    /**
+     * Get comprehensive details for a specific server
+     */
+    public function getServerDetails(string $id): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id)); 
+    }
+    
+    /**
+     * Get real-time live status (players, map, match)
+     */
+    public function getServerLiveStatus(string $id): ?array 
+    { 
+        $orig = $this->cacheDuration;
+        $this->cacheDuration = 10; // Short cache for live data
+        $data = $this->get('/servers/' . urlencode($id) . '/live');
+        $this->cacheDuration = $orig;
+        return $data;
+    }
+    
+    /**
+     * Get current match info for a server (alias for live status)
+     */
+    public function getServerCurrentMatch(string $id): ?array 
+    { 
+        $live = $this->getServerLiveStatus($id);
+        return $live['current_match'] ?? null;
+    }
+    
+    /**
+     * Get recent matches played on a server
+     */
+    public function getServerMatches(string $id, int $limit = 20): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/matches', ['limit' => $limit]); 
+    }
+    
+    /**
+     * Get top players for a specific server
+     */
+    public function getServerTopPlayers(string $id, int $limit = 25): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/top-players', ['limit' => $limit]); 
+    }
+    
+    /**
+     * Get map statistics for a server
+     */
+    public function getServerMapStats(string $id): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/maps'); 
+    }
+    
+    /**
+     * Get map rotation (alias for map stats)
+     */
+    public function getServerMapRotation(string $id): ?array 
+    { 
+        return $this->getServerMapStats($id);
+    }
+    
+    /**
+     * Get weapon statistics for a server
+     */
+    public function getServerWeaponStats(string $id): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/weapons'); 
+    }
+    
+    /**
+     * Get peak hours heatmap data (by day/hour)
+     */
+    public function getServerPeakHours(string $id, int $days = 30): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/peak-hours', ['days' => $days]); 
+    }
+    
+    /**
+     * Get player count history for charts
+     */
+    public function getServerPlayerHistory(string $id, int $hours = 24): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/player-history', ['hours' => $hours]); 
+    }
+    
+    /**
+     * Get activity timeline (kills, deaths, players by hour)
+     */
+    public function getServerActivityTimeline(string $id, int $days = 7): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/activity-timeline', ['days' => $days]); 
+    }
+    
+    /**
+     * Get historical player counts (for charts)
+     */
+    public function getHistoricalPlayerCounts(string $id, int $days = 7): ?array 
+    { 
+        return $this->getServerPlayerHistory($id, $days * 24);
+    }
+    
+    /**
+     * Get historical match counts
+     */
+    public function getHistoricalMatchCounts(string $id, int $days = 7): ?array 
+    { 
+        return $this->getServerActivityTimeline($id, $days);
+    }
+    
+    /**
+     * Get all servers history summary
+     */
+    public function getAllServersHistory(int $days = 7): ?array 
+    { 
+        // Get rankings which include 24h stats
+        return $this->getServerRankings(100);
+    }
+    
+    /**
+     * Get server history (detail + timeline)
+     */
+    public function getServerHistory(string $id, int $days = 7): ?array 
+    { 
+        return $this->getServerActivityTimeline($id, $days);
+    }
+    
+    /**
+     * Get uptime history for a server
+     */
+    public function getServerUptimeHistory(string $id, int $days = 7): ?array 
+    { 
+        // Uptime is part of server details
+        $details = $this->getServerDetails($id);
+        return $details['uptime'] ?? null;
+    }
+    
+    /**
+     * Batch fetch multiple server endpoints in parallel
+     */
+    public function getServerDashboardData(string $id): array
+    {
+        return $this->getMultiple([
+            'detail' => ['endpoint' => '/servers/' . urlencode($id)],
+            'top_players' => ['endpoint' => '/servers/' . urlencode($id) . '/top-players', 'params' => ['limit' => 10]],
+            'maps' => ['endpoint' => '/servers/' . urlencode($id) . '/maps'],
+            'weapons' => ['endpoint' => '/servers/' . urlencode($id) . '/weapons'],
+            'peak_hours' => ['endpoint' => '/servers/' . urlencode($id) . '/peak-hours'],
+            'player_history' => ['endpoint' => '/servers/' . urlencode($id) . '/player-history', 'params' => ['hours' => 168]],
+            'matches' => ['endpoint' => '/servers/' . urlencode($id) . '/matches', 'params' => ['limit' => 10]],
+        ]);
+    }
+    
+    // =========================================================================
+    // SERVER FAVORITES
+    // =========================================================================
+    
+    /**
+     * Get user's favorite servers
+     */
+    public function getUserFavoriteServers(): ?array 
+    { 
+        return $this->get('/servers/favorites'); 
+    }
+    
+    /**
+     * Add server to favorites
+     */
+    public function addServerFavorite(string $id, string $nickname = ''): ?array 
+    { 
+        return $this->post('/servers/' . urlencode($id) . '/favorite', ['nickname' => $nickname]); 
+    }
+    
+    /**
+     * Remove server from favorites
+     */
+    public function removeServerFavorite(string $id): ?array 
+    { 
+        // Use DELETE method via POST with _method override
+        return $this->post('/servers/' . urlencode($id) . '/favorite?_method=DELETE', []); 
+    }
+    
+    /**
+     * Check if server is favorited
+     */
+    public function isServerFavorite(string $id): bool 
+    { 
+        $result = $this->get('/servers/' . urlencode($id) . '/favorite');
+        return $result['is_favorite'] ?? false;
+    }
+    
+    // =========================================================================
+    // HISTORICAL PLAYER DATA
+    // =========================================================================
+    
+    /**
+     * Get all players with historical data for a server
+     */
+    public function getServerAllPlayers(string $id, int $limit = 50, int $offset = 0): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/players', ['limit' => $limit, 'offset' => $offset]); 
+    }
+    
+    // =========================================================================
+    // MAP ROTATION ANALYSIS  
+    // =========================================================================
+    
+    /**
+     * Get detailed map rotation analysis
+     */
+    public function getServerMapRotationAnalysis(string $id, int $days = 30): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/map-rotation', ['days' => $days]); 
+    }
+    
+    // =========================================================================
+    // COUNTRY STATS
+    // =========================================================================
+    
+    /**
+     * Get player country distribution for a server
+     */
+    public function getServerCountryStats(string $id): ?array 
+    { 
+        return $this->get('/servers/' . urlencode($id) . '/countries'); 
+    }
+    
+    /**
+     * Get country flag emoji from country code
+     */
+    public static function getCountryFlag(string $countryCode): string
+    {
+        if (strlen($countryCode) !== 2) {
+            return '🌐';
+        }
+        $countryCode = strtoupper($countryCode);
+        $first = ord($countryCode[0]) - ord('A') + 0x1F1E6;
+        $second = ord($countryCode[1]) - ord('A') + 0x1F1E6;
+        return mb_chr($first) . mb_chr($second);
+    }
+    
     public function getAchievementLeaderboard(): ?array { return $this->get('/achievements/leaderboard'); }
 
     public function getActivePlayers(int $hours): ?array { return []; }

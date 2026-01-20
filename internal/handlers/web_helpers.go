@@ -193,8 +193,7 @@ func (h *Handler) getMapsList(ctx context.Context) ([]MapInfo, error) {
 		SELECT 
 			map_name,
 			countIf(event_type = 'match_start') as matches,
-			countIf(event_type = 'kill') as kills,
-			avg(duration) as avg_duration
+			countIf(event_type = 'kill') as kills
 		FROM raw_events
 		WHERE map_name != ''
 		GROUP BY map_name
@@ -207,14 +206,19 @@ func (h *Handler) getMapsList(ctx context.Context) ([]MapInfo, error) {
 
 	var maps []MapInfo
 	for rows.Next() {
-		var m MapInfo
-		var duration float64
-		if err := rows.Scan(&m.Name, &m.TotalMatches, &m.TotalKills, &duration); err != nil {
+		var name string
+		var matches, kills uint64
+		if err := rows.Scan(&name, &matches, &kills); err != nil {
+			h.logger.Warnw("Failed to scan map row", "error", err)
 			continue
 		}
-		m.ID = m.Name // Use name as ID for now
-		m.AvgDuration = int(duration)
-		maps = append(maps, m)
+		maps = append(maps, MapInfo{
+			ID:           name,
+			Name:         name,
+			TotalMatches: int64(matches),
+			TotalKills:   int64(kills),
+			AvgDuration:  0,
+		})
 	}
 	return maps, nil
 }
@@ -224,17 +228,20 @@ func (h *Handler) getMapDetails(ctx context.Context, mapID string) (*MapInfo, er
 	// Ideally this would be a specific detailed query
 	m := &MapInfo{ID: mapID, Name: mapID}
 
+	var matches, kills uint64
 	err := h.ch.QueryRow(ctx, `
 		SELECT 
 			countIf(event_type = 'match_start') as matches,
 			countIf(event_type = 'kill') as kills
 		FROM raw_events
 		WHERE map_name = ?
-	`, mapID).Scan(&m.TotalMatches, &m.TotalKills)
+	`, mapID).Scan(&matches, &kills)
 
 	if err != nil {
 		return nil, err
 	}
+	m.TotalMatches = int64(matches)
+	m.TotalKills = int64(kills)
 	return m, nil
 }
 

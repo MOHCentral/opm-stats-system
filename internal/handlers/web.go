@@ -425,16 +425,16 @@ type Achievement struct {
 }
 
 type MapInfo struct {
-	ID              string
-	Name            string
-	TotalMatches    int64
-	TotalKills      int64
-	PopularWeapon   string
-	AvgKillDistance float64
-	HSPercent       float64
-	AvgDuration     int
-	AvgPlayers      float64
-	TopWeapons      []WeaponStat
+	ID              string       `json:"id"`
+	Name            string       `json:"name"`
+	TotalMatches    int64        `json:"total_matches"`
+	TotalKills      int64        `json:"total_kills"`
+	PopularWeapon   string       `json:"popular_weapon,omitempty"`
+	AvgKillDistance float64      `json:"avg_kill_distance"`
+	HSPercent       float64      `json:"hs_percent"`
+	AvgDuration     int          `json:"avg_duration"`
+	AvgPlayers      float64      `json:"avg_players"`
+	TopWeapons      []WeaponStat `json:"top_weapons,omitempty"`
 }
 
 type MatchDetails struct {

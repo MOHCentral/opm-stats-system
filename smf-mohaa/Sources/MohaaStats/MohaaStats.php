@@ -86,12 +86,17 @@ function MohaaStats_MenuButtons(array &$buttons): void
             ],
             'servers' => [
                 'title' => $txt['mohaa_servers'] ?? 'Servers',
-                'href' => $scripturl . '?action=mohaastats;sa=servers',
+                'href' => $scripturl . '?action=mohaaservers',
                 'show' => true,
             ],
             'maps' => [
                 'title' => $txt['mohaa_maps'] ?? 'Maps',
                 'href' => $scripturl . '?action=mohaastats;sa=maps',
+                'show' => true,
+            ],
+            'gametypes' => [
+                'title' => $txt['mohaa_gametypes'] ?? 'Game Types',
+                'href' => $scripturl . '?action=mohaastats;sa=gametypes',
                 'show' => true,
             ],
             'achievements' => [
@@ -186,6 +191,8 @@ function MohaaStats_Main(): void
         'match' => 'MohaaStatsMatch',
         'maps' => 'MohaaStatsLeaderboard',
         'map' => 'MohaaStatsLeaderboard',
+        'gametypes' => 'MohaaStatsLeaderboard',
+        'gametype' => 'MohaaStatsLeaderboard',
         'servers' => 'MohaaServerStats', // New template
         'live' => 'MohaaStats',
         'link' => 'MohaaStatsPlayer',
@@ -204,6 +211,8 @@ function MohaaStats_Main(): void
         'match' => 'MohaaStats_MatchDetail',
         'maps' => 'MohaaStats_MapLeaderboard',
         'map' => 'MohaaStats_MapDetail',
+        'gametypes' => 'MohaaStats_GameTypes',
+        'gametype' => 'MohaaStats_GameTypeDetail',
         'servers' => 'MohaaStats_ServerDashboard', // New function
         'live' => 'MohaaStats_Live',
         'link' => 'MohaaStats_LinkIdentity',
@@ -628,7 +637,18 @@ function MohaaStats_MapLeaderboard(): void
     $api = new MohaaStatsAPIClient();
     
     $context['mohaa_map'] = $map;
-    $context['mohaa_maps_list'] = $api->getMapsList();
+    
+    // Get full maps stats (with matches/kills) for the overview
+    $mapsStats = $api->getMapStats();
+    if ($mapsStats !== null) {
+        // Enrich with display names
+        foreach ($mapsStats as &$m) {
+            $m['display_name'] = formatMapDisplayName($m['name'] ?? '');
+        }
+        $context['mohaa_maps_list'] = $mapsStats;
+    } else {
+        $context['mohaa_maps_list'] = [];
+    }
     
     if (!empty($map)) {
         $context['mohaa_map_data'] = $api->getMapDetails($map);
@@ -637,6 +657,79 @@ function MohaaStats_MapLeaderboard(): void
         $context['mohaa_map_data'] = [];
         $context['mohaa_map_leaderboard'] = [];
     }
+}
+
+/**
+ * Game Types statistics page
+ */
+function MohaaStats_GameTypes(): void
+{
+    global $context, $txt;
+    
+    $context['page_title'] = $txt['mohaa_gametypes'] ?? 'Game Types';
+    $context['sub_template'] = 'mohaa_stats_gametypes';
+    
+    $gameType = isset($_GET['gametype']) ? $_GET['gametype'] : '';
+    
+    $api = new MohaaStatsAPIClient();
+    
+    $context['mohaa_gametype'] = $gameType;
+    
+    // Get all game types with stats
+    $gameTypesStats = $api->getGameTypeStats();
+    if ($gameTypesStats !== null) {
+        $context['mohaa_gametypes_list'] = $gameTypesStats;
+    } else {
+        $context['mohaa_gametypes_list'] = [];
+    }
+    
+    if (!empty($gameType)) {
+        $context['mohaa_gametype_data'] = $api->getGameTypeDetails($gameType);
+        $context['mohaa_gametype_leaderboard'] = $api->getGameTypeLeaderboard($gameType, 25);
+    } else {
+        $context['mohaa_gametype_data'] = [];
+        $context['mohaa_gametype_leaderboard'] = [];
+    }
+}
+
+/**
+ * Single game type detail page
+ */
+function MohaaStats_GameTypeDetail(): void
+{
+    global $context, $txt;
+    
+    $gameType = isset($_GET['gametype']) ? $_GET['gametype'] : '';
+    
+    if (empty($gameType)) {
+        redirectexit('action=mohaastats;sa=gametypes');
+        return;
+    }
+    
+    $context['page_title'] = ($txt['mohaa_gametype'] ?? 'Game Type') . ' - ' . strtoupper($gameType);
+    $context['sub_template'] = 'mohaa_stats_gametype_detail';
+    
+    $api = new MohaaStatsAPIClient();
+    
+    $context['mohaa_gametype'] = $gameType;
+    $context['mohaa_gametype_data'] = $api->getGameTypeDetails($gameType);
+    $context['mohaa_gametype_leaderboard'] = $api->getGameTypeLeaderboard($gameType, 25);
+}
+
+/**
+ * Format map name for display
+ */
+function formatMapDisplayName(string $name): string
+{
+    $display = $name;
+    $prefixes = ['mp_', 'dm_', 'obj_', 'lib_'];
+    foreach ($prefixes as $prefix) {
+        if (strpos($display, $prefix) === 0) {
+            $display = substr($display, strlen($prefix));
+            break;
+        }
+    }
+    return ucfirst($display);
 }
 
 /**

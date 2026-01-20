@@ -552,116 +552,361 @@ function template_mohaa_stats_weapon_leaderboard()
 }
 
 /**
- * Map leaderboard template
+ * Map leaderboard template - Comprehensive Map Statistics Dashboard
  */
 function template_mohaa_stats_map_leaderboard()
 {
     global $context, $scripturl, $txt;
 
-    $map = $context['mohaa_map'] ?? '';
+    $selectedMap = $context['mohaa_map'] ?? '';
     $maps = $context['mohaa_maps_list'] ?? [];
-    $leaderboard = $context['mohaa_map_leaderboard'] ?? [];
+    $leaderboardData = $context['mohaa_map_leaderboard'] ?? [];
+    $leaderboard = $leaderboardData['leaderboard'] ?? [];
+    $mapData = $context['mohaa_map_data'] ?? [];
+    
+    // Calculate aggregate stats from maps list
+    $totalMatches = 0;
+    $totalKills = 0;
+    $topMaps = [];
+    foreach ($maps as $m) {
+        $totalMatches += ($m['total_matches'] ?? 0);
+        $totalKills += ($m['total_kills'] ?? 0);
+        $topMaps[] = $m;
+    }
+    usort($topMaps, fn($a, $b) => ($b['total_matches'] ?? 0) <=> ($a['total_matches'] ?? 0));
+    $topMaps = array_slice($topMaps, 0, 8);
+    
+    // CSS
+    echo '
+    <style>
+    .mohaa-maps-dashboard { display: flex; flex-direction: column; gap: 20px; }
+    .mohaa-maps-header { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 10px; }
+    .mohaa-maps-stat-card {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 12px; padding: 20px; text-align: center;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .mohaa-maps-stat-card .stat-icon { font-size: 2rem; margin-bottom: 10px; }
+    .mohaa-maps-stat-card .stat-value { font-size: 1.8rem; font-weight: bold; color: #fff; }
+    .mohaa-maps-stat-card .stat-label { color: #888; font-size: 0.85rem; margin-top: 5px; }
+    .mohaa-maps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .mohaa-map-card {
+        background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        border-radius: 12px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
+        transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;
+    }
+    .mohaa-map-card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+    .mohaa-map-card .map-image {
+        width: 100%; height: 140px; object-fit: cover;
+        background: #2a2a3e; display: flex; align-items: center; justify-content: center;
+    }
+    .mohaa-map-card .map-image img { width: 100%; height: 100%; object-fit: cover; }
+    .mohaa-map-card .map-placeholder { color: #666; font-size: 3rem; }
+    .mohaa-map-card .map-info { padding: 15px; }
+    .mohaa-map-card .map-name { font-size: 1.1rem; font-weight: bold; color: #fff; margin-bottom: 8px; }
+    .mohaa-map-card .map-stats { display: flex; justify-content: space-between; gap: 10px; }
+    .mohaa-map-card .map-stat { text-align: center; }
+    .mohaa-map-card .map-stat-value { font-weight: bold; color: #4fc3f7; }
+    .mohaa-map-card .map-stat-label { font-size: 0.75rem; color: #888; }
+    .mohaa-map-card.selected { border-color: #4fc3f7; box-shadow: 0 0 15px rgba(79,195,247,0.3); }
+    .mohaa-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .mohaa-chart-container { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
+    .mohaa-chart-container h4 { margin: 0 0 15px 0; color: #fff; font-size: 1rem; }
+    .mohaa-map-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .mohaa-heatmap-section { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
+    .mohaa-heatmap-section img { max-width: 100%; border-radius: 8px; }
+    .mohaa-map-leaderboard { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
+    .mohaa-map-leaderboard h4 { margin: 0 0 15px 0; color: #fff; }
+    .mohaa-map-leaderboard table { width: 100%; }
+    .mohaa-map-leaderboard th, .mohaa-map-leaderboard td { padding: 10px; text-align: left; }
+    .mohaa-map-leaderboard tr:hover { background: rgba(255,255,255,0.05); }
+    .mohaa-filters-bar { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+    .mohaa-filter-select { padding: 8px 15px; border-radius: 6px; background: #2a2a3e; color: #fff; border: 1px solid #444; }
+    @media (max-width: 768px) {
+        .mohaa-maps-header { grid-template-columns: repeat(2, 1fr); }
+        .mohaa-charts-row, .mohaa-map-detail { grid-template-columns: 1fr; }
+    }
+    </style>';
     
     echo '
     <div class="cat_bar">
-        <h3 class="catbg">', $txt['mohaa_map_stats'], '</h3>
-    </div>';
-
-    // Map selector
+        <h3 class="catbg">🗺️ ', $txt['mohaa_map_stats'] ?? 'Map Statistics', '</h3>
+    </div>
+    
+    <div class="windowbg mohaa-maps-dashboard">';
+    
+    // Aggregate Stats Header
     echo '
-    <div class="windowbg mohaa-filters">
-        <form action="', $scripturl, '?action=mohaastats;sa=maps" method="get">
-            <input type="hidden" name="action" value="mohaastats" />
-            <input type="hidden" name="sa" value="maps" />
-            
-            <label>
-                ', $txt['mohaa_map'], ':
-                <select name="map" onchange="this.form.submit()">';
-
+        <div class="mohaa-maps-header">
+            <div class="mohaa-maps-stat-card">
+                <div class="stat-icon">🗺️</div>
+                <div class="stat-value">', count($maps), '</div>
+                <div class="stat-label">Total Maps</div>
+            </div>
+            <div class="mohaa-maps-stat-card">
+                <div class="stat-icon">🎮</div>
+                <div class="stat-value">', number_format($totalMatches), '</div>
+                <div class="stat-label">Total Matches</div>
+            </div>
+            <div class="mohaa-maps-stat-card">
+                <div class="stat-icon">💀</div>
+                <div class="stat-value">', number_format($totalKills), '</div>
+                <div class="stat-label">Total Kills</div>
+            </div>
+            <div class="mohaa-maps-stat-card">
+                <div class="stat-icon">🏆</div>
+                <div class="stat-value">', !empty($topMaps) ? ($topMaps[0]['display_name'] ?? $topMaps[0]['name'] ?? 'N/A') : 'N/A', '</div>
+                <div class="stat-label">Most Popular Map</div>
+            </div>
+        </div>';
+    
+    // Charts Row - Map Popularity
+    echo '
+        <div class="mohaa-charts-row">
+            <div class="mohaa-chart-container">
+                <h4>📊 Map Popularity (By Matches)</h4>
+                <div id="mapPopularityChart" style="height: 300px;"></div>
+            </div>
+            <div class="mohaa-chart-container">
+                <h4>💀 Map Lethality (Kills Per Map)</h4>
+                <div id="mapKillsChart" style="height: 300px;"></div>
+            </div>
+        </div>';
+    
+    // Map Filter / Search
+    echo '
+        <div class="mohaa-filters-bar">
+            <strong>Select Map:</strong>
+            <form action="', $scripturl, '?action=mohaastats;sa=maps" method="get" style="display: inline-flex; gap: 10px;">
+                <input type="hidden" name="action" value="mohaastats" />
+                <input type="hidden" name="sa" value="maps" />
+                <select name="map" class="mohaa-filter-select" onchange="this.form.submit()">
+                    <option value="">-- All Maps Overview --</option>';
+    
     foreach ($maps as $m) {
-        $selected = ($m['name'] === $map) ? ' selected' : '';
+        $mapName = $m['name'] ?? '';
+        $displayName = $m['display_name'] ?? $mapName;
+        $selected = ($mapName === $selectedMap) ? ' selected' : '';
         echo '
-                    <option value="', $m['name'], '"', $selected, '>', $m['display_name'] ?? $m['name'], '</option>';
+                    <option value="', htmlspecialchars($mapName), '"', $selected, '>', htmlspecialchars($displayName), '</option>';
     }
-
+    
     echo '
                 </select>
-            </label>
-        </form>
-    </div>';
-
-    // Map preview and heatmap
-    if (!empty($map)) {
-        $mapData = $context['mohaa_map_data'] ?? [];
+            </form>
+        </div>';
+    
+    // If a specific map is selected, show detailed view
+    if (!empty($selectedMap) && !empty($mapData)) {
+        $displayName = $mapData['display_name'] ?? $selectedMap;
         
         echo '
-    <div class="windowbg">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div>
-                <h4>', $mapData['display_name'] ?? $map, '</h4>
-                <div id="map-heatmap" class="mohaa-heatmap-container" style="margin-top: 15px;">
-                    <img src="Themes/default/images/mohaastats/maps/', $map, '.jpg" alt="', $map, '" class="map-background">
+        <div class="cat_bar" style="margin-top: 10px;">
+            <h3 class="catbg">📍 ', htmlspecialchars($displayName), ' - Detailed Statistics</h3>
+        </div>
+        
+        <div class="mohaa-maps-header" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="mohaa-maps-stat-card">
+                <div class="stat-icon">🎮</div>
+                <div class="stat-value">', number_format($mapData['total_matches'] ?? 0), '</div>
+                <div class="stat-label">Matches Played</div>
+            </div>
+            <div class="mohaa-maps-stat-card">
+                <div class="stat-icon">💀</div>
+                <div class="stat-value">', number_format($mapData['total_kills'] ?? 0), '</div>
+                <div class="stat-label">Total Kills</div>
+            </div>
+            <div class="mohaa-maps-stat-card">
+                <div class="stat-icon">⏱️</div>
+                <div class="stat-value">', format_playtime($mapData['total_playtime'] ?? 0), '</div>
+                <div class="stat-label">Total Playtime</div>
+            </div>
+            <div class="mohaa-maps-stat-card">
+                <div class="stat-icon">⚔️</div>
+                <div class="stat-value">', ($mapData['total_matches'] > 0) ? round($mapData['total_kills'] / $mapData['total_matches'], 1) : 0, '</div>
+                <div class="stat-label">Avg Kills/Match</div>
+            </div>
+        </div>
+        
+        <div class="mohaa-map-detail">
+            <div class="mohaa-heatmap-section">
+                <h4>🔥 Kill Heatmap</h4>
+                <div id="map-heatmap" style="position: relative; min-height: 300px; background: #0a0a15; border-radius: 8px; overflow: hidden;">
+                    <img src="Themes/default/images/mohaastats/maps/', htmlspecialchars($selectedMap), '.jpg" 
+                         alt="', htmlspecialchars($displayName), '" 
+                         style="width: 100%; display: block;"
+                         onerror="this.style.display=\'none\'; this.parentNode.innerHTML=\'<div style=padding:50px;text-align:center;color:#666>Map preview not available</div>\';">
+                </div>
+                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                    <button onclick="switchHeatmapType(\'kills\')" class="button" id="btn-kills" style="flex: 1;">💀 Kills</button>
+                    <button onclick="switchHeatmapType(\'deaths\')" class="button" id="btn-deaths" style="flex: 1;">☠️ Deaths</button>
                 </div>
             </div>
-            <div>
-                <div class="mohaa-stat-cards">
-                    <div class="mohaa-stat-card">
-                        <div class="stat-value">', number_format($mapData['total_matches'] ?? 0), '</div>
-                        <div class="stat-label">', $txt['mohaa_matches'], '</div>
-                    </div>
-                    <div class="mohaa-stat-card">
-                        <div class="stat-value">', number_format($mapData['total_kills'] ?? 0), '</div>
-                        <div class="stat-label">', $txt['mohaa_kills'], '</div>
-                    </div>
-                    <div class="mohaa-stat-card">
-                        <div class="stat-value">', format_playtime($mapData['total_playtime'] ?? 0), '</div>
-                        <div class="stat-label">', $txt['mohaa_playtime'], '</div>
-                    </div>
-                </div>
-                
-                <h5 style="margin-top: 20px;">', $txt['mohaa_top_players_map'], '</h5>
-                <table class="table_grid" style="width: 100%;">
+            
+            <div class="mohaa-map-leaderboard">
+                <h4>🏆 Top Players on ', htmlspecialchars($displayName), '</h4>
+                <table class="table_grid">
                     <thead>
                         <tr class="title_bar">
-                            <th>#</th>
-                            <th>', $txt['mohaa_player'], '</th>
-                            <th>', $txt['mohaa_kills'], '</th>
-                            <th>', $txt['mohaa_kd'], '</th>
+                            <th style="width: 40px;">#</th>
+                            <th>Player</th>
+                            <th style="width: 80px;">Kills</th>
+                            <th style="width: 80px;">Deaths</th>
+                            <th style="width: 70px;">K/D</th>
                         </tr>
                     </thead>
                     <tbody>';
-
-        foreach (array_slice($leaderboard, 0, 10) as $rank => $player) {
-            $kd = $player['deaths'] > 0 ? round($player['kills'] / $player['deaths'], 2) : $player['kills'];
-            
-            echo '
+        
+        if (!empty($leaderboard)) {
+            foreach (array_slice($leaderboard, 0, 15) as $rank => $player) {
+                $kills = (int)($player['kills'] ?? 0);
+                $deaths = (int)($player['deaths'] ?? 0);
+                $kd = $deaths > 0 ? round($kills / $deaths, 2) : $kills;
+                $kdClass = $kd >= 2 ? 'color: #4caf50;' : ($kd >= 1 ? 'color: #ffc107;' : 'color: #f44336;');
+                
+                echo '
                         <tr class="windowbg">
-                            <td>', $rank + 1, '</td>
+                            <td><strong>', $rank + 1, '</strong></td>
                             <td>
-                                <a href="', $scripturl, '?action=mohaastats;sa=player;id=', $player['id'], '">
-                                    ', $player['name'], '
+                                <a href="', $scripturl, '?action=mohaastats;sa=player;id=', urlencode($player['id'] ?? ''), '">
+                                    ', htmlspecialchars($player['name'] ?? 'Unknown'), '
                                 </a>
                             </td>
-                            <td>', number_format($player['kills']), '</td>
-                            <td>', $kd, '</td>
+                            <td>', number_format($kills), '</td>
+                            <td>', number_format($deaths), '</td>
+                            <td style="', $kdClass, ' font-weight: bold;">', $kd, '</td>
                         </tr>';
+            }
+        } else {
+            echo '
+                        <tr class="windowbg"><td colspan="5" style="text-align: center; color: #888;">No player data available</td></tr>';
         }
-
+        
         echo '
                     </tbody>
                 </table>
             </div>
+        </div>';
+    } else {
+        // Show all maps grid when no specific map selected
+        echo '
+        <div class="cat_bar" style="margin-top: 10px;">
+            <h3 class="catbg">🗺️ All Maps</h3>
         </div>
-    </div>
-    
-    <script>
-        var heatmapData = ', json_encode($mapData['heatmap_data'] ?? []), ';
-        var mapImage = "Themes/default/images/mohaastats/maps/', $map, '.jpg";
-        document.addEventListener("DOMContentLoaded", function() {
-            MohaaStats.initHeatmap("map-heatmap", mapImage, heatmapData.kills || [], "kills");
-        });
-    </script>';
+        
+        <div class="mohaa-maps-grid">';
+        
+        foreach ($maps as $m) {
+            $mapName = $m['name'] ?? '';
+            $displayName = $m['display_name'] ?? $mapName;
+            $matches = $m['total_matches'] ?? 0;
+            $kills = $m['total_kills'] ?? 0;
+            
+            echo '
+            <a href="', $scripturl, '?action=mohaastats;sa=maps;map=', urlencode($mapName), '" class="mohaa-map-card">
+                <div class="map-image">
+                    <img src="Themes/default/images/mohaastats/maps/', htmlspecialchars($mapName), '.jpg" 
+                         alt="', htmlspecialchars($displayName), '"
+                         onerror="this.style.display=\'none\'; this.parentNode.innerHTML=\'<div class=map-placeholder>🗺️</div>\';">
+                </div>
+                <div class="map-info">
+                    <div class="map-name">', htmlspecialchars($displayName), '</div>
+                    <div class="map-stats">
+                        <div class="map-stat">
+                            <div class="map-stat-value">', number_format($matches), '</div>
+                            <div class="map-stat-label">Matches</div>
+                        </div>
+                        <div class="map-stat">
+                            <div class="map-stat-value">', number_format($kills), '</div>
+                            <div class="map-stat-label">Kills</div>
+                        </div>
+                        <div class="map-stat">
+                            <div class="map-stat-value">', $matches > 0 ? round($kills / $matches) : 0, '</div>
+                            <div class="map-stat-label">Avg K/M</div>
+                        </div>
+                    </div>
+                </div>
+            </a>';
+        }
+        
+        if (empty($maps)) {
+            echo '
+            <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #888;">
+                <div style="font-size: 3rem; margin-bottom: 10px;">🗺️</div>
+                <div>No map data available yet. Play some matches!</div>
+            </div>';
+        }
+        
+        echo '
+        </div>';
     }
+    
+    echo '
+    </div>';
+    
+    // Charts JavaScript
+    $chartMaps = array_slice($topMaps, 0, 10);
+    $mapLabels = array_map(fn($m) => $m['display_name'] ?? $m['name'] ?? 'Unknown', $chartMaps);
+    $mapMatches = array_map(fn($m) => $m['total_matches'] ?? 0, $chartMaps);
+    $mapKills = array_map(fn($m) => $m['total_kills'] ?? 0, $chartMaps);
+    
+    echo '
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var mapLabels = ', json_encode($mapLabels), ';
+        var mapMatches = ', json_encode($mapMatches), ';
+        var mapKills = ', json_encode($mapKills), ';
+        
+        // Map Popularity Chart (Horizontal Bar)
+        if (document.getElementById("mapPopularityChart") && mapLabels.length > 0) {
+            new ApexCharts(document.getElementById("mapPopularityChart"), {
+                series: [{ name: "Matches", data: mapMatches }],
+                chart: { type: "bar", height: 300, background: "transparent", toolbar: { show: false } },
+                plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: "70%" } },
+                colors: ["#4fc3f7"],
+                xaxis: { categories: mapLabels, labels: { style: { colors: "#888" } } },
+                yaxis: { labels: { style: { colors: "#888" } } },
+                grid: { borderColor: "#333" },
+                dataLabels: { enabled: true, style: { colors: ["#fff"] } },
+                theme: { mode: "dark" }
+            }).render();
+        }
+        
+        // Map Kills Chart (Donut)
+        if (document.getElementById("mapKillsChart") && mapLabels.length > 0) {
+            new ApexCharts(document.getElementById("mapKillsChart"), {
+                series: mapKills,
+                chart: { type: "donut", height: 300, background: "transparent" },
+                labels: mapLabels,
+                colors: ["#f44336", "#e91e63", "#9c27b0", "#673ab7", "#3f51b5", "#2196f3", "#00bcd4", "#009688", "#4caf50", "#8bc34a"],
+                legend: { position: "right", labels: { colors: "#888" } },
+                dataLabels: { enabled: false },
+                plotOptions: { pie: { donut: { size: "60%", labels: { show: true, total: { show: true, label: "Total Kills", color: "#888", formatter: function(w) { return w.globals.seriesTotals.reduce((a, b) => a + b, 0).toLocaleString(); } } } } } },
+                theme: { mode: "dark" }
+            }).render();
+        }
+    });';
+    
+    // Heatmap JavaScript (only if map is selected)
+    if (!empty($selectedMap) && !empty($mapData)) {
+        $heatmapData = $mapData['heatmap_data'] ?? ['kills' => [], 'deaths' => []];
+        echo '
+    var heatmapData = ', json_encode($heatmapData), ';
+    var currentHeatmapType = "kills";
+    
+    function switchHeatmapType(type) {
+        currentHeatmapType = type;
+        document.getElementById("btn-kills").classList.toggle("button_submit", type === "kills");
+        document.getElementById("btn-deaths").classList.toggle("button_submit", type === "deaths");
+        // Re-render heatmap with new data (placeholder - implement full heatmap rendering)
+        console.log("Switching to", type, "heatmap with", (heatmapData[type] || []).length, "points");
+    }';
+    }
+    
+    echo '
+    </script>';
 }
 
 /**
@@ -858,4 +1103,357 @@ function template_mohaa_stat_card($card)
             View Full Leaderboard
         </div>
     </div>';
+}
+
+// ============================================================================
+// GAME TYPES TEMPLATE
+// ============================================================================
+
+function template_mohaa_stats_gametypes()
+{
+    global $context, $txt, $scripturl;
+    
+    $selectedGameType = $context['mohaa_gametype'] ?? '';
+    $gameTypes = $context['mohaa_gametypes_list'] ?? [];
+    $leaderboardData = $context['mohaa_gametype_leaderboard'] ?? [];
+    $leaderboard = $leaderboardData['leaderboard'] ?? [];
+    $gameTypeData = $context['mohaa_gametype_data'] ?? [];
+    
+    // Calculate aggregate stats
+    $totalMatches = 0;
+    $totalKills = 0;
+    $totalPlayers = 0;
+    foreach ($gameTypes as $gt) {
+        $totalMatches += (int)($gt['total_matches'] ?? 0);
+        $totalKills += (int)($gt['total_kills'] ?? 0);
+        $totalPlayers += (int)($gt['unique_players'] ?? 0);
+    }
+    
+    // Find most popular
+    $mostPopular = '';
+    $maxMatches = 0;
+    foreach ($gameTypes as $gt) {
+        if ((int)($gt['total_matches'] ?? 0) > $maxMatches) {
+            $maxMatches = (int)($gt['total_matches'] ?? 0);
+            $mostPopular = $gt['name'] ?? strtoupper($gt['id'] ?? '');
+        }
+    }
+    
+    // CSS
+    echo '
+    <style>
+    .mohaa-gametypes-dashboard { display: flex; flex-direction: column; gap: 20px; }
+    .mohaa-gametypes-header { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 10px; }
+    .mohaa-gametypes-stat-card {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 12px; padding: 20px; text-align: center;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .mohaa-gametypes-stat-card .stat-icon { font-size: 2rem; margin-bottom: 10px; }
+    .mohaa-gametypes-stat-card .stat-value { font-size: 1.8rem; font-weight: bold; color: #fff; }
+    .mohaa-gametypes-stat-card .stat-label { color: #888; font-size: 0.85rem; margin-top: 5px; }
+    .mohaa-gametypes-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .mohaa-gametypes-chart-card {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 12px; padding: 20px;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .mohaa-gametypes-chart-card h4 { color: #fff; margin: 0 0 15px 0; }
+    .mohaa-gametypes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .mohaa-gametype-card {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 12px; overflow: hidden; cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .mohaa-gametype-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+    .mohaa-gametype-card-header { padding: 20px; text-align: center; background: rgba(0,0,0,0.2); }
+    .mohaa-gametype-card-header .icon { font-size: 3rem; margin-bottom: 10px; }
+    .mohaa-gametype-card-header .name { font-size: 1.3rem; font-weight: bold; color: #fff; }
+    .mohaa-gametype-card-header .description { color: #888; font-size: 0.85rem; margin-top: 5px; }
+    .mohaa-gametype-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); padding: 15px; }
+    .mohaa-gametype-card-stats .stat { text-align: center; }
+    .mohaa-gametype-card-stats .stat-value { font-size: 1.2rem; font-weight: bold; color: #4fc3f7; }
+    .mohaa-gametype-card-stats .stat-label { font-size: 0.75rem; color: #888; }
+    .mohaa-gametype-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .mohaa-gametype-detail-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+    .mohaa-gametype-maps-list { max-height: 400px; overflow-y: auto; }
+    .mohaa-select-form { margin: 15px 0; }
+    .mohaa-select-form select { padding: 8px 15px; border-radius: 6px; border: 1px solid #444; background: #2a2a3e; color: #fff; }
+    </style>';
+    
+    echo '
+    <div class="cat_bar">
+        <h3 class="catbg">🎮 Game Type Statistics</h3>
+    </div>
+    
+    <div class="mohaa-gametypes-dashboard">';
+    
+    // Header stats
+    echo '
+        <div class="mohaa-gametypes-header">
+            <div class="mohaa-gametypes-stat-card">
+                <div class="stat-icon">🎮</div>
+                <div class="stat-value">', count($gameTypes), '</div>
+                <div class="stat-label">Game Types</div>
+            </div>
+            <div class="mohaa-gametypes-stat-card">
+                <div class="stat-icon">⚔️</div>
+                <div class="stat-value">', number_format($totalMatches), '</div>
+                <div class="stat-label">Total Matches</div>
+            </div>
+            <div class="mohaa-gametypes-stat-card">
+                <div class="stat-icon">💀</div>
+                <div class="stat-value">', number_format($totalKills), '</div>
+                <div class="stat-label">Total Kills</div>
+            </div>
+            <div class="mohaa-gametypes-stat-card">
+                <div class="stat-icon">🏆</div>
+                <div class="stat-value">', htmlspecialchars($mostPopular ?: 'N/A'), '</div>
+                <div class="stat-label">Most Popular</div>
+            </div>
+        </div>';
+    
+    // Charts row
+    echo '
+        <div class="mohaa-gametypes-charts">
+            <div class="mohaa-gametypes-chart-card">
+                <h4>📊 Game Type Popularity (By Matches)</h4>
+                <div id="gametypePopularityChart"></div>
+            </div>
+            <div class="mohaa-gametypes-chart-card">
+                <h4>💀 Kill Distribution By Game Type</h4>
+                <div id="gametypeKillsChart"></div>
+            </div>
+        </div>';
+    
+    // Game type selector
+    echo '
+        <div class="mohaa-select-form">
+            <form method="get" action="', $scripturl, '">
+                <input type="hidden" name="action" value="mohaastats">
+                <input type="hidden" name="sa" value="gametypes">
+                Select Game Type: 
+                <select name="gametype" onchange="this.form.submit()">
+                    <option value="">-- All Game Types Overview --</option>';
+    
+    foreach ($gameTypes as $gt) {
+        $id = $gt['id'] ?? '';
+        $name = $gt['name'] ?? strtoupper($id);
+        $icon = $gt['icon'] ?? '🎮';
+        $selected = ($selectedGameType === $id) ? ' selected' : '';
+        echo '<option value="', htmlspecialchars($id), '"', $selected, '>', $icon, ' ', htmlspecialchars($name), '</option>';
+    }
+    
+    echo '
+                </select>
+            </form>
+        </div>';
+    
+    // Show detail view if game type selected, otherwise show grid
+    if (!empty($selectedGameType) && !empty($gameTypeData)) {
+        $gtName = $gameTypeData['name'] ?? strtoupper($selectedGameType);
+        $gtIcon = $gameTypeData['icon'] ?? '🎮';
+        $gtDesc = $gameTypeData['description'] ?? '';
+        
+        echo '
+        <div class="cat_bar">
+            <h3 class="catbg">', $gtIcon, ' ', htmlspecialchars($gtName), ' - Detailed Statistics</h3>
+        </div>
+        
+        <div class="mohaa-gametype-detail-stats">
+            <div class="mohaa-gametypes-stat-card">
+                <div class="stat-icon">⚔️</div>
+                <div class="stat-value">', number_format((int)($gameTypeData['total_matches'] ?? 0)), '</div>
+                <div class="stat-label">Matches Played</div>
+            </div>
+            <div class="mohaa-gametypes-stat-card">
+                <div class="stat-icon">💀</div>
+                <div class="stat-value">', number_format((int)($gameTypeData['total_kills'] ?? 0)), '</div>
+                <div class="stat-label">Total Kills</div>
+            </div>
+            <div class="mohaa-gametypes-stat-card">
+                <div class="stat-icon">🗺️</div>
+                <div class="stat-value">', number_format((int)($gameTypeData['map_count'] ?? 0)), '</div>
+                <div class="stat-label">Maps</div>
+            </div>
+            <div class="mohaa-gametypes-stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-value">', number_format((int)($gameTypeData['unique_players'] ?? 0)), '</div>
+                <div class="stat-label">Unique Players</div>
+            </div>
+        </div>
+        
+        <div class="mohaa-gametype-detail" style="margin-top: 20px;">
+            <div class="mohaa-gametypes-chart-card">
+                <h4>🗺️ Maps in ', htmlspecialchars($gtName), '</h4>
+                <div class="mohaa-gametype-maps-list">
+                    <table class="table_grid" style="width: 100%;">
+                        <thead>
+                            <tr class="title_bar">
+                                <th>Map</th>
+                                <th>Matches</th>
+                                <th>Kills</th>
+                            </tr>
+                        </thead>
+                        <tbody>';
+        
+        $maps = $gameTypeData['maps'] ?? [];
+        if (!empty($maps)) {
+            foreach ($maps as $map) {
+                echo '
+                            <tr class="windowbg">
+                                <td>
+                                    <a href="', $scripturl, '?action=mohaastats;sa=maps;map=', urlencode($map['name'] ?? ''), '">
+                                        ', htmlspecialchars($map['display_name'] ?? $map['name'] ?? 'Unknown'), '
+                                    </a>
+                                </td>
+                                <td>', number_format((int)($map['matches'] ?? 0)), '</td>
+                                <td>', number_format((int)($map['kills'] ?? 0)), '</td>
+                            </tr>';
+            }
+        } else {
+            echo '<tr class="windowbg"><td colspan="3" style="text-align: center; color: #888;">No maps data</td></tr>';
+        }
+        
+        echo '
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="mohaa-gametypes-chart-card">
+                <h4>🏆 Top Players in ', htmlspecialchars($gtName), '</h4>
+                <table class="table_grid" style="width: 100%;">
+                    <thead>
+                        <tr class="title_bar">
+                            <th>#</th>
+                            <th>Player</th>
+                            <th>Kills</th>
+                            <th>Deaths</th>
+                            <th>K/D</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+        
+        if (!empty($leaderboard)) {
+            foreach (array_slice($leaderboard, 0, 15) as $rank => $player) {
+                $kills = (int)($player['kills'] ?? 0);
+                $deaths = (int)($player['deaths'] ?? 0);
+                $kd = $deaths > 0 ? round($kills / $deaths, 2) : $kills;
+                $kdClass = $kd >= 2 ? 'color: #4caf50;' : ($kd >= 1 ? 'color: #ffc107;' : 'color: #f44336;');
+                
+                echo '
+                        <tr class="windowbg">
+                            <td><strong>', $rank + 1, '</strong></td>
+                            <td>
+                                <a href="', $scripturl, '?action=mohaastats;sa=player;id=', urlencode($player['id'] ?? ''), '">
+                                    ', htmlspecialchars($player['name'] ?? 'Unknown'), '
+                                </a>
+                            </td>
+                            <td>', number_format($kills), '</td>
+                            <td>', number_format($deaths), '</td>
+                            <td style="', $kdClass, ' font-weight: bold;">', $kd, '</td>
+                        </tr>';
+            }
+        } else {
+            echo '<tr class="windowbg"><td colspan="5" style="text-align: center; color: #888;">No player data</td></tr>';
+        }
+        
+        echo '
+                    </tbody>
+                </table>
+            </div>
+        </div>';
+    } else {
+        // Show all game types grid
+        echo '
+        <div class="cat_bar" style="margin-top: 10px;">
+            <h3 class="catbg">🎮 All Game Types</h3>
+        </div>
+        
+        <div class="mohaa-gametypes-grid">';
+        
+        foreach ($gameTypes as $gt) {
+            $id = $gt['id'] ?? '';
+            $name = $gt['name'] ?? strtoupper($id);
+            $icon = $gt['icon'] ?? '🎮';
+            $desc = $gt['description'] ?? '';
+            $matches = (int)($gt['total_matches'] ?? 0);
+            $kills = (int)($gt['total_kills'] ?? 0);
+            $mapCount = (int)($gt['map_count'] ?? 0);
+            
+            echo '
+            <a href="', $scripturl, '?action=mohaastats;sa=gametypes;gametype=', urlencode($id), '" class="mohaa-gametype-card">
+                <div class="mohaa-gametype-card-header">
+                    <div class="icon">', $icon, '</div>
+                    <div class="name">', htmlspecialchars($name), '</div>
+                    <div class="description">', htmlspecialchars($desc), '</div>
+                </div>
+                <div class="mohaa-gametype-card-stats">
+                    <div class="stat">
+                        <div class="stat-value">', number_format($matches), '</div>
+                        <div class="stat-label">Matches</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">', number_format($kills), '</div>
+                        <div class="stat-label">Kills</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">', number_format($mapCount), '</div>
+                        <div class="stat-label">Maps</div>
+                    </div>
+                </div>
+            </a>';
+        }
+        
+        echo '
+        </div>';
+    }
+    
+    echo '
+    </div>';
+    
+    // ApexCharts JavaScript
+    echo '
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var gameTypes = ', json_encode(array_map(function($gt) {
+            return [
+                'name' => $gt['name'] ?? strtoupper($gt['id'] ?? ''),
+                'matches' => (int)($gt['total_matches'] ?? 0),
+                'kills' => (int)($gt['total_kills'] ?? 0),
+            ];
+        }, $gameTypes)), ';
+        
+        // Popularity bar chart
+        if (document.getElementById("gametypePopularityChart") && gameTypes.length > 0) {
+            new ApexCharts(document.getElementById("gametypePopularityChart"), {
+                series: [{
+                    name: "Matches",
+                    data: gameTypes.map(function(g) { return g.matches; })
+                }],
+                chart: { type: "bar", height: 300, background: "transparent", toolbar: { show: false } },
+                plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
+                dataLabels: { enabled: true },
+                xaxis: { categories: gameTypes.map(function(g) { return g.name; }) },
+                colors: ["#4fc3f7"],
+                theme: { mode: "dark" }
+            }).render();
+        }
+        
+        // Kills donut chart
+        if (document.getElementById("gametypeKillsChart") && gameTypes.length > 0) {
+            new ApexCharts(document.getElementById("gametypeKillsChart"), {
+                series: gameTypes.map(function(g) { return g.kills; }),
+                chart: { type: "donut", height: 300, background: "transparent" },
+                labels: gameTypes.map(function(g) { return g.name; }),
+                colors: ["#e91e63", "#9c27b0", "#673ab7", "#3f51b5", "#2196f3", "#00bcd4", "#009688"],
+                legend: { position: "right", labels: { colors: "#fff" } },
+                theme: { mode: "dark" }
+            }).render();
+        }
+    });
+    </script>';
 }

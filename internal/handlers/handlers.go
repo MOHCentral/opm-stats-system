@@ -582,7 +582,7 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 
 			-- Objectives
 			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1)
-			FROM raw_events WHERE event_type='objective_update' AND extract(extra, 'status')='complete' AND actor_id != '' %s
+			FROM raw_events WHERE event_type='objective_update' AND extract(raw_json, 'status')='complete' AND actor_id != '' %s
 		)
 		GROUP BY player_id
 		HAVING kills > 0 OR deaths > 0 OR wins > 0
@@ -792,36 +792,36 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 	// Get aggregated stats from ClickHouse
 	row := h.ch.QueryRow(ctx, `
 		SELECT
-			countIf(event_type = 'kill' AND actor_id = ?) as kills,
-			countIf(event_type = 'death' AND actor_id = ?) as deaths,
-			countIf(event_type = 'headshot' AND actor_id = ?) as headshots,
-			countIf(event_type = 'weapon_fire' AND actor_id = ?) as shots_fired,
-			countIf(event_type = 'weapon_hit' AND actor_id = ?) as shots_hit,
-			sumIf(damage, actor_id = ?) as total_damage,
-			uniq(match_id) as matches_played,
-			countIf(event_type = 'match_outcome' AND actor_id = ? AND damage = 1) as matches_won,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ?)) as kills,
+			toInt64(countIf(event_type = 'death' AND actor_id = ?)) as deaths,
+			toInt64(countIf(event_type = 'headshot' AND actor_id = ?)) as headshots,
+			toInt64(countIf(event_type = 'weapon_fire' AND actor_id = ?)) as shots_fired,
+			toInt64(countIf(event_type = 'weapon_hit' AND actor_id = ?)) as shots_hit,
+			toInt64(sumIf(damage, actor_id = ?)) as total_damage,
+			toInt64(uniq(match_id)) as matches_played,
+			toInt64(countIf(event_type = 'match_outcome' AND actor_id = ? AND damage = 1)) as matches_won,
 			max(timestamp) as last_active,
 			any(actor_name) as name,
 			
 			-- Granular Combat Metrics
-			countIf(event_type = 'kill' AND actor_id = ? AND distance > 100) as long_range_kills,
-			countIf(event_type = 'kill' AND actor_id = ? AND distance < 5) as close_range_kills,
-			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%wallbang%') as wallbang_kills,
-			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%collateral%') as collateral_kills,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND distance > 100)) as long_range_kills,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND distance < 5)) as close_range_kills,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%wallbang%')) as wallbang_kills,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%collateral%')) as collateral_kills,
 
 			-- Stance Metrics (parsed from event extra data when available)
-			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%prone%') as kills_while_prone,
-			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%crouch%') as kills_while_crouching,
-			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%stand%') as kills_while_standing,
-			countIf(event_type = 'kill' AND actor_id = ? AND (abs(actor_pos_x - attacker_x) > 1 OR abs(actor_pos_y - attacker_y) > 1)) as kills_while_moving,
-			countIf(event_type = 'kill' AND actor_id = ? AND (abs(actor_pos_x - attacker_x) <= 1 AND abs(actor_pos_y - attacker_y) <= 1)) as kills_while_stationary,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%prone%')) as kills_while_prone,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%crouch%')) as kills_while_crouching,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%stand%')) as kills_while_standing,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND (abs(actor_pos_x - actor_pos_x) > 1 OR abs(actor_pos_y - actor_pos_y) > 1))) as kills_while_moving,
+			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND (abs(actor_pos_x - actor_pos_x) <= 1 AND abs(actor_pos_y - actor_pos_y) <= 1))) as kills_while_stationary,
 
 			-- Movement Metrics
 			sumIf(distance, event_type = 'distance' AND actor_id = ?) / 1000.0 as total_distance_km, -- assuming distance is in meters or units
-			sumIf(distance, event_type = 'distance' AND actor_id = ? AND extra LIKE '%sprint%') / 1000.0 as sprint_distance_km,
-			countIf(event_type = 'jump' AND actor_id = ?) as jump_count,
-			sumIf(duration, event_type = 'crouch' AND actor_id = ?) as crouch_time_seconds,
-			sumIf(duration, event_type = 'prone' AND actor_id = ?) as prone_time_seconds
+			sumIf(distance, event_type = 'distance' AND actor_id = ? AND raw_json LIKE '%sprint%') / 1000.0 as sprint_distance_km,
+			toInt64(countIf(event_type = 'jump' AND actor_id = ?)) as jump_count,
+			toInt64(sumIf(0, event_type = 'crouch' AND actor_id = ?)) as crouch_time_seconds,
+			toInt64(sumIf(0, event_type = 'prone' AND actor_id = ?)) as prone_time_seconds
 		FROM raw_events
 		WHERE actor_id = ?
 	`, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid)
@@ -1221,7 +1221,7 @@ func (h *Handler) GetPlayerBodyHeatmap(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.ch.Query(ctx, `
 		SELECT 
 			replaceRegexpOne(
-				extract(extra, 'hitloc_([a-zA-Z0-9_]+)'),
+				extract(raw_json, 'hitloc_([a-zA-Z0-9_]+)'),
 				'^$', 'torso'
 			) as body_part,
 			count() as hits
@@ -1698,6 +1698,25 @@ func (h *Handler) AdminAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// getUserIDFromContext extracts user ID from request context
+func (h *Handler) getUserIDFromContext(ctx context.Context) int {
+	if userID := ctx.Value("user_id"); userID != nil {
+		switch v := userID.(type) {
+		case int:
+			return v
+		case int64:
+			return int(v)
+		case float64:
+			return int(v)
+		case uuid.UUID:
+			// For UUID-based user IDs, we'd need a lookup
+			// For now, return 0 (unauthenticated)
+			return 0
+		}
+	}
+	return 0
+}
+
 // GetGlobalActivity returns heat map data for server activity
 func (h *Handler) GetGlobalActivity(w http.ResponseWriter, r *http.Request) {
 	activity, err := h.serverStats.GetGlobalActivity(r.Context())
@@ -1749,6 +1768,456 @@ func (h *Handler) GetMatchAdvancedDetails(w http.ResponseWriter, r *http.Request
 // ============================================================================
 // HELPERS
 // ============================================================================
+// MAP ENDPOINTS
+// ============================================================================
+
+// GetMapStats returns all maps with their statistics
+func (h *Handler) GetMapStats(w http.ResponseWriter, r *http.Request) {
+	maps, err := h.getMapsList(r.Context())
+	if err != nil {
+		h.logger.Errorw("Failed to get map stats", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	h.jsonResponse(w, http.StatusOK, maps)
+}
+
+// GetMapsList returns a simple list of maps for dropdowns
+func (h *Handler) GetMapsList(w http.ResponseWriter, r *http.Request) {
+	maps, err := h.getMapsList(r.Context())
+	if err != nil {
+		h.logger.Errorw("Failed to get maps list", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Return simplified list for dropdown
+	type mapItem struct {
+		Name        string `json:"name"`
+		DisplayName string `json:"display_name"`
+	}
+
+	result := make([]mapItem, len(maps))
+	for i, m := range maps {
+		result[i] = mapItem{
+			Name:        m.Name,
+			DisplayName: formatMapName(m.Name),
+		}
+	}
+	h.jsonResponse(w, http.StatusOK, result)
+}
+
+// GetMapDetail returns detailed statistics for a single map
+func (h *Handler) GetMapDetail(w http.ResponseWriter, r *http.Request) {
+	mapID := chi.URLParam(r, "mapId")
+	if mapID == "" {
+		h.errorResponse(w, http.StatusBadRequest, "Map ID required")
+		return
+	}
+
+	ctx := r.Context()
+	mapInfo, err := h.getMapDetails(ctx, mapID)
+	if err != nil {
+		h.logger.Errorw("Failed to get map details", "error", err, "map", mapID)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Get top players on this map
+	var topPlayers []struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Kills  int    `json:"kills"`
+		Deaths int    `json:"deaths"`
+	}
+
+	rows, err := h.ch.Query(ctx, `
+		SELECT 
+			player_guid as id,
+			any(player_name) as name,
+			countIf(event_type = 'kill' AND raw_json->>'attacker_guid' = player_guid) as kills,
+			countIf(event_type = 'kill' AND raw_json->>'victim_guid' = player_guid) as deaths
+		FROM raw_events
+		WHERE map_name = ?
+		GROUP BY player_guid
+		ORDER BY kills DESC
+		LIMIT 25
+	`, mapID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var p struct {
+				ID     string `json:"id"`
+				Name   string `json:"name"`
+				Kills  int    `json:"kills"`
+				Deaths int    `json:"deaths"`
+			}
+			if err := rows.Scan(&p.ID, &p.Name, &p.Kills, &p.Deaths); err == nil {
+				topPlayers = append(topPlayers, p)
+			}
+		}
+	}
+
+	// Get heatmap data
+	heatmapData := make(map[string]interface{})
+	killsHeatmap, _ := h.getMapHeatmapData(ctx, mapID, "kills")
+	deathsHeatmap, _ := h.getMapHeatmapData(ctx, mapID, "deaths")
+	heatmapData["kills"] = killsHeatmap
+	heatmapData["deaths"] = deathsHeatmap
+
+	response := map[string]interface{}{
+		"map_name":       mapInfo.Name,
+		"display_name":   formatMapName(mapInfo.Name),
+		"total_matches":  mapInfo.TotalMatches,
+		"total_kills":    mapInfo.TotalKills,
+		"total_playtime": int64(mapInfo.AvgDuration) * mapInfo.TotalMatches,
+		"avg_duration":   mapInfo.AvgDuration,
+		"top_players":    topPlayers,
+		"heatmap_data":   heatmapData,
+	}
+
+	h.jsonResponse(w, http.StatusOK, response)
+}
+
+// formatMapName converts map filename to display name
+func formatMapName(name string) string {
+	// Remove common prefixes
+	displayName := name
+	prefixes := []string{"mp_", "dm_", "obj_", "lib_"}
+	for _, prefix := range prefixes {
+		if len(displayName) > len(prefix) && displayName[:len(prefix)] == prefix {
+			displayName = displayName[len(prefix):]
+			break
+		}
+	}
+	// Capitalize first letter
+	if len(displayName) > 0 {
+		displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+	}
+	return displayName
+}
+
+// getMapHeatmapData returns heatmap coordinates for a map
+func (h *Handler) getMapHeatmapData(ctx context.Context, mapID, heatmapType string) ([]map[string]interface{}, error) {
+	eventType := "kill"
+	if heatmapType == "deaths" {
+		eventType = "death"
+	}
+
+	rows, err := h.ch.Query(ctx, `
+		SELECT 
+			toFloat64OrZero(raw_json->>'pos_x') as x,
+			toFloat64OrZero(raw_json->>'pos_y') as y,
+			count() as intensity
+		FROM raw_events
+		WHERE map_name = ? AND event_type = ?
+			AND raw_json->>'pos_x' != '' AND raw_json->>'pos_y' != ''
+		GROUP BY x, y
+		HAVING intensity > 0
+		ORDER BY intensity DESC
+		LIMIT 500
+	`, mapID, eventType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []map[string]interface{}
+	for rows.Next() {
+		var x, y float64
+		var intensity int64
+		if err := rows.Scan(&x, &y, &intensity); err == nil {
+			result = append(result, map[string]interface{}{
+				"x":     x,
+				"y":     y,
+				"value": intensity,
+			})
+		}
+	}
+	return result, nil
+}
+
+// ============================================================================
+// GAME TYPE ENDPOINTS
+// ============================================================================
+
+// GetGameTypeStats returns all game types with their statistics (derived from map prefixes)
+func (h *Handler) GetGameTypeStats(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Query to aggregate stats by game type prefix derived from map_name
+	rows, err := h.ch.Query(ctx, `
+		SELECT 
+			multiIf(
+				startsWith(lower(map_name), 'dm'), 'dm',
+				startsWith(lower(map_name), 'tdm'), 'tdm',
+				startsWith(lower(map_name), 'obj'), 'obj',
+				startsWith(lower(map_name), 'lib'), 'lib',
+				startsWith(lower(map_name), 'ctf'), 'ctf',
+				startsWith(lower(map_name), 'ffa'), 'ffa',
+				'other'
+			) as game_type,
+			count(DISTINCT match_id) as total_matches,
+			countIf(event_type = 'kill') as total_kills,
+			countIf(event_type = 'death') as total_deaths,
+			count(DISTINCT actor_id) as unique_players,
+			count(DISTINCT map_name) as map_count
+		FROM raw_events
+		WHERE map_name != ''
+		GROUP BY game_type
+		ORDER BY total_matches DESC
+	`)
+	if err != nil {
+		h.logger.Errorw("Failed to get game type stats", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	defer rows.Close()
+
+	var result []map[string]interface{}
+	for rows.Next() {
+		var gameType string
+		var matches, kills, deaths, players, mapCount uint64
+		if err := rows.Scan(&gameType, &matches, &kills, &deaths, &players, &mapCount); err == nil {
+			info := gameTypeInfo[gameType]
+			result = append(result, map[string]interface{}{
+				"id":             gameType,
+				"name":           formatGameTypeName(gameType),
+				"description":    info.Description,
+				"icon":           info.Icon,
+				"total_matches":  matches,
+				"total_kills":    kills,
+				"total_deaths":   deaths,
+				"unique_players": players,
+				"map_count":      mapCount,
+			})
+		}
+	}
+
+	h.jsonResponse(w, http.StatusOK, result)
+}
+
+// GetGameTypesList returns a simple list of game types for dropdowns
+func (h *Handler) GetGameTypesList(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	rows, err := h.ch.Query(ctx, `
+		SELECT DISTINCT
+			multiIf(
+				startsWith(lower(map_name), 'dm'), 'dm',
+				startsWith(lower(map_name), 'tdm'), 'tdm',
+				startsWith(lower(map_name), 'obj'), 'obj',
+				startsWith(lower(map_name), 'lib'), 'lib',
+				startsWith(lower(map_name), 'ctf'), 'ctf',
+				startsWith(lower(map_name), 'ffa'), 'ffa',
+				'other'
+			) as game_type
+		FROM raw_events
+		WHERE map_name != ''
+		ORDER BY game_type
+	`)
+	if err != nil {
+		h.logger.Errorw("Failed to get game types list", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	defer rows.Close()
+
+	var result []map[string]string
+	for rows.Next() {
+		var gameType string
+		if err := rows.Scan(&gameType); err == nil {
+			result = append(result, map[string]string{
+				"id":           gameType,
+				"name":         formatGameTypeName(gameType),
+				"display_name": formatGameTypeName(gameType),
+			})
+		}
+	}
+
+	h.jsonResponse(w, http.StatusOK, result)
+}
+
+// GetGameTypeDetail returns detailed statistics for a single game type
+func (h *Handler) GetGameTypeDetail(w http.ResponseWriter, r *http.Request) {
+	gameType := chi.URLParam(r, "gameType")
+	if gameType == "" {
+		h.errorResponse(w, http.StatusBadRequest, "Game type required")
+		return
+	}
+
+	ctx := r.Context()
+
+	// Build map pattern for this game type
+	mapPattern := gameType + "%"
+
+	// Get aggregate stats
+	var totalMatches, totalKills, totalDeaths, uniquePlayers, mapCount uint64
+	row := h.ch.QueryRow(ctx, `
+		SELECT 
+			count(DISTINCT match_id) as total_matches,
+			countIf(event_type = 'kill') as total_kills,
+			countIf(event_type = 'death') as total_deaths,
+			count(DISTINCT actor_id) as unique_players,
+			count(DISTINCT map_name) as map_count
+		FROM raw_events
+		WHERE lower(map_name) LIKE ?
+	`, mapPattern)
+	row.Scan(&totalMatches, &totalKills, &totalDeaths, &uniquePlayers, &mapCount)
+
+	// Get maps in this game type
+	mapRows, err := h.ch.Query(ctx, `
+		SELECT 
+			map_name,
+			count(DISTINCT match_id) as matches,
+			countIf(event_type = 'kill') as kills
+		FROM raw_events
+		WHERE lower(map_name) LIKE ?
+		GROUP BY map_name
+		ORDER BY matches DESC
+	`, mapPattern)
+
+	var maps []map[string]interface{}
+	if err == nil {
+		defer mapRows.Close()
+		for mapRows.Next() {
+			var mapName string
+			var matches, kills uint64
+			if err := mapRows.Scan(&mapName, &matches, &kills); err == nil {
+				maps = append(maps, map[string]interface{}{
+					"name":         mapName,
+					"display_name": formatMapName(mapName),
+					"matches":      matches,
+					"kills":        kills,
+				})
+			}
+		}
+	}
+
+	info := gameTypeInfo[gameType]
+	response := map[string]interface{}{
+		"id":             gameType,
+		"name":           formatGameTypeName(gameType),
+		"description":    info.Description,
+		"icon":           info.Icon,
+		"total_matches":  totalMatches,
+		"total_kills":    totalKills,
+		"total_deaths":   totalDeaths,
+		"unique_players": uniquePlayers,
+		"map_count":      mapCount,
+		"maps":           maps,
+	}
+
+	h.jsonResponse(w, http.StatusOK, response)
+}
+
+// GetGameTypeLeaderboard returns top players for a specific game type
+func (h *Handler) GetGameTypeLeaderboard(w http.ResponseWriter, r *http.Request) {
+	gameType := chi.URLParam(r, "gameType")
+	if gameType == "" {
+		h.errorResponse(w, http.StatusBadRequest, "Game type required")
+		return
+	}
+
+	ctx := r.Context()
+	mapPattern := gameType + "%"
+
+	rows, err := h.ch.Query(ctx, `
+		SELECT 
+			actor_id as id,
+			any(actor_name) as name,
+			countIf(event_type = 'kill') as kills,
+			countIf(event_type = 'death') as deaths
+		FROM raw_events
+		WHERE lower(map_name) LIKE ? AND actor_id != ''
+		GROUP BY actor_id
+		ORDER BY kills DESC
+		LIMIT 25
+	`, mapPattern)
+
+	if err != nil {
+		h.logger.Errorw("Failed to get game type leaderboard", "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	defer rows.Close()
+
+	var leaderboard []map[string]interface{}
+	rank := 1
+	for rows.Next() {
+		var id, name string
+		var kills, deaths uint64
+		if err := rows.Scan(&id, &name, &kills, &deaths); err == nil {
+			leaderboard = append(leaderboard, map[string]interface{}{
+				"rank":   rank,
+				"id":     id,
+				"name":   name,
+				"kills":  kills,
+				"deaths": deaths,
+			})
+			rank++
+		}
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"leaderboard": leaderboard,
+		"game_type":   gameType,
+	})
+}
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+// Game type metadata - maps prefix to display info
+var gameTypeInfo = map[string]struct {
+	Name        string
+	Description string
+	Icon        string
+}{
+	"dm":  {"Deathmatch", "Free-for-all combat", "💀"},
+	"tdm": {"Team Deathmatch", "Team-based combat", "⚔️"},
+	"obj": {"Objective", "Mission-based gameplay", "🎯"},
+	"lib": {"Liberation", "Territory control", "🏴"},
+	"ctf": {"Capture the Flag", "Flag-based objectives", "🚩"},
+	"ffa": {"Free For All", "Every player for themselves", "🔥"},
+}
+
+// extractGameType derives game type from map name prefix
+func extractGameType(mapName string) string {
+	parts := strings.Split(mapName, "/")
+	if len(parts) > 0 {
+		prefix := strings.ToLower(parts[0])
+		// Handle common prefixes
+		if strings.HasPrefix(prefix, "dm") {
+			return "dm"
+		} else if strings.HasPrefix(prefix, "tdm") {
+			return "tdm"
+		} else if strings.HasPrefix(prefix, "obj") {
+			return "obj"
+		} else if strings.HasPrefix(prefix, "lib") {
+			return "lib"
+		} else if strings.HasPrefix(prefix, "ctf") {
+			return "ctf"
+		} else if strings.HasPrefix(prefix, "ffa") {
+			return "ffa"
+		}
+		return prefix
+	}
+	// Fallback: check underscore prefix
+	if idx := strings.Index(mapName, "_"); idx > 0 {
+		return strings.ToLower(mapName[:idx])
+	}
+	return "unknown"
+}
+
+// formatGameTypeName converts prefix to display name
+func formatGameTypeName(prefix string) string {
+	if info, ok := gameTypeInfo[prefix]; ok {
+		return info.Name
+	}
+	return strings.ToUpper(prefix)
+}
 
 func (h *Handler) jsonResponse(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")

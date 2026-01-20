@@ -26,6 +26,9 @@ function MohaaTournaments_Main(): void
 {
     global $context, $txt, $modSettings, $smcFunc, $db_prefix;
     
+    // Ensure packages are loaded (helpful for install)
+    db_extend('packages');
+    
     // Load language and templates
     loadLanguage('MohaaStats');
     loadTemplate('MohaaTournaments');
@@ -41,7 +44,6 @@ function MohaaTournaments_Main(): void
     $sa = isset($_GET['sa']) && isset($subActions[$_GET['sa']]) ? $_GET['sa'] : 'list';
     
     // Auto-install tables if missing (Lazy Initialization)
-    // Robust check: Run installer if ANY of the tables are missing
     $required_tables = ['mohaa_tournaments', 'mohaa_tournament_registrations', 'mohaa_tournament_matches'];
     $needs_install = false;
     
@@ -69,54 +71,60 @@ function MohaaTournaments_Install(): void
 {
     global $smcFunc, $db_prefix;
 
-    // Direct SQL creation to ensure stability
-    $queries = [];
+    $tables = [
+        'mohaa_tournaments' => [
+            'columns' => [
+                ['name' => 'id_tournament', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'auto' => true],
+                ['name' => 'name', 'type' => 'varchar', 'size' => 255],
+                ['name' => 'description', 'type' => 'text'],
+                ['name' => 'status', 'type' => 'varchar', 'size' => 20, 'default' => 'open'],
+                ['name' => 'format', 'type' => 'varchar', 'size' => 20, 'default' => 'single_elim'],
+                ['name' => 'tournament_start', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'max_teams', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 16],
+                ['name' => 'id_winner_team', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+            ],
+            'indexes' => [
+                ['type' => 'primary', 'columns' => ['id_tournament']],
+                ['type' => 'index', 'columns' => ['status']],
+            ],
+        ],
+        'mohaa_tournament_registrations' => [
+            'columns' => [
+                ['name' => 'id_tournament', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'id_team', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'seed', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'registration_date', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'status', 'type' => 'varchar', 'size' => 20, 'default' => 'pending'],
+            ],
+            'indexes' => [
+                ['type' => 'primary', 'columns' => ['id_tournament', 'id_team']],
+                ['type' => 'index', 'columns' => ['id_team']],
+            ],
+        ],
+        'mohaa_tournament_matches' => [
+            'columns' => [
+                ['name' => 'id_match', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'auto' => true],
+                ['name' => 'id_tournament', 'type' => 'int', 'size' => 10, 'unsigned' => true],
+                ['name' => 'round', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 1],
+                ['name' => 'bracket_group', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'id_team_a', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'id_team_b', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'score_a', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'score_b', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'winner_id', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+                ['name' => 'match_date', 'type' => 'int', 'size' => 10, 'unsigned' => true, 'default' => 0],
+            ],
+            'indexes' => [
+                ['type' => 'primary', 'columns' => ['id_match']],
+                ['type' => 'index', 'columns' => ['id_tournament']],
+                ['type' => 'index', 'columns' => ['id_team_a']],
+                ['type' => 'index', 'columns' => ['id_team_b']],
+            ],
+        ],
+    ];
 
-    // 1. Tournaments Table
-    $queries[] = "CREATE TABLE IF NOT EXISTS `{$db_prefix}mohaa_tournaments` (
-      `id_tournament` int(10) unsigned NOT NULL AUTO_INCREMENT,
-      `name` varchar(255) NOT NULL,
-      `description` text,
-      `status` varchar(20) NOT NULL DEFAULT 'open',
-      `format` varchar(20) NOT NULL DEFAULT 'single_elim',
-      `tournament_start` int(10) unsigned NOT NULL DEFAULT 0,
-      `max_teams` int(10) unsigned NOT NULL DEFAULT 16,
-      `id_winner_team` int(10) unsigned NOT NULL DEFAULT 0,
-      PRIMARY KEY (`id_tournament`),
-      KEY `status` (`status`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
-
-    // 2. Tournament Registrations (was Participants)
-    $queries[] = "CREATE TABLE IF NOT EXISTS `{$db_prefix}mohaa_tournament_registrations` (
-      `id_tournament` int(10) unsigned NOT NULL,
-      `id_team` int(10) unsigned NOT NULL,
-      `seed` int(10) unsigned NOT NULL DEFAULT 0,
-      `registration_date` int(10) unsigned NOT NULL DEFAULT 0,
-      `status` varchar(20) NOT NULL DEFAULT 'pending',
-      PRIMARY KEY (`id_tournament`,`id_team`),
-      KEY `id_team` (`id_team`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
-
-    // 3. Matches
-    $queries[] = "CREATE TABLE IF NOT EXISTS `{$db_prefix}mohaa_tournament_matches` (
-      `id_match` int(10) unsigned NOT NULL AUTO_INCREMENT,
-      `id_tournament` int(10) unsigned NOT NULL,
-      `round` int(10) unsigned NOT NULL DEFAULT 1,
-      `bracket_group` int(10) unsigned NOT NULL DEFAULT 0,
-      `id_team_a` int(10) unsigned NOT NULL DEFAULT 0,
-      `id_team_b` int(10) unsigned NOT NULL DEFAULT 0,
-      `score_a` int(10) unsigned NOT NULL DEFAULT 0,
-      `score_b` int(10) unsigned NOT NULL DEFAULT 0,
-      `winner_id` int(10) unsigned NOT NULL DEFAULT 0,
-      `match_date` int(10) unsigned NOT NULL DEFAULT 0,
-      PRIMARY KEY (`id_match`),
-      KEY `id_tournament` (`id_tournament`),
-      KEY `id_team_a` (`id_team_a`),
-      KEY `id_team_b` (`id_team_b`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
-
-    foreach ($queries as $sql) {
-        $smcFunc['db_query']('', $sql, []);
+    foreach ($tables as $table => $data) {
+        $smcFunc['db_create_table']('{db_prefix}' . $table, $data['columns'], $data['indexes']);
     }
 }
 

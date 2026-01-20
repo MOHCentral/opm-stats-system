@@ -147,6 +147,20 @@ func main() {
 			r.Get("/teams/performance", h.GetFactionPerformance) // [NEW]
 			r.Get("/matches", h.GetMatches)
 			r.Get("/weapons", h.GetGlobalWeaponStats)
+			r.Get("/weapons/list", h.GetWeaponsList) // [NEW] Simple list for dropdowns
+			r.Get("/weapon/{weapon}", h.GetWeaponDetail) // [NEW] Single weapon details
+
+			// Map statistics endpoints
+			r.Get("/maps", h.GetMapStats)      // All maps with stats
+			r.Get("/maps/list", h.GetMapsList) // Simple maps list
+			r.Get("/maps/popularity", h.GetMapPopularity)
+			r.Get("/map/{mapId}", h.GetMapDetail) // Single map details
+
+			// Game type statistics endpoints (derived from map prefixes)
+			r.Get("/gametypes", h.GetGameTypeStats)          // All game types with stats
+			r.Get("/gametypes/list", h.GetGameTypesList)     // Simple list for dropdowns
+			r.Get("/gametype/{gameType}", h.GetGameTypeDetail) // Single game type details
+			r.Get("/leaderboard/gametype/{gameType}", h.GetGameTypeLeaderboard)
 
 			r.Get("/leaderboard", h.GetLeaderboard)
 			r.Get("/leaderboard/cards", h.GetLeaderboardCards)
@@ -192,6 +206,29 @@ func main() {
 			r.Get("/", h.GetTournaments)
 			r.Get("/{id}", h.GetTournament)
 			r.Get("/{id}/stats", h.GetTournamentStats)
+		})
+
+		// Server tracking endpoints (New Dashboard System)
+		r.Route("/servers", func(r chi.Router) {
+			r.Get("/", h.GetAllServers)                                   // List all servers with live status
+			r.Get("/stats", h.GetServersGlobalStats)                      // Aggregate stats across all servers
+			r.Get("/rankings", h.GetServerRankings)                       // Ranked server list
+			r.Get("/favorites", h.GetUserFavoriteServers)                 // User's favorite servers
+			r.Get("/{id}", h.GetServerDetail)                             // Full server details
+			r.Get("/{id}/live", h.GetServerLiveStatus)                    // Real-time server status
+			r.Get("/{id}/player-history", h.GetServerPlayerHistory)       // Player count history
+			r.Get("/{id}/peak-hours", h.GetServerPeakHours)               // Peak hours heatmap
+			r.Get("/{id}/top-players", h.GetServerTopPlayers)             // Top players on server
+			r.Get("/{id}/players", h.GetServerHistoricalPlayers)          // All players historical data
+			r.Get("/{id}/maps", h.GetServerMapStats)                      // Map statistics
+			r.Get("/{id}/map-rotation", h.GetServerMapRotation)           // Map rotation analysis
+			r.Get("/{id}/weapons", h.GetServerWeaponStats)                // Weapon statistics
+			r.Get("/{id}/matches", h.GetServerRecentMatches)              // Recent matches
+			r.Get("/{id}/activity-timeline", h.GetServerActivityTimeline) // Activity over time
+			r.Get("/{id}/countries", h.GetServerCountryStats)             // Player country distribution
+			r.Get("/{id}/favorite", h.CheckServerFavorite)                // Check if favorited
+			r.Post("/{id}/favorite", h.AddServerFavorite)                 // Add to favorites
+			r.Delete("/{id}/favorite", h.RemoveServerFavorite)            // Remove from favorites
 		})
 
 		// Achievement endpoints - match/tournament specific
