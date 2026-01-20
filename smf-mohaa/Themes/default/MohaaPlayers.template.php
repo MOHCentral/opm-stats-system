@@ -408,8 +408,28 @@ function template_mohaa_profile_stats()
             </div>';
         }
     } else {
+        // No stats yet - show helpful message and GUID
+        $stats = $context['mohaa_profile_stats'] ?? [];
+        $guid = $stats['guid'] ?? '';
+        
         echo '
-        <p class="centertext">', $txt['mohaa_no_stats_available'] ?? 'No stats available yet.', '</p>';
+        <div class="roundframe centertext" style="padding: 30px;">
+            <p style="margin-top: 0; font-size: 16px; font-weight: bold;">
+                ', $txt['mohaa_no_stats_available'] ?? 'No stats available yet.', '
+            </p>';
+        
+        if (!empty($guid)) {
+            echo '
+            <p style="color: #888; margin: 10px 0;">
+                <strong>Linked GUID:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">', $guid, '</code>
+            </p>
+            <p style="color: #888; margin-bottom: 15px; font-size: 13px;">
+                Stats will appear here once you play on a connected OpenMOHAA server.
+            </p>';
+        }
+        
+        echo '
+        </div>';
     }
     
     echo '

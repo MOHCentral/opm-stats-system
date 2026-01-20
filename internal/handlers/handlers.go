@@ -447,8 +447,6 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		orderBy = "kd"
 	case "wins":
 		orderBy = "wins"
-	case "wins":
-		orderBy = "wins"
 	case "ffa_wins":
 		orderBy = "ffa_wins"
 	case "team_wins":

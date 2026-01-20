@@ -59,7 +59,7 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'match_outcome' AND damage = 1) as wins,
 			countIf(event_type = 'match_outcome' AND damage = 1 AND actor_weapon = 'dm') as ffa_wins,
 			countIf(event_type = 'match_outcome' AND damage = 1 AND actor_weapon != 'dm') as team_wins,
-			countIf(event_type = 'objective_update' AND extract(extra, 'status') = 'complete') as objectives_done,
+			countIf(event_type = 'objective_update') as objectives_done,
 			countIf(event_type = 'round_end') as rounds_played,
 			countIf(event_type = 'match_outcome') as games_finished,
 

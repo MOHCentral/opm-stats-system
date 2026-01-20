@@ -456,10 +456,20 @@ function MohaaPlayers_ProfileStats(int $memID): void
     
     $player = $api->getPlayerStats($guid);
     
+    // Set both for compatibility
     $context['mohaa_player'] = [
         'guid' => $guid,
         'name' => $player['name'] ?? 'Unknown',
         'stats' => $player,
+        'rank' => $api->getPlayerRank($guid),
+        'weapons' => $api->getPlayerWeapons($guid),
+        'recent_matches' => $api->getPlayerMatches($guid, 5),
+    ];
+    
+    // Also set what the template expects
+    $context['mohaa_profile_stats'] = [
+        'player' => $player,
+        'guid' => $guid,
         'rank' => $api->getPlayerRank($guid),
         'weapons' => $api->getPlayerWeapons($guid),
         'recent_matches' => $api->getPlayerMatches($guid, 5),

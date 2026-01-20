@@ -20,19 +20,91 @@ function template_mohaa_stats_leaderboard()
     
     echo '
     <style>
-        /* CSS is loaded from mohaa_dashboard.css */
+        .mohaa-premium-table { width: 100%; border-collapse: collapse; font-family: "Inter", sans-serif; min-width: 800px; }
+        .mohaa-premium-table th { position: sticky; top: 0; background: #1a1f26; color: #fff; padding: 15px; text-transform: uppercase; font-size: 0.85em; letter-spacing: 1px; border-bottom: 2px solid #34495e; z-index: 10; text-align: center; }
+        .mohaa-premium-table th.player-col { text-align: left; padding-left: 20px; }
+        .mohaa-premium-table td { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #cfd8dc; text-align: center; font-variant-numeric: tabular-nums; }
+        .mohaa-premium-table tr.top-rank td { background: rgba(255, 215, 0, 0.05); border-bottom: 1px solid rgba(255, 215, 0, 0.1); }
+        .mohaa-premium-table tr:hover td { background: rgba(255,255,255,0.05); color: #fff; }
+        .mohaa-premium-table tr.top-rank:hover td { background: rgba(255, 215, 0, 0.1); }
+        .rank-badge { font-size: 1.5em; display: inline-block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+        .rank-num { font-weight: bold; color: #546e7a; font-size: 1.1em; }
+        .player-info { display: flex; align-items: center; gap: 12px; }
+        .player-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 0.9em; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .player-name { color: #fff; text-decoration: none; font-weight: 600; font-size: 1.05em; transition: color 0.2s; }
+        .player-name:hover { color: #3498db; }
+        .active-sort { color: #3498db !important; border-bottom: 2px solid #3498db; padding-bottom: 4px; }
+        .stat-col.sorted { background: rgba(52, 152, 219, 0.05); font-weight: bold; color: #fff; }
+        .stat-positive { color: #00e676; }
+        .stat-negative { color: #e57373; }
+        .stat-highlight { color: #fff; font-weight: bold; }
+        .empty-state { text-align: center; padding: 60px; color: #7f8c8d; }
+        
+        .mohaa-loading { opacity: 0.5; pointer-events: none; transition: opacity 0.2s; }
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <div class="cat_bar">
-        <h3 class="catbg">🏆 Global Leaderboards</h3>
+    <div id="mohaa-leaderboard-dynamic">
+    ';
+    
+    // Stat Descriptions
+    $statInfo = [
+        'kills' => ['title' => 'Kills', 'desc' => 'Total enemies eliminated in combat.', 'icon' => '🗡️'],
+        'deaths' => ['title' => 'Deaths', 'desc' => 'Times eliminated by enemy fire or mishaps.', 'icon' => '🪦'],
+        'kd' => ['title' => 'K/D Ratio', 'desc' => 'Kill-to-Death ratio. The ultimate measure of efficiency.', 'icon' => '⚖️'],
+        'headshots' => ['title' => 'Headshots', 'desc' => 'Precision kills resulting in instant death.', 'icon' => '🤯'],
+        'accuracy' => ['title' => 'Accuracy', 'desc' => 'Percentage of shots that hit a target.', 'icon' => '🎯'],
+        'shots_fired' => ['title' => 'Trigger Happy', 'desc' => 'Total ammunition expended. Spray and pray?', 'icon' => '💥'],
+        'damage' => ['title' => 'Damage Dealer', 'desc' => 'Total damage inflicted on opponents.', 'icon' => '🩸'],
+        'bash_kills' => ['title' => 'Executioner', 'desc' => 'Humiliating kills using pistol whips or rifle butts.', 'icon' => '🔨'],
+        'grenade_kills' => ['title' => 'Grenadier', 'desc' => 'Explosive kills with hand grenades.', 'icon' => '💣'],
+        'roadkills' => ['title' => 'Road Rage', 'desc' => 'Enemies run over by vehicles.', 'icon' => '🚗'],
+        'telefrags' => ['title' => 'Telefrags', 'desc' => 'Occupying the same space as an enemy.', 'icon' => '🌌'],
+        'crushed' => ['title' => 'Crushed', 'desc' => 'Squashed by world objects or elevators.', 'icon' => '🥞'],
+        'teamkills' => ['title' => 'Betrayals', 'desc' => 'Teammates eliminated. Friendly fire isn\'t friendly.', 'icon' => '🔪'],
+        'suicides' => ['title' => 'Suicides', 'desc' => 'Self-inflicted eliminations.', 'icon' => '💀'],
+        'reloads' => ['title' => 'Reloader', 'desc' => 'Times a weapon clip was swapped.', 'icon' => '🔄'],
+        'weapon_swaps' => ['title' => 'Fickle', 'desc' => 'Times weapons were switched during combat.', 'icon' => '🔀'],
+        'no_ammo' => ['title' => 'Empty Clip', 'desc' => 'Times caught clicking with an empty gun.', 'icon' => '⛽'],
+        'looter' => ['title' => 'Looter', 'desc' => 'Weapons picked up from the ground.', 'icon' => '🎒'],
+        'distance' => ['title' => 'Marathon Man', 'desc' => 'Total distance travelled on foot.', 'icon' => '🏃'],
+        'sprinted' => ['title' => 'Sprinter', 'desc' => 'Distance covered while sprinting.', 'icon' => '⚡'],
+        'swam' => ['title' => 'Swimmer', 'desc' => 'Distance covered in water.', 'icon' => '🏊'],
+        'driven' => ['title' => 'Driver', 'desc' => 'Distance covered in vehicles.', 'icon' => '🚙'],
+        'jumps' => ['title' => 'Bunny Hopper', 'desc' => 'Total number of jumps performed.', 'icon' => '🐇'],
+        'crouch_time' => ['title' => 'Tactical Crouch', 'desc' => 'Time spent moving in a crouched position.', 'icon' => '🦵'],
+        'prone_time' => ['title' => 'Camper', 'desc' => 'Time spent laying on the ground.', 'icon' => '⛺'],
+        'ladders' => ['title' => 'Mountaineer', 'desc' => 'Time spent climbing ladders.', 'icon' => '🧗'],
+        'health_picked' => ['title' => 'Glutton', 'desc' => 'Health packs consumed.', 'icon' => '🍗'],
+        'ammo_picked' => ['title' => 'Hoarder', 'desc' => 'Ammo crates collected.', 'icon' => '📦'],
+        'armor_picked' => ['title' => 'Tank', 'desc' => 'Jacket Armor collected.', 'icon' => '🛡️'],
+        'items_picked' => ['title' => 'Scavenger', 'desc' => 'Total items picked up.', 'icon' => '🗑️'],
+        'wins' => ['title' => 'Wins', 'desc' => 'Total Games Won (FFA + Team).', 'icon' => '🏆'],
+        'team_wins' => ['title' => 'Team Wins', 'desc' => 'Games won as part of a team (Objective/TDM).', 'icon' => '🚩'],
+        'ffa_wins' => ['title' => 'FFA Wins', 'desc' => 'Deathmatch games won solo.', 'icon' => '⚔️'],
+        'losses' => ['title' => 'Losses', 'desc' => 'Matches lost or not placed 1st.', 'icon' => '☠️'],
+        'objectives_done' => ['title' => 'Objective Master', 'desc' => 'Mission objectives completed.', 'icon' => '🎯'],
+        'rounds_played' => ['title' => 'Veteran', 'desc' => 'Total rounds played in round-based modes.', 'icon' => '⏳'],
+        'games_finished' => ['title' => 'Ironman', 'desc' => 'Full matches completed from start to finish.', 'icon' => '🎮'],
+    ];
+
+    $info = $statInfo[$current_stat] ?? ['title' => ucfirst($current_stat), 'desc' => 'Global rankings for this metric.', 'icon' => '📊'];
+
+    // Hero Section
+    echo '
+    <div class="mohaa-hero-stat" style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.1) 100%); margin-bottom: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+        <div style="font-size: 4em; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.2));">', $info['icon'], '</div>
+        <h1 style="font-size: 2.5em; margin: 0; color: #fff; text-transform: uppercase; letter-spacing: 2px;">', $info['title'], '</h1>
+        <p style="font-size: 1.2em; color: #aab7c4; max-width: 600px; margin: 10px auto 0;">', $info['desc'], '</p>
     </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <div class="windowbg mohaa-lb-wrap" style="padding: 20px;">
     
     <!-- Chart Section -->
-    <div class="mohaa-chart-container" style="position: relative; height:300px; width:100%">
+    <div class="mohaa-chart-container" style="position: relative; height:350px; width:100%; margin-bottom: 30px;">
         <canvas id="leaderboardChart"></canvas>
     </div>';
 
@@ -93,79 +165,88 @@ function template_mohaa_stats_leaderboard()
     </div>';
 
     // LEADERBOARD TABLE
+    // Premium Leaderboard Table
     echo '
-    <table class="table_grid mohaa-lb-table">
-        <thead>
-            <tr class="title_bar">
-                <th>#</th>
-                <th style="text-align:left;">Player</th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kills;period=', $current_period, '">Kills</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=deaths;period=', $current_period, '">Deaths</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kd;period=', $current_period, '">K/D</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=headshots;period=', $current_period, '">HS</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=accuracy;period=', $current_period, '">Acc%</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=wins;period=', $current_period, '">Wins</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=rounds;period=', $current_period, '">Rounds</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=objectives;period=', $current_period, '">Obj</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=distance;period=', $current_period, '">Dist</a></th>
-                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=playtime;period=', $current_period, '">Time</a></th>
-            </tr>
-        </thead>
-        <tbody>';
+    <div style="overflow-x: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <table class="mohaa-premium-table">
+            <thead>
+                <tr>
+                    <th class="rank-col">Rank</th>
+                    <th class="player-col">Player</th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kills;period=', $current_period, '" class="', ($current_stat == 'kills' ? 'active-sort' : ''), '">Kills</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=deaths;period=', $current_period, '" class="', ($current_stat == 'deaths' ? 'active-sort' : ''), '">Deaths</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kd;period=', $current_period, '" class="', ($current_stat == 'kd' ? 'active-sort' : ''), '">K/D</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=headshots;period=', $current_period, '" class="', ($current_stat == 'headshots' ? 'active-sort' : ''), '">HS</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=accuracy;period=', $current_period, '" class="', ($current_stat == 'accuracy' ? 'active-sort' : ''), '">Acc%</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=wins;period=', $current_period, '" class="', ($current_stat == 'wins' ? 'active-sort' : ''), '">Wins</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=rounds;period=', $current_period, '" class="', ($current_stat == 'rounds' ? 'active-sort' : ''), '">Rounds</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=objectives;period=', $current_period, '" class="', ($current_stat == 'objectives' ? 'active-sort' : ''), '">Obj</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=distance;period=', $current_period, '" class="', ($current_stat == 'distance' ? 'active-sort' : ''), '">Dist</a></th>
+                    <th class="stat-col"><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=playtime;period=', $current_period, '" class="', ($current_stat == 'playtime' ? 'active-sort' : ''), '">Time</a></th>
+                </tr>
+            </thead>
+            <tbody>';
 
     if (empty($leaderboard)) {
         echo '
-            <tr class="windowbg">
-                <td colspan="12" class="centertext" style="padding: 50px;">
+            <tr>
+                <td colspan="12" class="empty-state">
                     <div style="font-size: 3em; margin-bottom: 15px;">🎮</div>
-                    <div style="font-size: 1.2em;">No player data available yet.</div>
-                    <div style="opacity: 0.7;">Get playing to climb the ranks!</div>
+                    <div style="font-size: 1.2em;">No data found for this period.</div>
+                    <div style="opacity: 0.6;">Be the first to claim a spot!</div>
                 </td>
             </tr>';
     } else {
         foreach ($leaderboard as $rank => $player) {
             $rankNum = $rank + 1;
-            $rankClass = match($rankNum) {
-                1 => 'rank-1', 2 => 'rank-2', 3 => 'rank-3', default => ''
-            };
-            $rankIcon = match($rankNum) {
-                1 => '🥇', 2 => '🥈', 3 => '🥉', default => ''
-            };
             
+            // Rank Badge Logic
+            $rankDisplay = '<span class="rank-num">#' . $rankNum . '</span>';
+            if ($rankNum === 1) $rankDisplay = '<span class="rank-badge gold">🥇</span>';
+            if ($rankNum === 2) $rankDisplay = '<span class="rank-badge silver">🥈</span>';
+            if ($rankNum === 3) $rankDisplay = '<span class="rank-badge bronze">🥉</span>';
+            
+            // Calculated Stats
             $kd = $player['deaths'] > 0 ? round($player['kills'] / $player['deaths'], 2) : $player['kills'];
-            $kdClass = $kd >= 1 ? 'stat-positive' : 'stat-negative';
+            $kdColor = $kd >= 2.0 ? '#00e676' : ($kd >= 1.0 ? '#81c784' : '#e57373');
             $acc = round($player['accuracy'] ?? 0, 1);
-            $dist = round(($player['distance_km'] ?? 0) / 1000, 1); // Convert to KM
+            $dist = round(($player['distance_km'] ?? 0) / 1000, 1);
             $time = format_playtime($player['playtime_seconds'] ?? 0);
             
-            // Highlight column based on current sort
-            $highlightCol = $current_stat;
+            // Row Highlight (Alternating is handled by CSS, but Top 3 get special glow)
+            $rowClass = $rankNum <= 3 ? 'top-rank' : '';
             
             echo '
-            <tr class="windowbg ', $rankClass, '">
-                <td style="font-weight: bold;">', $rankIcon, ' ', $rankNum, '</td>
-                <td style="text-align: left;">
-                    <a href="', $scripturl, '?action=mohaastats;sa=player;id=', $player['id'], '">
-                        <strong>', htmlspecialchars($player['name']), '</strong>
-                    </a>
+            <tr class="', $rowClass, '">
+                <td class="rank-col">', $rankDisplay, '</td>
+                <td class="player-col">
+                    <div class="player-info">
+                        <div class="player-avatar" style="background-color: ', ($rankNum <= 3 ? '#ffd700' : '#546e7a'), ';">
+                            ', strtoupper(substr($player['name'], 0, 1)), '
+                        </div>
+                        <a href="', $scripturl, '?action=mohaastats;sa=player;id=', $player['id'], '" class="player-name">
+                            ', htmlspecialchars($player['name']), '
+                        </a>
+                    </div>
                 </td>
-                <td class="', ($highlightCol === 'kills' ? 'stat-highlight' : ''), '">', number_format($player['kills']), '</td>
-                <td class="', ($highlightCol === 'deaths' ? 'stat-highlight' : ''), '">', number_format($player['deaths']), '</td>
-                <td class="', $kdClass, ' ', ($highlightCol === 'kd' ? 'stat-highlight' : ''), '">', $kd, '</td>
-                <td class="', ($highlightCol === 'headshots' ? 'stat-highlight' : ''), '">', number_format($player['headshots']), '</td>
-                <td class="', ($highlightCol === 'accuracy' ? 'stat-highlight' : ''), '">', $acc, '%</td>
-                <td class="', ($highlightCol === 'wins' ? 'stat-highlight' : ''), '">', number_format($player['wins'] ?? 0), '</td>
-                <td class="', ($highlightCol === 'rounds' ? 'stat-highlight' : ''), '">', number_format($player['rounds'] ?? 0), '</td>
-                <td class="', ($highlightCol === 'objectives' ? 'stat-highlight' : ''), '">', number_format($player['objectives'] ?? 0), '</td>
-                <td class="', ($highlightCol === 'distance' ? 'stat-highlight' : ''), '">', $dist, ' km</td>
-                <td class="', ($highlightCol === 'playtime' ? 'stat-highlight' : ''), '">', $time, '</td>
+                <td class="stat-col ', ($current_stat == 'kills' ? 'sorted' : ''), '">', number_format($player['kills']), '</td>
+                <td class="stat-col ', ($current_stat == 'deaths' ? 'sorted' : ''), '">', number_format($player['deaths']), '</td>
+                <td class="stat-col ', ($current_stat == 'kd' ? 'sorted' : ''), '" style="color: ', $kdColor, ';">', $kd, '</td>
+                <td class="stat-col ', ($current_stat == 'headshots' ? 'sorted' : ''), '">', number_format($player['headshots']), '</td>
+                <td class="stat-col ', ($current_stat == 'accuracy' ? 'sorted' : ''), '">', $acc, '%</td>
+                <td class="stat-col ', ($current_stat == 'wins' ? 'sorted' : ''), '">', number_format($player['wins'] ?? 0), '</td>
+                <td class="stat-col ', ($current_stat == 'rounds' ? 'sorted' : ''), '">', number_format($player['rounds'] ?? 0), '</td>
+                <td class="stat-col ', ($current_stat == 'objectives' ? 'sorted' : ''), '">', number_format($player['objectives'] ?? 0), '</td>
+                <td class="stat-col ', ($current_stat == 'distance' ? 'sorted' : ''), '">', $dist, ' km</td>
+                <td class="stat-col ', ($current_stat == 'playtime' ? 'sorted' : ''), '">', $time, '</td>
             </tr>';
         }
     }
 
     echo '
         </tbody>
-    </table>';
+    </table>
+    </div>';
 
     // Pagination
     if (!empty($context['page_index'])) {
@@ -191,15 +272,21 @@ function template_mohaa_stats_leaderboard()
     
     echo '
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            var ctx = document.getElementById("leaderboardChart").getContext("2d");
+        (function() {
+            var initChart = function() {
+                var ctx = document.getElementById("leaderboardChart").getContext("2d");
+                
+                // Destroy existing if any
+                if (window.myLeaderboardChart) {
+                    window.myLeaderboardChart.destroy();
+                }
             
             // Gradient for bars
             var gradient = ctx.createLinearGradient(0, 0, 0, 300);
             gradient.addColorStop(0, "rgba(52, 152, 219, 0.8)");
             gradient.addColorStop(1, "rgba(41, 128, 185, 0.2)");
 
-            new Chart(ctx, {
+            var chart = new Chart(ctx, {
                 type: "bar",
                 data: {
                     labels: ', json_encode($chartLabels), ',
@@ -249,7 +336,69 @@ function template_mohaa_stats_leaderboard()
                     }
                 }
             });
-        });
+            
+            // Save reference
+            window.myLeaderboardChart = chart;
+            };
+
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", initChart);
+            } else {
+                initChart();
+            }
+        })();
+    </script>';
+    
+    // Close Dynamic Container
+    echo '</div>';
+    
+    // PJAX Navigation Script
+    echo '
+    <script>
+    document.addEventListener("click", function(e) {
+        var link = e.target.closest("a");
+        if (!link) return;
+        
+        var wrapper = document.getElementById("mohaa-leaderboard-dynamic");
+        if (!wrapper) return;
+        
+        if (wrapper.contains(link) && link.href.includes("action=mohaastats") && !link.target) {
+            e.preventDefault();
+            var url = link.href;
+            
+            wrapper.classList.add("mohaa-loading");
+            
+            fetch(url)
+                .then(response => response.text())
+                .then(html => {
+                    var parser = new DOMParser();
+                    var doc = parser.parseFromString(html, "text/html");
+                    var newContent = doc.getElementById("mohaa-leaderboard-dynamic");
+                    
+                    if (newContent) {
+                        wrapper.innerHTML = newContent.innerHTML;
+                        wrapper.classList.remove("mohaa-loading");
+                        history.pushState(null, "", url);
+                        
+                        // Execute Scripts
+                        var scripts = wrapper.getElementsByTagName("script");
+                        for (var i = 0; i < scripts.length; i++) {
+                            eval(scripts[i].innerText);
+                        }
+                    } else {
+                        window.location.href = url; // Fallback
+                    }
+                })
+                .catch(err => {
+                    console.error("PJAX Error:", err);
+                    window.location.href = url; // Fallback
+                });
+        }
+    });
+    
+    window.addEventListener("popstate", function() {
+        location.reload(); 
+    });
     </script>';
 }
 
@@ -590,7 +739,7 @@ function template_mohaa_stats_dashboard()
         
         // Render Card
         echo '
-        <div class="mohaa-stat-card">
+        <div class="mohaa-stat-card clickable" onclick="window.location.href=\'', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, '\'" style="cursor: pointer;">
             <div class="card-header">
                 <span class="card-icon">', $meta['icon'], '</span>
                 <span class="card-title">', $meta['label'], '</span>

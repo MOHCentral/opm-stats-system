@@ -26,8 +26,8 @@
 - [x] **MohaaAchievements.template.php** (Fixed & Verified)
 - [x] **MohaaTournaments.template.php** (Fixed & Verified)
 - [x] MohaaMatches.template.php (Verified)
+- [x] **MohaaPlayers.template.php** (Profile Area - Working!)
 - [ ] MohaaMaps.template.php (Needs Styling Update)
-- [ ] MohaaPlayer.template.php (Needs Data Update)
 - [ ] MohaaProfile.template.php (Needs Styling Update)
 
 #### Documentation
@@ -35,11 +35,13 @@
 
 ---
 
-### 🔴 BROKEN / NEEDS FIX
+### ✅ PROFILE INTEGRATION (NOW FIXED!)
+- [x] **Profile areas ARE appearing in user profiles** (hooks registered and working!)
+- [x] User can access `?action=profile;u=1;area=mohaastats` successfully
+- [x] Game Statistics tab shows in profile navigation
+- [x] Identity linking area also functional
 
-#### Profile Integration
-- [ ] **Profile areas not appearing in user profile** (Critical: `integrate_profile_areas` hook issues)
-- [ ] Identity linking page accessibility
+### 🔴 REMAINING CRITICAL ISSUES
 
 #### API Connections
 - [ ] Connect PHP frontend to Go API (currently using mock data)
