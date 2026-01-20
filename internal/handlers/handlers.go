@@ -209,6 +209,11 @@ func (h *Handler) parseFormToEvent(form url.Values) models.RawEvent {
 		Entity:     form.Get("entity"),
 		Projectile: form.Get("projectile"),
 		Code:       form.Get("code"),
+
+		Objective:       form.Get("objective"), // Also check objective_index if needed
+		ObjectiveStatus: form.Get("objective_status"),
+		BotID:           form.Get("bot_id"),
+		Seat:            form.Get("seat"),
 	}
 
 	// Parse numeric fields

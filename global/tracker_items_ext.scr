@@ -32,3 +32,12 @@ on_armor_pickup local.player local.amount:
 
     thread tracker_common.scr::send_to_api local.payload
 end
+on_item_respawn local.entity local.item_name:
+    local.payload = "type=item_respawn"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + "&entity=" + local.entity
+    local.payload = local.payload + "&item_name=" + local.item_name
+
+    thread tracker_common.scr::send_to_api local.payload
+end

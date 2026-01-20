@@ -77,6 +77,14 @@
 -   **`docs/EVENT_DOCUMENTATION.md`**: Parameters for all 30 engine events.
 -   **`docs/stats/ACHIEVEMENTS.md`**: Achievement tier system design.
 -   **`docs/architecture/CLICKHOUSE_QUERIES.md`**: Common OLAP queries.
+-   **`docs/Game_Module_Classes.htm`**: Complete Game Module Classes Reference.
+
+## 📚 Official OpenMOHAA Documentation (External)
+
+-   **Main Site**: [docs.openmohaa.org](https://docs.openmohaa.org/)
+-   **Scripting Events**: [Script Events Reference](https://docs.openmohaa.org/md_docs_2markdown_204-coding_202-scripting_201-script-events.html) - *Critical for `tracker.scr`*
+-   **Code Documentation**: [Coding Reference](https://docs.openmohaa.org/md_docs_2markdown_204-coding_202-coding.html)
+-   **Server Config**: [Server Configuration](https://docs.openmohaa.org/md_docs_2markdown_203-configuration_202-configuration-server.html)
 
 ---
 

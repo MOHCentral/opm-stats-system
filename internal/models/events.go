@@ -156,6 +156,12 @@ type RawEvent struct {
 	// Entity
 	Entity     string `json:"entity,omitempty"`
 	Projectile string `json:"projectile,omitempty"`
+
+	// New Tracker Fields
+	Objective       string `json:"objective,omitempty"`
+	ObjectiveStatus string `json:"objective_status,omitempty"`
+	BotID           string `json:"bot_id,omitempty"`
+	Seat            string `json:"seat,omitempty"`
 }
 
 // ClickHouseEvent is the normalized event for ClickHouse storage

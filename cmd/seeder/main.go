@@ -32,6 +32,13 @@ const (
 	EventKill       = "kill"
 	EventDamage     = "damage"
 	EventWeaponFire = "weapon_fire"
+
+	// New Events
+	EventObjectiveCapture = "objective_capture"
+	EventVehicleEnter     = "vehicle_enter"
+	EventVehicleExit      = "vehicle_exit"
+	EventItemPickup       = "item_pickup"
+	EventBash             = "bash"
 )
 
 type Player struct {
@@ -208,83 +215,122 @@ func runMatch(client *http.Client, s *Stats) {
 	eventsCount := 50 + rand.Intn(100)
 	for i := 0; i < eventsCount; i++ {
 		timestamp += float64(rand.Intn(10) + 1)
-		attacker := players[rand.Intn(len(players))]
-		victim := players[rand.Intn(len(players))]
+		player := players[rand.Intn(len(players))]
 
-		// Avoid self-kill mostly
-		if attacker.GUID == victim.GUID {
-			continue
-		}
+		// Random Action
+		actionRoll := rand.Float32()
 
-		weapon := weapons[rand.Intn(len(weapons))]
-		hitloc := hitlocs[rand.Intn(len(hitlocs))]
+		if actionRoll < 0.05 {
+			// Objective Capture
+			objPayload := map[string]interface{}{
+				"type":             EventObjectiveCapture,
+				"match_id":         matchID,
+				"timestamp":        timestamp,
+				"player_guid":      player.GUID,
+				"player_name":      player.Name,
+				"player_team":      player.Team,
+				"objective":        fmt.Sprintf("obj_%d", rand.Intn(3)+1),
+				"objective_status": "complete",
+			}
+			sendEvent(client, s, objPayload)
 
-		// Fire
-		firePayload := map[string]interface{}{
-			"type":        EventWeaponFire,
-			"match_id":    matchID,
-			"timestamp":   timestamp,
-			"player_name": attacker.Name,
-			"player_guid": attacker.GUID,
-			"weapon":      weapon,
-		}
-		if attacker.MemberID > 0 {
-			firePayload["player_member_id"] = attacker.MemberID
-		}
-		sendEvent(client, s, firePayload)
+		} else if actionRoll < 0.10 {
+			// Vehicle Usage
+			vehicleName := "Sherman Tank"
+			if player.Team == "axis" {
+				vehicleName = "Tiger Tank"
+			}
+			// Enter
+			sendEvent(client, s, map[string]interface{}{
+				"type":        EventVehicleEnter,
+				"match_id":    matchID,
+				"timestamp":   timestamp,
+				"player_guid": player.GUID,
+				"entity":      vehicleName,
+				"seat":        "driver",
+			})
+			// Drive a bit
+			timestamp += 5.0
+			// Exit
+			sendEvent(client, s, map[string]interface{}{
+				"type":        EventVehicleExit,
+				"match_id":    matchID,
+				"timestamp":   timestamp,
+				"player_guid": player.GUID,
+				"entity":      vehicleName,
+				"seat":        "driver",
+			})
 
-		// Damage
-		damagePayload := map[string]interface{}{
-			"type":          EventDamage,
-			"match_id":      matchID,
-			"timestamp":     timestamp,
-			"attacker_name": attacker.Name,
-			"attacker_guid": attacker.GUID,
-			"attacker_team": attacker.Team,
-			"victim_name":   victim.Name,
-			"victim_guid":   victim.GUID,
-			"victim_team":   victim.Team,
-			"weapon":        weapon,
-			"damage":        rand.Intn(50) + 10,
-			"hitloc":        hitloc,
-		}
-		if attacker.MemberID > 0 {
-			damagePayload["attacker_member_id"] = attacker.MemberID
-		}
-		if victim.MemberID > 0 {
-			damagePayload["victim_member_id"] = victim.MemberID
-		}
-		sendEvent(client, s, damagePayload)
+		} else if actionRoll < 0.20 {
+			// Item Pickup
+			item := "Health Pack"
+			if rand.Float32() > 0.5 {
+				item = "Thompson Ammo"
+			}
+			sendEvent(client, s, map[string]interface{}{
+				"type":        EventItemPickup,
+				"match_id":    matchID,
+				"timestamp":   timestamp,
+				"player_guid": player.GUID,
+				"item":        item,
+			})
 
-		// Kill (sometimes)
-		if rand.Float32() < 0.3 {
-			eventType := EventKill
-			if hitloc == "head" {
-				// Don't change type to headshot, but maybe log a headshot event too?
-				// For now simple kill
+		} else {
+			// Combat (Fire/Damage/Kill)
+			attacker := player
+			victim := players[rand.Intn(len(players))]
+			if attacker.GUID == victim.GUID {
+				continue
 			}
 
-			killPayload := map[string]interface{}{
-				"type":          eventType,
+			weapon := weapons[rand.Intn(len(weapons))]
+			hitloc := hitlocs[rand.Intn(len(hitlocs))]
+
+			// Fire
+			sendEvent(client, s, map[string]interface{}{
+				"type":        EventWeaponFire,
+				"match_id":    matchID,
+				"timestamp":   timestamp,
+				"player_name": attacker.Name,
+				"player_guid": attacker.GUID,
+				"weapon":      weapon,
+			})
+
+			// Damage
+			sendEvent(client, s, map[string]interface{}{
+				"type":          EventDamage,
 				"match_id":      matchID,
 				"timestamp":     timestamp,
-				"attacker_name": attacker.Name,
 				"attacker_guid": attacker.GUID,
-				"attacker_team": attacker.Team,
-				"victim_name":   victim.Name,
 				"victim_guid":   victim.GUID,
-				"victim_team":   victim.Team,
 				"weapon":        weapon,
-				"damage":        100,
+				"damage":        rand.Intn(50) + 10,
 				"hitloc":        hitloc,
+			})
+
+			// Kill (30% chance after damage)
+			if rand.Float32() < 0.3 {
+				killPayload := map[string]interface{}{
+					"type":          EventKill,
+					"match_id":      matchID,
+					"timestamp":     timestamp,
+					"attacker_guid": attacker.GUID, // Simplified for brevity in this loop
+					"attacker_name": attacker.Name,
+					"attacker_team": attacker.Team,
+					"victim_guid":   victim.GUID,
+					"victim_name":   victim.Name,
+					"victim_team":   victim.Team,
+					"weapon":        weapon,
+					"damage":        100,
+					"hitloc":        hitloc,
+				}
+				// Special Kill (Bash)
+				if rand.Float32() < 0.1 {
+					killPayload["type"] = EventBash
+					killPayload["weapon"] = "MoH::Bash"
+				}
+				sendEvent(client, s, killPayload)
 			}
-			if attacker.MemberID > 0 {
-				killPayload["attacker_member_id"] = attacker.MemberID
-			}
-			if victim.MemberID > 0 {
-				killPayload["victim_member_id"] = victim.MemberID
-			}
-			sendEvent(client, s, killPayload)
 		}
 	}
 
