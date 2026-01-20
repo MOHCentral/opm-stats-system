@@ -621,21 +621,18 @@ function template_war_room_silhouette_content($player) {
         return $total > 0 ? round(($val / $total) * 100, 1) : 0;
     };
     
-    // Outgoing (Hits Dealt) - Use actual API data, no hardcoded fallbacks
+    // Outgoing (Hits Dealt) - Use actual API data only, no fabrication
     $head = $player['headshots'] ?? 0;
     $torso = $player['torso_kills'] ?? 0; 
     $limbs = $player['limb_kills'] ?? 0;
     
-    // If no hitbox data at all, calculate from kills (only if we have kills but no breakdown)
-    $hasHitboxData = ($head + $torso + $limbs) > 0;
-    if (!$hasHitboxData && $kills > 0) {
-        // Show headshots if available, rest is unknown
-        $limbs = max(0, $kills - $head);
-    }
+    // Calculate percentages from actual hitbox data only
+    // If no hitloc tracking, values stay at 0 (shows "No Data" rather than fake percentages)
+    $hitboxTotal = $head + $torso + $limbs;
     
-    $outHeadPct = $calcPct($head, $kills);
-    $outTorsoPct = $calcPct($torso, $kills);
-    $outLimbPct = $calcPct($limbs, $kills);
+    $outHeadPct = $calcPct($head, $hitboxTotal);
+    $outTorsoPct = $calcPct($torso, $hitboxTotal);
+    $outLimbPct = $calcPct($limbs, $hitboxTotal);
 
     // Incoming (Hits Taken) - extracting from 'deaths' or using placeholders if specific hitloc data missing
     $deaths = max(1, $player['deaths'] ?? 1);

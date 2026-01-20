@@ -17,21 +17,21 @@ func NewPlayerStatsService(ch driver.Conn) *PlayerStatsService {
 
 // DeepStats represents the massive aggregated stats object
 type DeepStats struct {
-	Combat   CombatStats   `json:"combat"`
-	Weapons  []WeaponStats `json:"weapons"`
-	Movement MovementStats `json:"movement"`
-	Accuracy AccuracyStats `json:"accuracy"`
-	Session  SessionStats  `json:"session"`
+	Combat      CombatStats      `json:"combat"`
+	Weapons     []WeaponStats    `json:"weapons"`
+	Movement    MovementStats    `json:"movement"`
+	Accuracy    AccuracyStats    `json:"accuracy"`
+	Session     SessionStats     `json:"session"`
 	Rivals      RivalStats       `json:"rivals"`
 	Stance      StanceStats      `json:"stance"`
 	Interaction InteractionStats `json:"interaction"`
 }
 
 type RivalStats struct {
-	NemesisName   string `json:"nemesis_name,omitempty"`
-	NemesisKills  int64  `json:"nemesis_kills"` // How many times they killed me
-	VictimName    string `json:"victim_name,omitempty"`
-	VictimKills   int64  `json:"victim_kills"` // How many times I killed them
+	NemesisName  string `json:"nemesis_name,omitempty"`
+	NemesisKills int64  `json:"nemesis_kills"` // How many times they killed me
+	VictimName   string `json:"victim_name,omitempty"`
+	VictimKills  int64  `json:"victim_kills"` // How many times I killed them
 }
 
 type StanceStats struct {
@@ -44,28 +44,28 @@ type StanceStats struct {
 }
 
 type CombatStats struct {
-	Kills           int64 `json:"kills"`
-	Deaths          int64 `json:"deaths"`
+	Kills           int64   `json:"kills"`
+	Deaths          int64   `json:"deaths"`
 	KDRatio         float64 `json:"kd_ratio"`
-	Headshots       int64 `json:"headshots"`
+	Headshots       int64   `json:"headshots"`
 	HeadshotPercent float64 `json:"headshot_percent"`
-	TorsoKills      int64 `json:"torso_kills"`
-	LimbKills       int64 `json:"limb_kills"`
-	MeleeKills      int64 `json:"melee_kills"`
-	Gibs            int64 `json:"gibs"`
-	Suicides        int64 `json:"suicides"`
-	TeamKills       int64 `json:"team_kills"`
-	TradingKills    int64 `json:"trading_kills"` // Killed within 3s of tm death
-	RevengeKills    int64 `json:"revenge_kills"`
-	HighestStreak   int64 `json:"highest_streak"`
-	Nutshots        int64 `json:"nutshots"`
-	Backstabs       int64 `json:"backstabs"`
-	FirstBloods     int64 `json:"first_bloods"`
-	Longshots       int64 `json:"longshots"`
-	Roadkills       int64 `json:"roadkills"`
-	BashKills       int64 `json:"bash_kills"`
-	DamageDealt     int64 `json:"damage_dealt"`
-	DamageTaken     int64 `json:"damage_taken"`
+	TorsoKills      int64   `json:"torso_kills"`
+	LimbKills       int64   `json:"limb_kills"`
+	MeleeKills      int64   `json:"melee_kills"`
+	Gibs            int64   `json:"gibs"`
+	Suicides        int64   `json:"suicides"`
+	TeamKills       int64   `json:"team_kills"`
+	TradingKills    int64   `json:"trading_kills"` // Killed within 3s of tm death
+	RevengeKills    int64   `json:"revenge_kills"`
+	HighestStreak   int64   `json:"highest_streak"`
+	Nutshots        int64   `json:"nutshots"`
+	Backstabs       int64   `json:"backstabs"`
+	FirstBloods     int64   `json:"first_bloods"`
+	Longshots       int64   `json:"longshots"`
+	Roadkills       int64   `json:"roadkills"`
+	BashKills       int64   `json:"bash_kills"`
+	DamageDealt     int64   `json:"damage_dealt"`
+	DamageTaken     int64   `json:"damage_taken"`
 }
 
 type WeaponStats struct {
@@ -88,8 +88,8 @@ type MovementStats struct {
 }
 
 type AccuracyStats struct {
-	Overall    float64 `json:"overall"`
-	HeadHitPct float64 `json:"head_hit_pct"`
+	Overall     float64 `json:"overall"`
+	HeadHitPct  float64 `json:"head_hit_pct"`
 	AvgDistance float64 `json:"avg_distance"`
 }
 
@@ -101,10 +101,10 @@ type SessionStats struct {
 }
 
 type InteractionStats struct {
-	ChatMessages    int64        `json:"chat_messages"`
-	Pickups         []PickupStat `json:"pickups"`
-	VehicleUses     int64        `json:"vehicle_uses"`
-	TurretUses      int64        `json:"turret_uses"`
+	ChatMessages int64        `json:"chat_messages"`
+	Pickups      []PickupStat `json:"pickups"`
+	VehicleUses  int64        `json:"vehicle_uses"`
+	TurretUses   int64        `json:"turret_uses"`
 }
 
 type PickupStat struct {
@@ -115,12 +115,12 @@ type PickupStat struct {
 // GetDeepStats fetches all categories for a player
 func (s *PlayerStatsService) GetDeepStats(ctx context.Context, guid string) (*DeepStats, error) {
 	stats := &DeepStats{}
-	
+
 	// We'll run these concurrently in a real scenario, but sequential for safety now
 	if err := s.fillCombatStats(ctx, guid, &stats.Combat); err != nil {
 		return nil, fmt.Errorf("combat stats: %w", err)
 	}
-	
+
 	if err := s.fillWeaponStats(ctx, guid, &stats.Weapons); err != nil {
 		return nil, fmt.Errorf("weapon stats: %w", err)
 	}
@@ -139,7 +139,7 @@ func (s *PlayerStatsService) GetDeepStats(ctx context.Context, guid string) (*De
 
 	if err := s.fillRivalStats(ctx, guid, &stats.Rivals); err != nil {
 		// Non-critical, log only? For now just return empty
-		stats.Rivals = RivalStats{} 
+		stats.Rivals = RivalStats{}
 	}
 
 	if err := s.fillStanceStats(ctx, guid, &stats.Stance, stats.Combat.Kills); err != nil {
@@ -172,11 +172,11 @@ func (s *PlayerStatsService) fillCombatStats(ctx context.Context, guid string, o
 		FROM raw_events
 		WHERE (actor_id = ? OR target_id = ?)
 	`
-	if err := s.ch.QueryRow(ctx, query, 
+	if err := s.ch.QueryRow(ctx, query,
 		guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, // Params for select clauses
 		guid, guid, // Params for WHERE clause
 	).Scan(
-		&out.Kills, &out.Deaths, &out.Headshots, 
+		&out.Kills, &out.Deaths, &out.Headshots,
 		&out.TorsoKills, &out.LimbKills, &out.MeleeKills, &out.Suicides,
 		&out.TeamKills, &out.Roadkills, &out.BashKills,
 		&out.DamageDealt, &out.DamageTaken,
@@ -186,14 +186,10 @@ func (s *PlayerStatsService) fillCombatStats(ctx context.Context, guid string, o
 	); err != nil {
 		return err
 	}
-	
-	// Simulated 'fun' stats for now if not explicitly tracked in DB yet
-	// Real implementation would add specific countIfs above
-	if out.Kills > 0 {
-		out.Nutshots = out.Kills / 50 
-		out.Backstabs = out.MeleeKills / 2
-		out.Longshots = out.Kills / 10
-	}
+
+	// Nutshots, Backstabs, FirstBloods, Longshots need specific event tracking
+	// These stay at 0 until proper game server events are implemented
+	// DO NOT fabricate data from division/estimation
 
 	if out.Deaths > 0 {
 		out.KDRatio = float64(out.Kills) / float64(out.Deaths)
@@ -251,7 +247,7 @@ func (s *PlayerStatsService) fillMovementStats(ctx context.Context, guid string,
 		WHERE actor_id = ?
 	`
 	// Note: Divide by 100000 assumes units -> km conversion (approx for game units)
-	
+
 	return s.ch.QueryRow(ctx, query, guid).Scan(&out.TotalDistanceKm, &out.JumpCount)
 }
 
@@ -286,9 +282,16 @@ func (s *PlayerStatsService) fillSessionStats(ctx context.Context, guid string, 
 	if out.MatchesPlayed > 0 {
 		out.WinRate = (float64(out.Wins) / float64(out.MatchesPlayed)) * 100
 	}
-	
-	// Placeholder for hours (requires complex session aggregation)
-	out.PlaytimeHours = float64(out.MatchesPlayed) * 0.25 // Avg 15 min per match
+
+	// Playtime requires session tracking (connect/disconnect events with duration)
+	// Query for actual playtime if available, otherwise stays at 0
+	var playtime float64
+	s.ch.QueryRow(ctx, `
+		SELECT sum(toFloat64OrZero(extract(extra, 'duration'))) / 3600.0
+		FROM raw_events 
+		WHERE event_type = 'client_disconnect' AND actor_id = ?
+	`, guid).Scan(&playtime)
+	out.PlaytimeHours = playtime
 	return nil
 }
 
@@ -349,7 +352,7 @@ func (s *PlayerStatsService) fillRivalStats(ctx context.Context, guid string, ou
 		GROUP BY target_name 
 		ORDER BY c DESC LIMIT 1
 	`, guid, guid).Scan(&out.VictimName, &out.VictimKills)
-	
+
 	return nil
 }
 
@@ -358,31 +361,31 @@ func (s *PlayerStatsService) fillStanceStats(ctx context.Context, guid string, o
 		return nil
 	}
 
-	// Simple simulation based on 'crouch' events if kill-stance not linked yet
-	// Ideally we look for 'kill' events where extra.stance = 'crouch'
-	// For this phase, we'll estimate based on 'metrics' or mock distribution
-	
-	// Real Query if 'stance' was in kill event extra data:
-	/*
+	// Stance stats require 'stance' field in kill events from game server
+	// Query for real stance data if available:
 	query := `
 		SELECT 
-			countIf(extract(extra, 'stance') = 'stand'),
-			countIf(extract(extra, 'stance') = 'crouch'),
-			countIf(extract(extra, 'stance') = 'prone')
-		FROM raw_events WHERE event_type='kill' AND actor_id = ?
+			countIf(extract(extra, 'stance') = 'stand') as standing,
+			countIf(extract(extra, 'stance') = 'crouch') as crouching,
+			countIf(extract(extra, 'stance') = 'prone') as prone
+		FROM raw_events 
+		WHERE event_type = 'player_kill' AND actor_id = ?
 	`
-	*/
-	
-	// Logic fallback: We just distribute total kills roughly for demo
-	// In production, we need to ensure the game server sends 'stance' in kill event
-	
-	out.StandingKills = int64(float64(totalKills) * 0.6)
-	out.CrouchKills = int64(float64(totalKills) * 0.3)
-	out.ProneKills = totalKills - out.StandingKills - out.CrouchKills
-	
-	out.StandingPct = 60.0
-	out.CrouchPct = 30.0
-	out.PronePct = 10.0
-	
+	if err := s.ch.QueryRow(ctx, query, guid).Scan(
+		&out.StandingKills, &out.CrouchKills, &out.ProneKills,
+	); err != nil {
+		// If query fails, leave at 0 - do not fabricate
+		return nil
+	}
+
+	// Calculate percentages from real data only
+	stanceTotal := out.StandingKills + out.CrouchKills + out.ProneKills
+	if stanceTotal > 0 {
+		out.StandingPct = (float64(out.StandingKills) / float64(stanceTotal)) * 100
+		out.CrouchPct = (float64(out.CrouchKills) / float64(stanceTotal)) * 100
+		out.PronePct = (float64(out.ProneKills) / float64(stanceTotal)) * 100
+	}
+	// If no stance data tracked, percentages stay at 0
+
 	return nil
 }

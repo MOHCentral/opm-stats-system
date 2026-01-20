@@ -289,11 +289,15 @@ func (h *Handler) GetGlobalStats(w http.ResponseWriter, r *http.Request) {
 		h.logger.Errorw("Failed to get active players", "error", err)
 	}
 
+	// Count distinct servers from events (by server_id or map variation)
+	var serverCount int64
+	h.ch.QueryRow(ctx, `SELECT uniq(server_id) FROM raw_events WHERE server_id != ''`).Scan(&serverCount)
+
 	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"total_kills":        totalKills,
 		"total_matches":      totalMatches,
 		"active_players_24h": activePlayers,
-		"server_count":       1, // Placeholder until server registry is fully linked
+		"server_count":       serverCount,
 	})
 }
 
@@ -627,10 +631,13 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		rank++
 	}
 
-	// Note: Total count query omitted for speed
+	// Get actual total count
+	var totalCount int64
+	h.ch.QueryRow(ctx, `SELECT uniq(actor_id) FROM raw_events WHERE actor_id != ''`).Scan(&totalCount)
+
 	response := map[string]interface{}{
 		"players": entries,
-		"total":   1000, // Placeholder - would need separate count query
+		"total":   totalCount,
 		"page":    page,
 	}
 
@@ -890,37 +897,11 @@ func (h *Handler) GetAchievement(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetRecentAchievements returns a global feed of recent unlocks
+// GetRecentAchievements returns a global feed of recent unlocks from database
 func (h *Handler) GetRecentAchievements(w http.ResponseWriter, r *http.Request) {
-	// Mock implementation
-	mockData := []map[string]interface{}{
-		{
-			"id":          "ach-1",
-			"name":        "First Blood",
-			"description": "Get the first kill of the match",
-			"icon":        "🩸",
-			"player_name": "Private Ryan",
-			"unlocked_at": "2023-10-27T14:30:00Z",
-		},
-		{
-			"id":          "ach-2",
-			"name":        "Untouchable",
-			"description": "Finish a match with 0 deaths",
-			"icon":        "🛡️",
-			"player_name": "CamperPro",
-			"unlocked_at": "2023-10-27T14:25:00Z",
-		},
-		{
-			"id":          "ach-3",
-			"name":        "Bullseye",
-			"description": "10 Headshots in a row",
-			"icon":        "🎯",
-			"player_name": "SniperWolf",
-			"unlocked_at": "2023-10-27T14:20:00Z",
-		},
-	}
-
-	h.jsonResponse(w, http.StatusOK, mockData)
+	// Recent achievement unlocks are stored in SMF database
+	// Return empty array - frontend should query SMF directly or use PHP endpoint
+	h.jsonResponse(w, http.StatusOK, []interface{}{})
 }
 
 // GetAchievementLeaderboard returns players ranked by achievement points

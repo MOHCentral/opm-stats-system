@@ -52,22 +52,26 @@ func (h *Handler) getUserFromSession(r *http.Request) (interface{}, error) {
 }
 
 func (h *Handler) getPlayerProfile(ctx context.Context, guid string) (*PlayerProfile, error) {
-	// Try to get name from ClickHouse if not in Postgres yet
+	// Try to get name and last activity from ClickHouse
 	var name string
+	var lastActive time.Time
 	err := h.ch.QueryRow(ctx, `
-		SELECT any(actor_name) FROM raw_events WHERE actor_id = ?
-	`, guid).Scan(&name)
+		SELECT any(actor_name), max(timestamp) FROM raw_events WHERE actor_id = ?
+	`, guid).Scan(&name, &lastActive)
 
 	if err != nil || name == "" {
 		name = "Unknown Soldier"
+	}
+	if lastActive.IsZero() {
+		lastActive = time.Time{} // Keep as zero time if no activity
 	}
 
 	return &PlayerProfile{
 		GUID:       guid,
 		Name:       name,
 		Verified:   false,
-		Rank:       0,          // To be implemented
-		LastActive: time.Now(), // Placeholder
+		Rank:       0, // Requires separate ranking query
+		LastActive: lastActive,
 	}, nil
 }
 
@@ -147,8 +151,26 @@ func (h *Handler) getPlayerAllWeaponStats(ctx context.Context, guid string) ([]W
 }
 
 func (h *Handler) getMatchDetails(ctx context.Context, matchID string) (*MatchDetails, error) {
-	// Stub for now - requires complex query aggregating match start/end and events
-	return &MatchDetails{ID: matchID, MapName: "Unknown"}, nil
+	// Query match details from ClickHouse
+	var mapName string
+	var startTime, endTime time.Time
+	err := h.ch.QueryRow(ctx, `
+		SELECT 
+			any(map_name),
+			min(timestamp),
+			max(timestamp)
+		FROM raw_events 
+		WHERE match_id = ?
+	`, matchID).Scan(&mapName, &startTime, &endTime)
+
+	if err != nil {
+		return &MatchDetails{ID: matchID, MapName: ""}, err
+	}
+
+	return &MatchDetails{
+		ID:      matchID,
+		MapName: mapName,
+	}, nil
 }
 
 func (h *Handler) getGlobalRecords(ctx context.Context) (*GlobalRecords, error) {

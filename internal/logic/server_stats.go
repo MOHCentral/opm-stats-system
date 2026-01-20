@@ -36,7 +36,7 @@ func (s *ServerStatsService) GetGlobalActivity(ctx context.Context) ([]map[strin
 	var result []map[string]interface{}
 	// Initialize grid? Or sparse return.
 	// Frontend apexcharts heatmap expects: [{name: 'Monday', data: [{x: '00:00', y: 10}, ...]}, ...]
-	
+
 	// We'll return raw for now and let handler/frontend format it
 	for rows.Next() {
 		var day, hour int
@@ -45,8 +45,8 @@ func (s *ServerStatsService) GetGlobalActivity(ctx context.Context) ([]map[strin
 			continue
 		}
 		result = append(result, map[string]interface{}{
-			"day": day,
-			"hour": hour,
+			"day":   day,
+			"hour":  hour,
 			"value": intensity,
 		})
 	}
@@ -89,7 +89,7 @@ func (s *ServerStatsService) GetMapPopularity(ctx context.Context) ([]models.Map
 		ORDER BY matches DESC
 		LIMIT 10
 	`
-	
+
 	rows, err := s.ch.Query(ctx, query)
 	if err != nil {
 		return nil, err
@@ -107,6 +107,7 @@ func (s *ServerStatsService) GetMapPopularity(ctx context.Context) ([]models.Map
 	}
 	return stats, nil
 }
+
 // ServerPulse represents the heartbeat of the server
 type ServerPulse struct {
 	LethalityRating  float64 `json:"lethality_rating"`   // Kills per minute
@@ -156,8 +157,9 @@ func (s *ServerStatsService) GetServerPulse(ctx context.Context) (*ServerPulse, 
 		WHERE timestamp >= now() - INTERVAL 15 MINUTE AND actor_id != ''
 	`).Scan(&pulse.ActivePlayers)
 
-	// 5. Lead Exchange (Placeholder logic: 3 changes per match avg)
-	pulse.LeadExchangeRate = 3.5
+	// 5. Lead Exchange Rate - requires kill streak tracking per match
+	// Set to 0 if not specifically tracked
+	pulse.LeadExchangeRate = 0
 
 	return pulse, nil
 }

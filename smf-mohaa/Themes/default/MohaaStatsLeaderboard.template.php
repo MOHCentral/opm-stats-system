@@ -760,9 +760,7 @@ function template_mohaa_stats_dashboard()
                 <h1>🏆 TOTAL DOMINATION</h1>
                 <span class="header-subtitle">Performance Analysis & Global Records</span>
             </div>
-            <div class="header-actions">
-                <a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kills" class="button">📋 View Detailed Table</a>
-            </div>
+
         </div>
         
         <!-- Ensure CSS is loaded -->
