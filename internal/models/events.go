@@ -12,9 +12,11 @@ type EventType string
 const (
 	// Match lifecycle
 	EventMatchStart EventType = "match_start"
+	EventTeamWin    EventType = "team_win"
 	EventMatchEnd   EventType = "match_end"
 	EventRoundStart EventType = "round_start"
 	EventRoundEnd   EventType = "round_end"
+	EventMatchOutcome EventType = "match_outcome"
 	EventHeartbeat  EventType = "heartbeat"
 
 	// Combat
@@ -273,6 +275,15 @@ type MapStats struct {
 	WinRate       float64 `json:"win_rate"`
 }
 
+// GametypeStats per-gametype statistics
+type GametypeStats struct {
+	Gametype      string  `json:"gametype"`
+	MatchesPlayed int64   `json:"matches_played"`
+	MatchesWon    int64   `json:"matches_won"`
+	MatchesLost   int64   `json:"matches_lost"`
+	WinRate       float64 `json:"win_rate"`
+}
+
 // LeaderboardEntry for leaderboard display with ALL stats
 type LeaderboardEntry struct {
 	Rank       int    `json:"rank"`
@@ -297,6 +308,8 @@ type LeaderboardEntry struct {
 
 	// Game Flow
 	Wins       uint64 `json:"wins"`
+	FFAWins    uint64 `json:"ffa_wins"`
+	TeamWins   uint64 `json:"team_wins"`
 	Losses     uint64 `json:"losses"`
 	Rounds     uint64 `json:"rounds"`
 	Objectives uint64 `json:"objectives"`

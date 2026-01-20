@@ -56,10 +56,12 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'item_pickup') as items_picked,
 
 			-- E. Objectives & Game Flow
-			toUInt64(0) as wins,
-			toUInt64(0) as objectives_done,
-			toUInt64(0) as rounds_played,
-			toUInt64(0) as games_finished,
+			countIf(event_type = 'match_outcome' AND damage = 1) as wins,
+			countIf(event_type = 'match_outcome' AND damage = 1 AND actor_weapon = 'dm') as ffa_wins,
+			countIf(event_type = 'match_outcome' AND damage = 1 AND actor_weapon != 'dm') as team_wins,
+			countIf(event_type = 'objective_update' AND extract(extra, 'status') = 'complete') as objectives_done,
+			countIf(event_type = 'round_end') as rounds_played,
+			countIf(event_type = 'match_outcome') as games_finished,
 
 			-- F. Vehicles
 			toUInt64(0) as vehicle_enter,
@@ -117,7 +119,7 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
 			walked, sprinted, swam, driven                                                                           float64
 			jumps, crouch, prone, ladders                                                                            uint64
 			health, ammo, armor, items                                                                               uint64
-			wins, obj, rounds, games                                                                                 uint64
+			wins, ffaWins, teamWins, obj, rounds, games                                                              uint64
 			vEnter, tEnter, vKills                                                                                   uint64
 			chat, spec, doors                                                                                        uint64
 			verticality, uniqueWeapons, itemsDropped, vehicleCollisions, botKills                                    uint64
@@ -131,7 +133,8 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
 			&reloads, &swaps, &noAmmo, &looter,
 			&walked, &sprinted, &swam, &driven, &jumps, &crouch, &prone, &ladders,
 			&health, &ammo, &armor, &items,
-			&wins, &obj, &rounds, &games,
+			&health, &ammo, &armor, &items,
+			&wins, &ffaWins, &teamWins, &obj, &rounds, &games,
 			&vEnter, &tEnter, &vKills,
 			&chat, &spec, &doors,
 			&verticality, &uniqueWeapons, &itemsDropped, &vehicleCollisions, &botKills,
@@ -201,6 +204,14 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
 			p.Metrics["bot_bully_ratio"] = float64(botKills) / float64(kills)
 		}
 
+
+		p.Metrics["wins"] = float64(wins)
+		p.Metrics["ffa_wins"] = float64(ffaWins)
+		p.Metrics["team_wins"] = float64(teamWins)
+		p.Metrics["objectives_done"] = float64(obj)
+		p.Metrics["rounds_played"] = float64(rounds)
+		p.Metrics["games_finished"] = float64(games)
+
 		// Extended Stats (Phase 2)
 		p.Metrics["butterfingers"] = 0
 		p.Metrics["ocd_reloading"] = float64(reloadCnt)
@@ -247,7 +258,7 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
 		"distance", "sprinted", "swam", "driven", "jumps", "ladders",
 		"marathon", "bunny_hopper", "camper",
 		"health_picked", "ammo_picked", "armor_picked", "items_picked", "medic", "loot_goblin",
-		"wins", "objectives_done", "rounds_played", "games_finished", "pacifist",
+		"wins", "ffa_wins", "team_wins", "objectives_done", "rounds_played", "games_finished", "pacifist",
 		"vehicle_enter", "turret_enter", "vehicle_kills",
 		"chat_msgs", "spectating", "doors_opened", "watcher", "door_opener",
 		"verticality", "swiss_army_knife", "the_architect", "road_rage", "bot_bully",

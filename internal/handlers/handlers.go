@@ -447,6 +447,14 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		orderBy = "kd"
 	case "wins":
 		orderBy = "wins"
+	case "wins":
+		orderBy = "wins"
+	case "ffa_wins":
+		orderBy = "ffa_wins"
+	case "team_wins":
+		orderBy = "team_wins"
+	case "losses":
+		orderBy = "losses"
 	case "rounds":
 		orderBy = "rounds"
 	case "objectives":
@@ -491,64 +499,85 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			sum(dmg) as damage,
 			sum(dist) as distance,
 			sum(jmp) as jumps,
-			toUInt64(0) as wins,
-			toUInt64(0) as losses,
+			sum(w) as wins,
+			sum(ffa_w) as ffa_wins,
+			sum(team_w) as team_wins,
+			sum(l) as losses,
 			toUInt64(0) as rounds,
-			toUInt64(0) as objectives,
+			sum(obj) as objectives,
 			if(sum(d) > 0, toFloat64(sum(k))/toFloat64(sum(d)), toFloat64(sum(k))) as kd,
 			if(sum(sf) > 0, (toFloat64(sum(sh))/toFloat64(sum(sf)))*100.0, 0.0) as accuracy
 		FROM (
 			-- Kills (actor is killer)
-			SELECT actor_id as player_id, actor_name as name, toUInt64(1) as k, toUInt64(0) as d, toUInt64(0) as hs, toUInt64(0) as sf, toUInt64(0) as sh, toUInt64(0) as dmg, toFloat64(0) as dist, toUInt64(0) as jmp
+			SELECT actor_id as player_id, actor_name as name, toUInt64(1) as k, toUInt64(0) as d, toUInt64(0) as hs, toUInt64(0) as sf, toUInt64(0) as sh, toUInt64(0) as dmg, toFloat64(0) as dist, toUInt64(0) as jmp, toUInt64(0) as w, toUInt64(0) as ffa_w, toUInt64(0) as team_w, toUInt64(0) as l, toUInt64(0) as obj
 			FROM raw_events WHERE event_type='kill' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Deaths (target is victim)
-			SELECT target_id as player_id, target_name as name, toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0)
+			SELECT target_id as player_id, target_name as name, toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
 			FROM raw_events WHERE event_type IN ('kill', 'death') AND target_id != '' %s
 			
 			UNION ALL
 			
 			-- Headshots
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0)
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
 			FROM raw_events WHERE event_type='headshot' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Weapon Fire
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0)
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
 			FROM raw_events WHERE event_type='weapon_fire' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Weapon Hit
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toFloat64(0), toUInt64(0)
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
 			FROM raw_events WHERE event_type='weapon_hit' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Damage dealt
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(damage), toFloat64(0), toUInt64(0)
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(damage), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
 			FROM raw_events WHERE event_type='damage' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Distance moved
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(distance), toUInt64(0)
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(distance), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
 			FROM raw_events WHERE event_type='distance' AND actor_id != '' %s
 			
 			UNION ALL
 			
 			-- Jumps
-			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(1)
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(1), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0)
 			FROM raw_events WHERE event_type='jump' AND actor_id != '' %s
+			
+			UNION ALL
+
+			-- Wins/Losses (Match Outcome)
+			-- damage=1 is Win, damage=0 is Loss
+			-- actor_weapon holds gametype
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), 
+				if(damage=1, toUInt64(1), 0), 
+				if(damage=1 AND actor_weapon IN ('dm','ffa'), toUInt64(1), 0),
+				if(damage=1 AND actor_weapon NOT IN ('dm','ffa'), toUInt64(1), 0),
+				if(damage=0, toUInt64(1), 0), 
+				toUInt64(0)
+			FROM raw_events WHERE event_type='match_outcome' AND actor_id != '' %s
+
+			UNION ALL
+
+			-- Objectives
+			SELECT actor_id as player_id, actor_name as name, toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toFloat64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(1)
+			FROM raw_events WHERE event_type='objective_update' AND extract(extra, 'status')='complete' AND actor_id != '' %s
 		)
 		GROUP BY player_id
-		HAVING kills > 0 OR deaths > 0
+		HAVING kills > 0 OR deaths > 0 OR wins > 0
 		ORDER BY %s DESC
 		LIMIT ? OFFSET ?
-	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
+	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
 
 	rows, err := h.ch.Query(ctx, query, limit, offset)
 	if err != nil {
@@ -582,6 +611,8 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			&entry.Distance,
 			&entry.Jumps,
 			&entry.Wins,
+			&entry.FFAWins,
+			&entry.TeamWins,
 			&entry.Losses,
 			&entry.Rounds,
 			&entry.Objectives,
@@ -754,6 +785,7 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'weapon_hit' AND actor_id = ?) as shots_hit,
 			sumIf(damage, actor_id = ?) as total_damage,
 			uniq(match_id) as matches_played,
+			countIf(event_type = 'match_outcome' AND actor_id = ? AND damage = 1) as matches_won,
 			max(timestamp) as last_active,
 			any(actor_name) as name,
 			
@@ -778,7 +810,7 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 			sumIf(duration, event_type = 'prone' AND actor_id = ?) as prone_time_seconds
 		FROM raw_events
 		WHERE actor_id = ?
-	`, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid)
+	`, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid)
 
 	err := row.Scan(
 		&stats.TotalKills,
@@ -788,6 +820,7 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 		&stats.ShotsHit,
 		&stats.TotalDamage,
 		&stats.MatchesPlayed,
+		&stats.MatchesWon,
 		&stats.LastActive,
 		&stats.PlayerName,
 		// New granular metrics
@@ -821,6 +854,9 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 	}
 	if stats.TotalKills > 0 {
 		stats.HSPercent = float64(stats.TotalHeadshots) / float64(stats.TotalKills) * 100
+	}
+	if stats.MatchesPlayed > 0 {
+		stats.WinRate = float64(stats.MatchesWon) / float64(stats.MatchesPlayed) * 100
 	}
 
 	h.jsonResponse(w, http.StatusOK, stats)

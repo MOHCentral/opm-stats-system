@@ -175,6 +175,10 @@ function template_mohaa_team_view()
                 <div class="label">Wins</div>
             </div>
             <div class="stat">
+                <div class="value">', $team['losses'], '</div>
+                <div class="label">Losses</div>
+            </div>
+            <div class="stat">
                 <div class="value">', number_format($context['mohaa_team']['stats']['total_kills']), '</div>
                 <div class="label">Total Kills</div>
             </div>
@@ -213,6 +217,12 @@ function template_mohaa_team_view()
     if ($context['mohaa_team']['is_captain']) {
         echo '
         <a href="', $scripturl, '?action=mohaateams;sa=retire;id=', $team['id_team'], ';', $context['session_var'], '=', $context['session_id'], '" class="button" style="background-color: #d32f2f; color: white;" onclick="return confirm(\'Are you sure you want to RETIRE this team? This will archive the team and remove all members.\');">Retire Team</a>';
+    } 
+    // Challenge Button (Visible to Captains of OTHER teams)
+    elseif (!$context['mohaa_team']['my_membership'] && !$user_info['is_guest']) {
+        // Simple check: show button, backend validates if user is actually a captain of another team
+         echo '
+        <a href="', $scripturl, '?action=mohaateams;sa=challenge;id=', $team['id_team'], '" class="button" style="background-color: #e67e22; color: white;">⚔️ Challenge Team</a>';
     }
 
     echo '
@@ -288,7 +298,14 @@ function template_mohaa_team_view()
              <div>
                 <div class="cat_bar"><h4 class="catbg">📅 Upcoming Matches</h4></div>
                 <div class="windowbg">
-                    <p class="centertext">No upcoming fixtures scheduled.</p>
+                ' . (!empty($context['mohaa_team']['challenges']) ? '
+                    <ul class="upcoming-matches">
+                    ' . implode('', array_map(function($c) use ($team) {
+                         $opponent = ($c['target_id'] == $team['id_team']) ? $c['challenger_name'] : $c['target_name'];
+                         $map = $c['map'] ?: 'TBA';
+                         return '<li><strong>vs ' . htmlspecialchars($opponent) . '</strong><br><span class="smalltext">'.date('d M H:i', $c['match_date']).' @ '.$map.'</span></li>';
+                    }, $context['mohaa_team']['challenges'])) . '
+                    </ul>' : '<p class="centertext">No upcoming fixtures scheduled.</p>') . '
                 </div>
              </div>
         </div>
@@ -689,6 +706,52 @@ function template_mohaa_team_manage()
         </div>';
     }
 
+    // MATCH CHALLENGES (Incoming / Active)
+    if (!empty($context['mohaa_manage']['challenges'])) {
+        echo '
+        <div class="cat_bar"><h4 class="catbg">⚔️ Match Challenges</h4></div>
+        <div class="windowbg">
+            <table class="table_grid" style="width: 100%;">
+                <thead>
+                    <tr class="title_bar">
+                        <th>Date</th>
+                        <th>Opponent</th>
+                        <th>Map/Mode</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>';
+        foreach ($context['mohaa_manage']['challenges'] as $c) {
+            $isChallenger = ($c['id_team_challenger'] == $team['id_team']);
+            $opponent = $isChallenger ? $c['target_name'] : $c['challenger_name'];
+            
+            echo '
+            <tr class="windowbg">
+                <td>', date('d M Y H:i', $c['match_date']), '</td>
+                <td>', htmlspecialchars($opponent), '</td>
+                <td>', htmlspecialchars($c['game_mode']), ' @ ', htmlspecialchars($c['map']), '</td>
+                <td>', ucfirst($c['status']), '</td>
+                <td>';
+            
+            if (!$isChallenger && $c['status'] == 'pending') {
+                echo '
+                <form method="post" style="display:inline;">
+                    <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '" />
+                    <input type="hidden" name="challenge_id" value="', $c['id_challenge'], '" />
+                    <input type="hidden" name="action" value="respond_challenge" />
+                    <button type="submit" name="response" value="accept" class="button" style="background:#4ade80;">Accept</button>
+                    <button type="submit" name="response" value="decline" class="button" style="background:#f87171;">Decline</button>
+                </form>';
+            } else {
+                echo '-';
+            }
+            
+            echo '</td></tr>';
+        }
+        echo '</tbody></table></div>';
+    }
+
     // Current members
     echo '
     <div class="cat_bar"><h4 class="catbg">', $txt['mohaa_members'], '</h4></div>
@@ -749,6 +812,57 @@ function template_mohaa_team_manage()
             </dl>
             <input type="submit" name="invite_player" value="Send Invite" class="button" />
             <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '" />
+        </form>
+    </div>';
+}
+
+/**
+ * Challenge Team Form
+ */
+function template_mohaa_team_challenge()
+{
+    global $context, $txt, $scripturl;
+
+    $targetName = $context['mohaa_challenge']['target_name'];
+    $myTeamName = $context['mohaa_challenge']['my_team_name'];
+
+    echo '
+    <div class="cat_bar">
+        <h3 class="catbg">⚔️ Challenge Team</h3>
+    </div>
+    
+    <div class="windowbg">
+        <p>You are challenging <strong>', htmlspecialchars($targetName), '</strong> as Captain of <strong>', htmlspecialchars($myTeamName), '</strong>.</p>
+        
+        <form action="', $scripturl, '?action=mohaateams;sa=challengesubmit" method="post">
+            <dl class="settings">
+                <dt><label>Proposed Date/Time:</label></dt>
+                <dd>
+                    <input type="datetime-local" name="match_date" required />
+                    <span class="smalltext">Server time.</span>
+                </dd>
+
+                <dt><label>Game Mode:</label></dt>
+                <dd>
+                    <select name="game_mode">
+                        <option value="tdm">Team Deathmatch (TDM)</option>
+                        <option value="obj">Objective (OBJ)</option>
+                        <option value="ft">Freeze Tag</option>
+                    </select>
+                </dd>
+
+                <dt><label>Map:</label></dt>
+                <dd>
+                    <input type="text" name="map" placeholder="e.g. v2_rocket" required />
+                </dd>
+            </dl>
+            
+            <div style="text-align: right; margin-top: 15px;">
+                <input type="hidden" name="target_id" value="', $context['mohaa_challenge']['target_id'], '" />
+                <input type="hidden" name="my_team_id" value="', $context['mohaa_challenge']['my_team_id'], '" />
+                <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '" />
+                <button type="submit" class="button" style="background-color: #e67e22; color: white; font-size: 1.1em;">🚀 Send Challenge</button>
+            </div>
         </form>
     </div>';
 }

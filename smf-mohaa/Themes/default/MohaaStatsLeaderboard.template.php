@@ -547,10 +547,13 @@ function template_mohaa_stats_dashboard()
         'items_picked' => ['label' => 'Scavenger', 'icon' => '??'],
 
         // E. Objectives
-        'wins' => ['label' => 'Grand Champion', 'icon' => '??'],
-        'objectives_done' => ['label' => 'Objective Master', 'icon' => '??'],
-        'rounds_played' => ['label' => 'Veteran', 'icon' => '??'],
-        'games_finished' => ['label' => 'Ironman', 'icon' => '??'],
+        'wins' => ['label' => 'Wins', 'icon' => '🏆'],
+        'team_wins' => ['label' => 'Team Wins', 'icon' => '🚩'],
+        'ffa_wins' => ['label' => 'FFA Wins', 'icon' => '⚔️'],
+        'losses' => ['label' => 'Losses', 'icon' => '☠️'],
+        'objectives_done' => ['label' => 'Objective Master', 'icon' => '🎯'],
+        'rounds_played' => ['label' => 'Veteran', 'icon' => '⏳'],
+        'games_finished' => ['label' => 'Ironman', 'icon' => '🎮'],
 
         // F. Vehicles
         'vehicle_enter' => ['label' => 'Pilot', 'icon' => '??'],

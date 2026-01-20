@@ -204,18 +204,27 @@ function template_mohaa_war_room()
             
             <div class="header-stats">
                 <div class="mini-stat">
-                    <span class="value">', number_format($player['kills'] ?? 0), '</span>
+                    <span class="value">'.number_format($player['kills'] ?? 0).'</span>
                     <span class="label">Kills</span>
                 </div>
                 <div class="mini-stat">
-                    <span class="value">', number_format($player['deaths'] ?? 0), '</span>
+                    <span class="value">'.number_format($player['deaths'] ?? 0).'</span>
                     <span class="label">Deaths</span>
                 </div>
                 <div class="mini-stat">
-                    <span class="value" style="color: ', (($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1) >= 1 ? 'var(--mohaa-success)' : 'var(--mohaa-danger)'), '">
-                        ', number_format(($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1), 2), '
+                    <span class="value" style="color: '.(($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1) >= 1 ? 'var(--mohaa-success)' : 'var(--mohaa-danger)').'">
+                        '.number_format(($player['kills'] ?? 0) / max(1, $player['deaths'] ?? 1), 2).'
                     </span>
                     <span class="label">K/D</span>
+                </div>
+                <div class="mini-stat separator" style="border-left: 1px solid rgba(255,255,255,0.1); margin: 0 10px; padding-left: 10px;"></div>
+                <div class="mini-stat">
+                    <span class="value" style="color: var(--mohaa-success);">'.number_format($player['matches_won'] ?? 0).'</span>
+                    <span class="label">Wins</span>
+                </div>
+                <div class="mini-stat">
+                    <span class="value" style="color: var(--mohaa-danger);">'.number_format(($player['matches_played'] ?? 0) - ($player['matches_won'] ?? 0)).'</span>
+                    <span class="label">Losses</span>
                 </div>
             </div>
         </div>
@@ -228,6 +237,7 @@ function template_mohaa_war_room()
             <a href="#" onclick="showTab(\'weapons\'); return false;" class="mohaa-tab">🔫 Armoury</a>
             <a href="#" onclick="showTab(\'movement\'); return false;" class="mohaa-tab">🏃 Movement</a>
             <a href="#" onclick="showTab(\'gameflow\'); return false;" class="mohaa-tab">🎮 Game</a>
+            <a href="#" onclick="showTab(\'gametypes\'); return false;" class="mohaa-tab">🕹️ Game Types</a>
             <a href="#" onclick="showTab(\'interaction\'); return false;" class="mohaa-tab">🗣️ Interaction</a>
             <a href="#" onclick="showTab(\'maps\'); return false;" class="mohaa-tab">🗺️ Maps</a>
             <a href="#" onclick="showTab(\'matches\'); return false;" class="mohaa-tab">📊 Matches</a>
@@ -398,6 +408,64 @@ function template_mohaa_war_room()
             <!-- World Interaction Stats -->
             ', template_war_room_world_section($data), '
         </div>
+
+        <!-- ======================= GAMETYPES TAB ======================= -->
+        <div id="tab-gametypes" class="tab-content" style="display: none;">
+            <div class="windowbg stat-card">
+                <h3>Game Type Performance</h3>
+                <div style="overflow-x: auto;">
+                    <table class="clean-table" style="width: 100%; text-align: center;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left;">Game Type</th>
+                                <th>Matches</th>
+                                <th>Wins</th>
+                                <th>Losses</th>
+                                <th>Win %</th>
+                                <th>Performance</th>
+                            </tr>
+                        </thead>
+                        <tbody>';
+                        
+                $gametypes = $data['gametype_stats'] ?? [];
+                if (empty($gametypes)) {
+                    echo '<tr><td colspan="6" style="padding: 20px; opacity: 0.6;">No game type data available yet.</td></tr>';
+                } else {
+                    foreach ($gametypes as $gt) {
+                        $winRate = $gt['win_rate'] ?? 0;
+                        $barColor = $winRate > 60 ? 'var(--mohaa-success)' : ($winRate > 40 ? 'var(--mohaa-warning)' : 'var(--mohaa-danger)');
+                        
+                        echo '
+                        <tr>
+                            <td style="text-align: left; font-weight: bold;">', htmlspecialchars(strtoupper($gt['gametype'])), '</td>
+                            <td>', number_format($gt['matches_played']), '</td>
+                            <td style="color: var(--mohaa-success);">', number_format($gt['matches_won']), '</td>
+                            <td style="color: var(--mohaa-danger);">', number_format($gt['matches_lost']), '</td>
+                            <td>', number_format($winRate, 1), '%</td>
+                            <td style="width: 30%;">
+                                <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ', $winRate, '%; height: 100%; background: ', $barColor, ';"></div>
+                                </div>
+                            </td>
+                        </tr>';
+                    }
+                }
+                echo '
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Charts Row -->
+            <div class="mohaa-grid">
+                <div class="windowbg stat-card">
+                    <h3>Win Distribution</h3>
+                    <div id="chart-gametype-wins" style="min-height: 250px;"></div>
+                </div>
+                <!-- Add more charts if needed -->
+            </div>
+        </div>
+
         
         <!-- ======================= MAPS TAB ======================= -->
         <div id="tab-maps" class="tab-content" style="display: none;">
@@ -1344,26 +1412,125 @@ function template_war_room_rivals_content($player) {
 }
 
 function template_war_room_maps_content($maps, $player) {
-    if (empty($maps)) return '<p class="centertext" style="opacity: 0.6; padding: 20px;">No map data.</p>';
-    
-    $html = '<div class="map-card-grid">';
-    foreach ($maps as $name => $stats) {
-        $isBest = $name === ($player['best_map'] ?? '');
-        $style = $isBest ? 'border-color: var(--mohaa-success); background: rgba(76, 175, 80, 0.1);' : '';
-        
-        $html .= '
-        <div class="stat-card" style="padding: 15px; text-align: center; '.$style.'">
-            <div style="font-weight: bold; margin-bottom: 5px;">'.htmlspecialchars($name).'</div>
-            '.($isBest ? '<div style="font-size: 0.7em; color: var(--mohaa-success); font-weight: bold; margin-bottom: 5px;">BEST MAP</div>' : '').'
-            <div style="font-size: 0.9em;">
-                <div>Kills: <strong>'.($stats['kills'] ?? 0).'</strong></div>
-                <div>Wins: '.($stats['wins'] ?? 0).'</div>
-            </div>
-        </div>';
+    if (empty($maps)) {
+        return '<div class="alert">No map data available yet. Play some matches!</div>';
     }
-    $html .= '</div>';
-    return $html;
+
+    $rows = '';
+    $chartLabels = [];
+    $chartDataWins = [];
+    $chartDataLosses = [];
+    
+    foreach ($maps as $m) {
+        $played = $m['matches_played'] ?? 0;
+        if ($played <= 0) continue;
+        
+        $wins = $m['matches_won'] ?? 0;
+        $losses = $played - $wins;
+        $winRate = ($wins / $played) * 100;
+        $kills = $m['kills'] ?? 0;
+        $deaths = $m['deaths'] ?? 0;
+        $kd = $deaths > 0 ? round($kills / $deaths, 2) : $kills;
+        
+        $chartLabels[] = $m['map_name'];
+        $chartDataWins[] = $wins;
+        $chartDataLosses[] = $losses;
+        
+        $rows .= '
+        <tr>
+            <td style="text-align: left; padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <span style="font-weight: bold; color: #fff;">'.htmlspecialchars($m['map_name']).'</span>
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">'.number_format($played).'</td>
+            <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <span style="color: #4caf50;">'.number_format($wins).'</span>
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="flex-grow: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                        <div style="width: '.min(100, max(0, $winRate)).'%; height: 100%; background: '.($winRate >= 50 ? '#4caf50' : '#f44336').';"></div>
+                    </div>
+                    <span style="font-size: 0.85em; width: 40px; text-align: right;">'.number_format($winRate, 0).'%</span>
+                </div>
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">'.number_format($kills).'</td>
+            <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">'.number_format($kd, 2).'</td>
+        </tr>';
+    }
+    
+    return '
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+        <div>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="text-align: left; color: rgba(255,255,255,0.5); font-size: 0.85em; text-transform: uppercase;">
+                        <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Map</th>
+                        <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Matches</th>
+                        <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Wins</th>
+                        <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Win Rate</th>
+                        <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Kills</th>
+                        <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">K/D</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    '.$rows.'
+                </tbody>
+            </table>
+        </div>
+        <div>
+            <div id="chart-map-wins" style="min-height: 250px;"></div>
+            <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    var options = {
+                        series: [{
+                            name: "Wins",
+                            data: '.json_encode($chartDataWins).'
+                        }, {
+                            name: "Losses",
+                            data: '.json_encode($chartDataLosses).'
+                        }],
+                        chart: {
+                            type: "bar",
+                            height: 250,
+                            stacked: true,
+                            toolbar: { show: false },
+                            background: "transparent"
+                        },
+                        colors: ["#4caf50", "#f44336"],
+                        plotOptions: {
+                            bar: {
+                                horizontal: true,
+                                dataLabels: {
+                                    total: {
+                                        enabled: true,
+                                        offsetX: 0,
+                                        style: {
+                                            fontSize: "13px",
+                                            fontWeight: 900
+                                        }
+                                    }
+                                }
+                            },
+                        },
+                        stroke: { width: 1, colors: ["#fff"] },
+                        xaxis: {
+                            categories: '.json_encode($chartLabels).',
+                            labels: { style: { colors: "#aab7c4" } }
+                        },
+                        yaxis: {
+                            labels: { style: { colors: "#aab7c4" } }
+                        },
+                        theme: { mode: "dark" },
+                        legend: { position: "top", labels: { colors: "#aab7c4" } }
+                    };
+                    var chart = new ApexCharts(document.querySelector("#chart-map-wins"), options);
+                    chart.render();
+                });
+            </script>
+        </div>
+    </div>';
 }
+
 
 function template_war_room_matches_content($matches) {
     if (empty($matches)) return '<p class="centertext" style="opacity: 0.6; padding: 20px;">No matches played recently.</p>';
@@ -1531,25 +1698,33 @@ function template_war_room_winloss_content($player): string
 {
     $wins = $player['wins'] ?? 0;
     $losses = $player['losses'] ?? 0;
+    $ffaWins = $player['ffa_wins'] ?? 0;
+    $teamWins = $player['team_wins'] ?? 0;
     $total = max(1, $wins + $losses);
     $winRate = ($wins / $total) * 100;
     
     return '
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
         <div style="text-align: center; padding: 15px; background: rgba(76, 175, 80, 0.1); border-radius: 8px;">
             <div style="font-size: 1.8em; font-weight: bold; color: #4caf50;">'.number_format($wins).'</div>
-            <div style="opacity: 0.7;">Wins</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">Total Wins</div>
+            <div style="font-size: 0.7em; opacity: 0.5;">'.number_format($winRate, 1).'% Rate</div>
         </div>
         <div style="text-align: center; padding: 15px; background: rgba(244, 67, 54, 0.1); border-radius: 8px;">
             <div style="font-size: 1.8em; font-weight: bold; color: #f44336;">'.number_format($losses).'</div>
-            <div style="opacity: 0.7;">Losses</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">Losses</div>
         </div>
-        <div style="text-align: center; padding: 15px; background: rgba(74, 107, 138, 0.1); border-radius: 8px;">
-            <div style="font-size: 1.8em; font-weight: bold; color: #4a6b8a;">'.number_format($winRate, 1).'%</div>
-            <div style="opacity: 0.7;">Win Rate</div>
+        <div style="text-align: center; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+            <div style="font-size: 1.2em; font-weight: bold; color: #2196f3;">'.number_format($teamWins).'</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">Team Wins</div>
+        </div>
+        <div style="text-align: center; padding: 10px; background: rgba(255, 152, 0, 0.05); border-radius: 8px;">
+            <div style="font-size: 1.2em; font-weight: bold; color: #ff9800;">'.number_format($ffaWins).'</div>
+            <div style="font-size: 0.8em; opacity: 0.7;">FFA Wins</div>
         </div>
     </div>';
 }
+
 
 /**
  * Rounds and games breakdown

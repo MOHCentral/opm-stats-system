@@ -346,6 +346,15 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		ch.TargetName = sanitizeName(event.TargetName)
 		ch.Hitloc = event.Hitloc
 
+	case models.EventMatchOutcome:
+		ch.ActorID = event.PlayerGUID
+		ch.ActorName = sanitizeName(event.PlayerName)
+		ch.ActorTeam = event.PlayerTeam
+		// Use Damage column for Win/Loss flag (1=Win, 0=Loss)
+		ch.Damage = uint32(event.Count)
+		// Use ActorWeapon column for Gametype storage
+		ch.ActorWeapon = event.Gametype
+
 	default:
 		// Generic player event
 		ch.ActorID = event.PlayerGUID
@@ -378,6 +387,12 @@ func (p *Pool) processEventSideEffects(ctx context.Context, event *models.RawEve
 		p.handleDisconnect(ctx, event)
 	case models.EventChat:
 		p.handleChat(ctx, event)
+	case models.EventTeamChange:
+		p.handleTeamChange(ctx, event)
+	case models.EventSpawn:
+		p.handleSpawn(ctx, event)
+	case models.EventTeamWin:
+		p.handleTeamWin(ctx, event)
 	}
 }
 
@@ -395,14 +410,95 @@ func (p *Pool) handleMatchStart(ctx context.Context, event *models.RawEvent) {
 	data, _ := json.Marshal(liveMatch)
 	p.config.Redis.HSet(ctx, "live_matches", event.MatchID, data)
 	p.config.Redis.SAdd(ctx, "active_match_ids", event.MatchID)
+	
+	// Clear any stale team data for this match
+	p.config.Redis.Del(ctx, "match:"+event.MatchID+":teams")
 }
 
 // handleMatchEnd removes from live matches, triggers tournament advancement
 func (p *Pool) handleMatchEnd(ctx context.Context, event *models.RawEvent) {
+	// Retrieve winning team from live match cache if not in event
+	winningTeam := event.WinningTeam
+	if winningTeam == "" {
+		data, err := p.config.Redis.HGet(ctx, "live_matches", event.MatchID).Bytes()
+		if err == nil {
+			var liveMatch models.LiveMatch
+			if err := json.Unmarshal(data, &liveMatch); err == nil {
+				// We might store winning team in liveMatch structure if we update it on team_win
+				// But for now, let's assume event.WinningTeam is populated or we rely on team_win event
+			}
+		}
+	}
+
+	// Synthesize Match Outcome Events
+	// Get all players and their teams
+	teams, err := p.config.Redis.HGetAll(ctx, "match:"+event.MatchID+":teams").Result()
+	if err == nil {
+		// Get Gametype from LiveMatch to pass to event
+		var gametype string
+		if data, err := p.config.Redis.HGet(ctx, "live_matches", event.MatchID).Bytes(); err == nil {
+			var lm models.LiveMatch
+			if json.Unmarshal(data, &lm) == nil {
+				gametype = lm.Gametype
+			}
+		}
+
+		for guid, team := range teams {
+			outcome := 0 // Loss
+			if team == winningTeam {
+				outcome = 1 // Win
+			}
+
+			// Create Outcome Event
+			go func(playerGUID, playerTeam string, won int, gType string) {
+				outcomeEvent := &models.RawEvent{
+					Type:       models.EventMatchOutcome,
+					MatchID:    event.MatchID,
+					ServerID:   event.ServerID,
+					MapName:    event.MapName,
+					Timestamp:  float64(time.Now().Unix()),
+					PlayerGUID: playerGUID,
+					PlayerTeam: playerTeam,
+					Gametype:   gType,
+					// Re-using 'Count' for Won/Lost (1/0)
+					Count: won,
+				}
+				p.Enqueue(outcomeEvent)
+			}(guid, team, outcome, gametype)
+		}
+	}
+
 	p.config.Redis.HDel(ctx, "live_matches", event.MatchID)
 	p.config.Redis.SRem(ctx, "active_match_ids", event.MatchID)
+	// Cleanup team data
+	p.config.Redis.Del(ctx, "match:"+event.MatchID+":teams")
+	p.config.Redis.Del(ctx, "match:"+event.MatchID+":players")
 
 	// TODO: Check if this match is part of a tournament and trigger bracket advancement
+}
+
+// handleTeamWin records the winner in Redis so match_end can pick it up
+func (p *Pool) handleTeamWin(ctx context.Context, event *models.RawEvent) {
+	// Update live match with winner
+	// We need to extend LiveMatch struct or just store it in a side key
+	// distinct key for winner?
+	p.config.Redis.HSet(ctx, "match:"+event.MatchID+":winner", "team", event.WinningTeam)
+}
+
+// handleTeamChange updates player team in Redis
+func (p *Pool) handleTeamChange(ctx context.Context, event *models.RawEvent) {
+	if event.PlayerGUID == "" || event.NewTeam == "" {
+		return
+	}
+	p.config.Redis.HSet(ctx, "match:"+event.MatchID+":teams", event.PlayerGUID, event.NewTeam)
+}
+
+// handleSpawn also ensures team is set (backup for team_change)
+func (p *Pool) handleSpawn(ctx context.Context, event *models.RawEvent) {
+	if event.PlayerGUID == "" || event.PlayerTeam == "" {
+		return
+	}
+	p.config.Redis.HSet(ctx, "match:"+event.MatchID+":teams", event.PlayerGUID, event.PlayerTeam)
 }
 
 // handleHeartbeat updates live match state

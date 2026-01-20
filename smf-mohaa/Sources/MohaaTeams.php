@@ -64,6 +64,8 @@ function MohaaTeams_Main(): void
         'manage' => 'MohaaTeams_Manage',
         'rankings' => 'MohaaTeams_Rankings',
         'retire' => 'MohaaTeams_Retire',
+        'challenge' => 'MohaaTeams_Challenge',
+        'challengesubmit' => 'MohaaTeams_ChallengeSubmit',
     ];
     
     $sa = isset($_GET['sa']) && isset($subActions[$_GET['sa']]) ? $_GET['sa'] : 'list';
@@ -246,11 +248,49 @@ function MohaaTeams_View(): void
     // Sort Activity by date
     ksort($teamStats['activity_stats']);
     
-    // Fetch Tournament History (Mock)
-    $tournaments = [
-        ['name' => 'Winter Cup 2025', 'placement' => '1st', 'date' => time() - 86400 * 20, 'badge' => '🥇'],
-        ['name' => 'Spring League', 'placement' => '3rd', 'date' => time() - 86400 * 100, 'badge' => '🥉']
-    ];
+    // Fetch Tournament History (Real)
+    $tournaments = [];
+    $request = $smcFunc['db_query']('', '
+        SELECT t.name, t.tournament_start as date, r.status, 
+               CASE 
+                   WHEN t.id_winner_team = {int:team_id} THEN "1st"
+                   WHEN r.status = "disqualified" THEN "DQ"
+                   ELSE "Part"
+               END as placement,
+               CASE 
+                   WHEN t.id_winner_team = {int:team_id} THEN "🥇"
+                   ELSE "🏅"
+               END as badge
+        FROM {db_prefix}mohaa_tournament_registrations AS r
+        JOIN {db_prefix}mohaa_tournaments AS t ON t.id_tournament = r.id_tournament
+        WHERE r.id_team = {int:team_id}
+        ORDER BY t.tournament_start DESC',
+        ['team_id' => $id]
+    );
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $tournaments[] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    // Fetch Challenges (Upcoming Matches)
+    $challenges = [];
+     $request = $smcFunc['db_query']('', '
+        SELECT c.*, 
+               t1.team_name as challenger_name, t1.id_team as challenger_id,
+               t2.team_name as target_name, t2.id_team as target_id
+        FROM {db_prefix}mohaa_team_challenges AS c
+        LEFT JOIN {db_prefix}mohaa_teams AS t1 ON c.id_team_challenger = t1.id_team
+        LEFT JOIN {db_prefix}mohaa_teams AS t2 ON c.id_team_target = t2.id_team
+        WHERE (c.id_team_challenger = {int:team_id} OR c.id_team_target = {int:team_id})
+          AND c.status = {string:accepted}
+        ORDER BY c.match_date ASC
+        LIMIT 5',
+        ['team_id' => $id, 'accepted' => 'accepted']
+    );
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $challenges[] = $row;
+    }
+    $smcFunc['db_free_result']($request);
 
     foreach ($members as &$m) {
         $guid = $membersByGuid[$m['id_member']] ?? null;
@@ -301,7 +341,9 @@ function MohaaTeams_View(): void
         'members' => $members,
         'matches' => $matches,
         'stats' => $teamStats,
+        'stats' => $teamStats,
         'tournaments' => $tournaments,
+        'challenges' => $challenges,
         'my_membership' => $myMembership,
         'has_pending' => $hasPendingInvite,
         'is_captain' => $myMembership && $myMembership['role'] === 'captain',
@@ -670,7 +712,7 @@ function MohaaTeams_Manage(): void
     
     $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
     
-    if (!MohaaTeams_IsOfficer($id, $user_info['id'])) {
+    if (!$user_info['is_admin'] && !MohaaTeams_IsOfficer($id, $user_info['id'])) {
         fatal_lang_error('mohaa_not_team_officer', false);
         return;
     }
@@ -727,6 +769,19 @@ function MohaaTeams_Manage(): void
                  $smcFunc['db_query']('', '
                     UPDATE {db_prefix}mohaa_team_invites SET status = {string:declined} WHERE id_invite = {int:id}',
                     ['id' => $inviteId, 'declined' => 'declined']
+                );
+                break;
+
+             case 'respond_challenge':
+                $challengeId = (int)$_POST['challenge_id'];
+                $response = $_POST['response'] === 'accept' ? 'accepted' : 'declined';
+                
+                // Extra security check for ownership? (Assumed implicit by Manage page access)
+                $smcFunc['db_query']('', '
+                    UPDATE {db_prefix}mohaa_team_challenges
+                    SET status = {string:status}
+                    WHERE id_challenge = {int:id} AND id_team_target = {int:team_id}',
+                    ['id' => $challengeId, 'team_id' => $id, 'status' => $response]
                 );
                 break;
 
@@ -813,6 +868,26 @@ function MohaaTeams_Manage(): void
         'members' => $members,
         'requests' => $requests,
     ];
+    
+    // Fetch Team Challenges (for Management)
+    $challenges = [];
+     $request = $smcFunc['db_query']('', '
+        SELECT c.*, 
+               t1.team_name as challenger_name, t1.id_team as challenger_id,
+               t2.team_name as target_name, t2.id_team as target_id
+        FROM {db_prefix}mohaa_team_challenges AS c
+        LEFT JOIN {db_prefix}mohaa_teams AS t1 ON c.id_team_challenger = t1.id_team
+        LEFT JOIN {db_prefix}mohaa_teams AS t2 ON c.id_team_target = t2.id_team
+        WHERE c.id_team_challenger = {int:team_id} OR c.id_team_target = {int:team_id}
+        ORDER BY c.match_date ASC',
+        ['team_id' => $id]
+    );
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $challenges[] = $row;
+    }
+    $smcFunc['db_free_result']($request);
+    
+    $context['mohaa_manage']['challenges'] = $challenges;
 }
 
 /**
@@ -1018,4 +1093,118 @@ function MohaaTeams_Retire(): void
     );
     
     redirectexit('action=mohaateams');
+}
+
+/**
+ * Challenge a team (Form)
+ */
+function MohaaTeams_Challenge(): void
+{
+    global $context, $txt, $scripturl, $user_info, $smcFunc;
+
+    if ($user_info['is_guest']) {
+        redirectexit('action=login');
+        return;
+    }
+
+    $targetId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    
+    // Check if user is Captain/Officer of ANY team
+    // We need to know which team the user is representing
+    $myTeamId = 0;
+    $request = $smcFunc['db_query']('', '
+        SELECT id_team, team_name FROM {db_prefix}mohaa_teams 
+        WHERE id_captain = {int:id} AND status = {string:active}',
+        ['id' => $user_info['id'], 'active' => 'active']
+    );
+    if ($smcFunc['db_num_rows']($request) > 0) {
+         $row = $smcFunc['db_fetch_assoc']($request);
+         $myTeamId = $row['id_team'];
+         $myTeamName = $row['team_name'];
+    }
+    $smcFunc['db_free_result']($request);
+
+    if (empty($myTeamId)) {
+        fatal_lang_error('mohaa_not_captain', false); // Only captains can challenge
+        return;
+    }
+
+    if ($targetId == $myTeamId) {
+        fatal_lang_error('mohaa_challenge_self', false);
+        return;
+    }
+
+    // Get Target Team Info
+    $request = $smcFunc['db_query']('', '
+        SELECT team_name FROM {db_prefix}mohaa_teams WHERE id_team = {int:id}',
+        ['id' => $targetId]
+    );
+    $targetTeam = $smcFunc['db_fetch_assoc']($request);
+    $smcFunc['db_free_result']($request);
+
+    if (!$targetTeam) {
+        fatal_lang_error('mohaa_team_not_found', false);
+        return;
+    }
+
+    $context['page_title'] = 'Challenge Team: ' . $targetTeam['team_name'];
+    $context['sub_template'] = 'mohaa_team_challenge';
+    $context['mohaa_challenge'] = [
+        'target_id' => $targetId,
+        'target_name' => $targetTeam['team_name'],
+        'my_team_id' => $myTeamId,
+        'my_team_name' => $myTeamName,
+    ];
+}
+
+/**
+ * Submit Challenge
+ */
+function MohaaTeams_ChallengeSubmit(): void
+{
+    global $user_info, $smcFunc, $txt;
+
+    checkSession();
+
+    $targetId = (int)$_POST['target_id'];
+    $myTeamId = (int)$_POST['my_team_id'];
+    $gameMode = $_POST['game_mode'];
+    $map = $_POST['map'];
+    $matchDate = strtotime($_POST['match_date']);
+
+    // Validate ownership again
+    if (!MohaaTeams_IsOfficer($myTeamId, $user_info['id'])) {
+         fatal_lang_error('mohaa_not_allowed', false);
+         return;
+    }
+
+    if (empty($matchDate) || $matchDate < time()) {
+        // Just default to +1 day if invalid
+        $matchDate = time() + 86400;
+    }
+
+    $smcFunc['db_insert']('insert',
+        '{db_prefix}mohaa_team_challenges',
+        [
+            'id_team_challenger' => 'int',
+            'id_team_target' => 'int',
+            'match_date' => 'int',
+            'game_mode' => 'string',
+            'map' => 'string',
+            'status' => 'string',
+            'challenge_date' => 'int',
+        ],
+        [
+            $myTeamId,
+            $targetId,
+            $matchDate,
+            $gameMode,
+            $map,
+            'pending',
+            time()
+        ],
+        ['id_challenge']
+    );
+
+    redirectexit('action=mohaateams;sa=view;id=' . $targetId);
 }

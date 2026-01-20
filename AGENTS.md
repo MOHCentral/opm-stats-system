@@ -339,3 +339,6 @@ Combinations comprising a player's profile.
 
 IN SMF - 
 you could modify the avatar to show the rank 
+
+Always add player related data to the smf database
+Always automatically run install and migration scripts for me

@@ -158,6 +158,8 @@ func main() {
 			r.Get("/player/{guid}/deep", h.GetPlayerDeepStats)
 			r.Get("/player/{guid}/matches", h.GetPlayerMatches)
 			r.Get("/player/{guid}/weapons", h.GetPlayerWeaponStats)
+			r.Get("/player/{guid}/gametypes", h.GetPlayerStatsByGametype)
+			r.Get("/player/{guid}/maps", h.GetPlayerStatsByMap)
 			r.Get("/player/{guid}/heatmap/{map}", h.GetPlayerHeatmap)
 			r.Get("/player/{guid}/deaths/{map}", h.GetPlayerDeathHeatmap)
 			r.Get("/player/{guid}/heatmap/body", h.GetPlayerBodyHeatmap)

@@ -283,6 +283,9 @@ function MohaaPlayers_Dashboard(): void
             'gameflow' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/game-flow'],
             'world' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/world'],
             'bots' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/bots'],
+
+            'gametypes' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/gametypes'],
+            'maps' => ['endpoint' => '/stats/player/' . urlencode($myGuid) . '/maps'],
         ];
         
         $playerResults = $api->getMultiple($playerRequests);
@@ -294,6 +297,8 @@ function MohaaPlayers_Dashboard(): void
             'weapons' => $playerResults['weapons'],
             'recent_matches' => $playerResults['matches'],
             'achievements' => $playerResults['achievements'],
+            'gametypes' => $playerResults['gametypes'] ?? [],
+            'maps' => $playerResults['maps'] ?? [],
             'performance' => [],
             'comparisons' => [],
         ];
@@ -317,8 +322,23 @@ function MohaaPlayers_Dashboard(): void
             if (isset($deep['rivals'])) $playerStats = array_merge($playerStats, $deep['rivals']);
             if (isset($deep['stance'])) $playerStats = array_merge($playerStats, $deep['stance']);
             if (isset($deep['interaction'])) $playerStats = array_merge($playerStats, $deep['interaction']);
+
             // Note: 'weapons' is handled separately
         }
+        
+        // Calculate FFA/Team Wins from Gametypes
+        $gametypes = $playerResults['gametypes'] ?? [];
+        $ffaWins = 0;
+        $teamWins = 0;
+        foreach ($gametypes as $gt) {
+            if (isset($gt['gametype']) && ($gt['gametype'] == 'dm' || $gt['gametype'] == 'ffa')) {
+                $ffaWins += ($gt['matches_won'] ?? 0);
+            } else {
+                $teamWins += ($gt['matches_won'] ?? 0);
+            }
+        }
+        $playerStats['ffa_wins'] = $ffaWins;
+        $playerStats['team_wins'] = $teamWins;
         
         $context['mohaa_dashboard'] = [
             'player_stats' => $playerStats,
@@ -334,7 +354,9 @@ function MohaaPlayers_Dashboard(): void
             'vehicle_stats' => $playerResults['vehicles'] ?? [],
             'game_flow' => $playerResults['gameflow'] ?? [],
             'world_stats' => $playerResults['world'] ?? [],
+            'world_stats' => $playerResults['world'] ?? [],
             'bot_stats' => $playerResults['bots'] ?? [],
+            'gametype_stats' => $playerResults['gametypes'] ?? [],
         ];
     } else {
         $context['mohaa_has_identity'] = false;
