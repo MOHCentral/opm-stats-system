@@ -7,7 +7,7 @@
  */
 
 /**
- * Achievement list - The Medal Case
+ * Achievement list - The Medal Case (with search and pagination)
  */
 function template_mohaa_achievements_list()
 {
@@ -40,6 +40,65 @@ function template_mohaa_achievements_list()
             <a href="', $scripturl, '?action=mohaaachievements" class="tab active">All Achievements</a>
             <a href="', $scripturl, '?action=mohaaachievements;sa=recent" class="tab">Recent Unlocks</a>
             <a href="', $scripturl, '?action=mohaaachievements;sa=leaderboard" class="tab">Leaderboard</a>
+        </div>';
+    
+    // Search and Filter Bar
+    echo '
+        <div class="achievements-filter-bar">
+            <form action="', $scripturl, '" method="get" class="filter-form">
+                <input type="hidden" name="action" value="mohaaachievements">
+                
+                <div class="filter-search">
+                    <input type="text" name="search" placeholder="🔍 Search achievements..." 
+                           value="', htmlspecialchars($context['achievements_search']), '" 
+                           class="search-input">
+                </div>
+                
+                <div class="filter-select">
+                    <select name="cat" class="filter-dropdown">
+                        <option value="">All Categories</option>';
+    
+    foreach ($context['achievements_categories'] as $cat) {
+        $selected = ($cat === $context['achievements_category']) ? ' selected' : '';
+        echo '
+                        <option value="', htmlspecialchars($cat), '"', $selected, '>', htmlspecialchars(ucfirst($cat)), '</option>';
+    }
+    
+    echo '
+                    </select>
+                </div>
+                
+                <div class="filter-select">
+                    <select name="tier" class="filter-dropdown">
+                        <option value="0">All Tiers</option>
+                        <option value="1"', ($context['achievements_tier'] === 1 ? ' selected' : ''), '>🥉 Bronze</option>
+                        <option value="2"', ($context['achievements_tier'] === 2 ? ' selected' : ''), '>🥈 Silver</option>
+                        <option value="3"', ($context['achievements_tier'] === 3 ? ' selected' : ''), '>🥇 Gold</option>
+                        <option value="4"', ($context['achievements_tier'] === 4 ? ' selected' : ''), '>💎 Platinum</option>
+                        <option value="5"', ($context['achievements_tier'] === 5 ? ' selected' : ''), '>💠 Diamond</option>
+                    </select>
+                </div>';
+    
+    if (!$user_info['is_guest']) {
+        echo '
+                <div class="filter-select">
+                    <select name="unlocked" class="filter-dropdown">
+                        <option value="">All Status</option>
+                        <option value="yes"', ($context['achievements_unlocked_filter'] === 'yes' ? ' selected' : ''), '>✓ Unlocked Only</option>
+                        <option value="no"', ($context['achievements_unlocked_filter'] === 'no' ? ' selected' : ''), '>🔒 Locked Only</option>
+                    </select>
+                </div>';
+    }
+    
+    echo '
+                <button type="submit" class="filter-btn">Filter</button>
+                <a href="', $scripturl, '?action=mohaaachievements" class="filter-clear">Clear</a>
+            </form>
+            
+            <div class="filter-results">
+                Showing <strong>', $data['filtered_total'], '</strong> achievements
+                ', ($context['achievements_search'] ? ' matching "<em>' . htmlspecialchars($context['achievements_search']) . '</em>"' : ''), '
+            </div>
         </div>';
 
     // Categories
@@ -101,6 +160,75 @@ function template_mohaa_achievements_list()
                 </a>';
         }
 
+        echo '
+            </div>
+        </div>';
+    }
+    
+    // Pagination
+    if ($context['achievements_total_pages'] > 1) {
+        $currentPage = $context['achievements_page'];
+        $totalPages = $context['achievements_total_pages'];
+        
+        // Build base URL with existing filters
+        $baseUrl = $scripturl . '?action=mohaaachievements';
+        if (!empty($context['achievements_search'])) {
+            $baseUrl .= ';search=' . urlencode($context['achievements_search']);
+        }
+        if (!empty($context['achievements_category'])) {
+            $baseUrl .= ';cat=' . urlencode($context['achievements_category']);
+        }
+        if ($context['achievements_tier'] > 0) {
+            $baseUrl .= ';tier=' . $context['achievements_tier'];
+        }
+        if (!empty($context['achievements_unlocked_filter'])) {
+            $baseUrl .= ';unlocked=' . $context['achievements_unlocked_filter'];
+        }
+        
+        echo '
+        <div class="achievements-pagination">
+            <div class="pagination-info">
+                Page ', $currentPage, ' of ', $totalPages, '
+            </div>
+            <div class="pagination-links">';
+        
+        // Previous button
+        if ($currentPage > 1) {
+            echo '<a href="', $baseUrl, ';page=', ($currentPage - 1), '" class="page-btn">← Previous</a>';
+        } else {
+            echo '<span class="page-btn disabled">← Previous</span>';
+        }
+        
+        // Page numbers (show max 7 pages)
+        $startPage = max(1, $currentPage - 3);
+        $endPage = min($totalPages, $currentPage + 3);
+        
+        if ($startPage > 1) {
+            echo '<a href="', $baseUrl, ';page=1" class="page-num">1</a>';
+            if ($startPage > 2) {
+                echo '<span class="page-ellipsis">...</span>';
+            }
+        }
+        
+        for ($p = $startPage; $p <= $endPage; $p++) {
+            $activeClass = ($p === $currentPage) ? ' active' : '';
+            echo '<a href="', $baseUrl, ';page=', $p, '" class="page-num', $activeClass, '">', $p, '</a>';
+        }
+        
+        if ($endPage < $totalPages) {
+            if ($endPage < $totalPages - 1) {
+                echo '<span class="page-ellipsis">...</span>';
+            }
+            echo '<a href="', $baseUrl, ';page=', $totalPages, '" class="page-num">', $totalPages, '</a>';
+        }
+        
+        // Next button
+        if ($currentPage < $totalPages) {
+            echo '<a href="', $baseUrl, ';page=', ($currentPage + 1), '" class="page-btn">Next →</a>';
+        } else {
+            echo '<span class="page-btn disabled">Next →</span>';
+        }
+        
         echo '
             </div>
         </div>';
@@ -1025,6 +1153,165 @@ function template_achievement_styles()
             color: #111;
             border-bottom-color: #2196f3;
             background: #e8f1ff;
+        }
+        
+        /* Filter Bar */
+        .achievements-filter-bar {
+            padding: 15px 30px;
+            background: #f1f3f6;
+            border-bottom: 1px solid #dcdfe4;
+        }
+        
+        .filter-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .filter-search {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.95em;
+            background: #fff;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+        }
+        
+        .filter-select {
+            min-width: 140px;
+        }
+        
+        .filter-dropdown {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: #fff;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+        
+        .filter-btn {
+            padding: 10px 20px;
+            background: #2196f3;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .filter-btn:hover {
+            background: #1976d2;
+        }
+        
+        .filter-clear {
+            padding: 10px 15px;
+            color: #666;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+        
+        .filter-clear:hover {
+            color: #333;
+        }
+        
+        .filter-results {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .filter-results strong {
+            color: #111;
+        }
+        
+        /* Pagination */
+        .achievements-pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            border-top: 1px solid #dcdfe4;
+            background: #f8f9fb;
+        }
+        
+        .pagination-info {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .pagination-links {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        
+        .page-btn, .page-num {
+            padding: 8px 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            color: #333;
+            text-decoration: none;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        
+        .page-btn:hover, .page-num:hover {
+            background: #e8f1ff;
+            border-color: #2196f3;
+            color: #2196f3;
+        }
+        
+        .page-num.active {
+            background: #2196f3;
+            border-color: #2196f3;
+            color: #fff;
+        }
+        
+        .page-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        
+        .page-ellipsis {
+            padding: 0 8px;
+            color: #999;
+        }
+        
+        @media (max-width: 768px) {
+            .filter-form {
+                flex-direction: column;
+            }
+            
+            .filter-search, .filter-select {
+                width: 100%;
+            }
+            
+            .achievements-pagination {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .pagination-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
         }
         
         /* Category */

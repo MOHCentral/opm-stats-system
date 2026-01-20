@@ -73,7 +73,7 @@ function MohaaAchievements_Main(): void
 }
 
 /**
- * List all achievements
+ * List all achievements with pagination and search
  */
 function MohaaAchievements_List(): void
 {
@@ -82,15 +82,82 @@ function MohaaAchievements_List(): void
     $context['page_title'] = $txt['mohaa_achievements'] ?? 'Achievements';
     $context['sub_template'] = 'mohaa_achievements_list';
     
+    // Pagination and search parameters
+    $perPage = 24; // Show 24 achievements per page (4x6 grid)
+    $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+    $categoryFilter = isset($_GET['cat']) ? $_GET['cat'] : '';
+    $tierFilter = isset($_GET['tier']) ? (int)$_GET['tier'] : 0;
+    $showUnlocked = isset($_GET['unlocked']) ? $_GET['unlocked'] : '';
+    
+    $context['achievements_search'] = $search;
+    $context['achievements_category'] = $categoryFilter;
+    $context['achievements_tier'] = $tierFilter;
+    $context['achievements_unlocked_filter'] = $showUnlocked;
+    $context['achievements_page'] = $page;
+    $context['achievements_per_page'] = $perPage;
+    
+    // Build WHERE clause for filtering
+    $whereClause = 'is_hidden = 0';
+    $params = [];
+    
+    if (!empty($search)) {
+        $whereClause .= ' AND (name LIKE {string:search} OR description LIKE {string:search})';
+        $params['search'] = '%' . $search . '%';
+    }
+    
+    if (!empty($categoryFilter)) {
+        $whereClause .= ' AND category = {string:category}';
+        $params['category'] = $categoryFilter;
+    }
+    
+    if ($tierFilter > 0) {
+        $whereClause .= ' AND tier = {int:tier}';
+        $params['tier'] = $tierFilter;
+    }
+    
+    // Get total count for pagination
+    $request = $smcFunc['db_query']('', '
+        SELECT COUNT(*) FROM {db_prefix}mohaa_achievement_defs WHERE ' . $whereClause,
+        $params
+    );
+    list($totalAchievements) = $smcFunc['db_fetch_row']($request);
+    $smcFunc['db_free_result']($request);
+    
+    $context['achievements_total'] = (int)$totalAchievements;
+    $context['achievements_total_pages'] = max(1, ceil($totalAchievements / $perPage));
+    
+    // Clamp page to valid range
+    if ($page > $context['achievements_total_pages']) {
+        $page = $context['achievements_total_pages'];
+        $context['achievements_page'] = $page;
+    }
+    
+    $offset = ($page - 1) * $perPage;
+    $params['offset'] = $offset;
+    $params['limit'] = $perPage;
+    
     // Get all achievement definitions from DATABASE (not API - DB has 85+ achievements)
     $achievements = [];
     $request = $smcFunc['db_query']('', '
         SELECT id_achievement, code, name, description, category, tier, icon, 
                requirement_type, requirement_value, points, is_hidden, sort_order
         FROM {db_prefix}mohaa_achievement_defs
-        WHERE is_hidden = 0
-        ORDER BY category, tier, sort_order'
+        WHERE ' . $whereClause . '
+        ORDER BY category, tier, sort_order
+        LIMIT {int:offset}, {int:limit}',
+        $params
     );
+    
+    // Also get all categories for the filter dropdown
+    $catRequest = $smcFunc['db_query']('', '
+        SELECT DISTINCT category FROM {db_prefix}mohaa_achievement_defs ORDER BY category'
+    );
+    $context['achievements_categories'] = [];
+    while ($row = $smcFunc['db_fetch_assoc']($catRequest)) {
+        $context['achievements_categories'][] = $row['category'];
+    }
+    $smcFunc['db_free_result']($catRequest);
     
     while ($row = $smcFunc['db_fetch_assoc']($request)) {
         $achievements[$row['id_achievement']] = [
@@ -160,6 +227,19 @@ function MohaaAchievements_List(): void
         $cat = $ach['category'] ?? 'Other';
         $tier = $ach['tier'] ?? 1;
         
+        $ach['is_unlocked'] = isset($unlocked[$id]);
+        $ach['unlocked_date'] = $unlocked[$id]['unlocked_date'] ?? null;
+        $ach['current_progress'] = $progress[$id] ?? 0;
+        $ach['progress_percent'] = min(100, round(($ach['current_progress'] / max(1, $ach['target'] ?? 1)) * 100));
+        
+        // Apply unlocked filter if set
+        if ($showUnlocked === 'yes' && !$ach['is_unlocked']) {
+            continue;
+        }
+        if ($showUnlocked === 'no' && $ach['is_unlocked']) {
+            continue;
+        }
+        
         if (!isset($grouped[$cat])) {
             $grouped[$cat] = [
                 'info' => [
@@ -171,34 +251,44 @@ function MohaaAchievements_List(): void
             ];
         }
         
-        $ach['is_unlocked'] = isset($unlocked[$id]);
-        $ach['unlocked_date'] = $unlocked[$id]['unlocked_date'] ?? null;
-        $ach['current_progress'] = $progress[$id] ?? 0;
-        $ach['progress_percent'] = min(100, round(($ach['current_progress'] / max(1, $ach['target'] ?? 1)) * 100));
-        
         $grouped[$cat]['achievements'][] = $ach;
     }
     
-    // Stats summary
-    $totalAchievements = count($achievements);
-    $unlockedCount = count($unlocked);
-    $totalPoints = 0;
-    $earnedPoints = 0;
+    // Get total stats (from all achievements, not just current page)
+    $statsRequest = $smcFunc['db_query']('', '
+        SELECT COUNT(*) as total, SUM(points) as total_points
+        FROM {db_prefix}mohaa_achievement_defs WHERE is_hidden = 0'
+    );
+    $stats = $smcFunc['db_fetch_assoc']($statsRequest);
+    $smcFunc['db_free_result']($statsRequest);
     
-    foreach ($achievements as $ach) {
-        $totalPoints += $ach['points'];
-        if (isset($unlocked[$ach['id_achievement']])) {
-            $earnedPoints += $ach['points'];
-        }
+    $totalAllAchievements = (int)($stats['total'] ?? 0);
+    $totalPoints = (int)($stats['total_points'] ?? 0);
+    $unlockedCount = count($unlocked);
+    
+    // Calculate earned points
+    $earnedPoints = 0;
+    if (!empty($unlocked)) {
+        $earnedRequest = $smcFunc['db_query']('', '
+            SELECT SUM(ad.points) as earned
+            FROM {db_prefix}mohaa_player_achievements pa
+            JOIN {db_prefix}mohaa_achievement_defs ad ON ad.id_achievement = pa.id_achievement
+            WHERE pa.id_member = {int:member}',
+            ['member' => $user_info['id']]
+        );
+        $earnedRow = $smcFunc['db_fetch_assoc']($earnedRequest);
+        $earnedPoints = (int)($earnedRow['earned'] ?? 0);
+        $smcFunc['db_free_result']($earnedRequest);
     }
     
     $context['mohaa_achievements'] = [
         'categories' => $grouped,
-        'total' => $totalAchievements,
+        'total' => $totalAllAchievements,
         'unlocked' => $unlockedCount,
         'total_points' => $totalPoints,
         'earned_points' => $earnedPoints,
-        'completion_percent' => round(($unlockedCount / max(1, $totalAchievements)) * 100),
+        'completion_percent' => round(($unlockedCount / max(1, $totalAllAchievements)) * 100),
+        'filtered_total' => $context['achievements_total'],
     ];
     
     $context['linktree'][] = [
