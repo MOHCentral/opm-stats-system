@@ -257,7 +257,7 @@ function template_mohaa_team_view()
                 
                  <div class="cat_bar"><h4 class="catbg">Team Composition</h4></div>
                  <div class="windowbg">
-                    <canvas id="weaponChart"></canvas>
+                    <div id="weaponChart"></div>
                  </div>
             </div>
 
@@ -265,17 +265,17 @@ function template_mohaa_team_view()
             <div class="dashboard-col-right">
                 <div class="cat_bar"><h4 class="catbg">Win / Loss Ratio</h4></div>
                 <div class="windowbg chart-container">
-                    <canvas id="wlChart"></canvas>
+                    <div id="wlChart"></div>
                 </div>
 
                 <div class="cat_bar"><h4 class="catbg">Map Dominance</h4></div>
                 <div class="windowbg chart-container">
-                    <canvas id="mapChart"></canvas>
+                    <div id="mapChart"></div>
                 </div>
 
                 <div class="cat_bar"><h4 class="catbg">Activity (30 Days)</h4></div>
                 <div class="windowbg chart-container">
-                    <canvas id="activityChart"></canvas>
+                    <div id="activityChart"></div>
                 </div>
             </div>
         </div>
@@ -388,9 +388,9 @@ function template_mohaa_team_view()
     }
     echo '</div>';
 
-    // --- CHART JS ---
+    // --- APEX CHARTS ---
     echo '
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script>
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;
@@ -413,124 +413,72 @@ function template_mohaa_team_view()
         const losses = ' . $team['losses'] . ';
         const draws = ' . $team['draws'] . ';
 
-        Chart.defaults.color = "#aab7c4";
-        Chart.defaults.font.family = "Segoe UI, system-ui, sans-serif";
-
-        // Weapon Chart (Doughnut)
+        // Weapon Chart (Donut)
         if (Object.keys(weaponData).length > 0) {
-            new Chart(document.getElementById("weaponChart"), {
-                type: "doughnut",
-                data: {
-                    labels: Object.keys(weaponData),
-                    datasets: [{
-                        data: Object.values(weaponData),
-                        backgroundColor: ["#3498db", "#e74c3c", "#f1c40f", "#2ecc71", "#9b59b6", "#1abc9c"],
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
+            new ApexCharts(document.querySelector("#weaponChart"), {
+                series: Object.values(weaponData),
+                labels: Object.keys(weaponData),
+                chart: { type: "donut", height: 250 },
+                colors: ["#3498db", "#e74c3c", "#f1c40f", "#2ecc71", "#9b59b6", "#1abc9c"],
+                plotOptions: {
+                    pie: { donut: { size: "70%" } }
                 },
-                options: { 
-                    responsive: true, 
-                    plugins: { 
-                        legend: { position: "right", labels: { boxWidth: 12, usePointStyle: true } },
-                        title: { display: false }
-                    },
-                    cutout: "70%"
-                }
-            });
+                legend: { position: "right" },
+                tooltip: { theme: "dark" }
+            }).render();
         }
 
         // Win/Loss Chart (Pie)
-        new Chart(document.getElementById("wlChart"), {
-            type: "pie",
-            data: {
-                labels: ["Wins", "Losses", "Draws"],
-                datasets: [{
-                    data: [wins, losses, draws],
-                    backgroundColor: ["#2ecc71", "#e74c3c", "#95a5a6"],
-                    borderWidth: 0
-                }]
-            },
-            options: { 
-                responsive: true,
-                plugins: { legend: { position: "bottom", labels: { boxWidth: 12, usePointStyle: true } } }
-            }
-        });
+        new ApexCharts(document.querySelector("#wlChart"), {
+            series: [wins, losses, draws],
+            labels: ["Wins", "Losses", "Draws"],
+            chart: { type: "pie", height: 250 },
+            colors: ["#2ecc71", "#e74c3c", "#95a5a6"],
+            legend: { position: "bottom" },
+            tooltip: { theme: "dark" }
+        }).render();
 
-        // Map Dominance Chart (Horizontal Bar)
+        // Map Dominance Chart (Bar)
         if (Object.keys(mapData).length > 0) {
-            const ctxMap = document.getElementById("mapChart").getContext("2d");
-            const gradMap = ctxMap.createLinearGradient(0, 0, 400, 0);
-            gradMap.addColorStop(0, "rgba(46, 204, 113, 0.8)");
-            gradMap.addColorStop(1, "rgba(39, 174, 96, 0.4)");
-
             const mapLabels = Object.keys(mapData);
             const mapWins = mapLabels.map(m => mapData[m].wins);
             
-            new Chart(ctxMap, {
-                type: "bar",
-                indexAxis: "y",
-                data: {
-                  labels: mapLabels,
-                  datasets: [{
-                    label: "Wins",
-                    data: mapWins,
-                    backgroundColor: gradMap,
-                    borderRadius: 4,
-                    barPercentage: 0.6
-                  }]
+            new ApexCharts(document.querySelector("#mapChart"), {
+                series: [{ name: "Wins", data: mapWins }],
+                chart: { type: "bar", height: 250, toolbar: {show:false} },
+                plotOptions: {
+                    bar: { horizontal: true, borderRadius: 4 }
                 },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        x: { beginAtZero: true, grid: { color: "rgba(255,255,255,0.05)" } },
-                        y: { grid: { display: false } }
-                    }
-                }
-            });
+                xaxis: { categories: mapLabels },
+                colors: ["#2ecc71"],
+                tooltip: { theme: "dark" }
+            }).render();
         }
 
-        // Activity Chart (Line with Gradient Fill)
+        // Activity Chart (Area)
         if (Object.keys(activityData).length > 0) {
-            const ctxAct = document.getElementById("activityChart").getContext("2d");
-            const gradAct = ctxAct.createLinearGradient(0, 0, 0, 400);
-            gradAct.addColorStop(0, "rgba(52, 152, 219, 0.5)");
-            gradAct.addColorStop(1, "rgba(52, 152, 219, 0.0)");
-
-            new Chart(ctxAct, {
-                type: "line",
-                data: {
-                  labels: Object.keys(activityData),
-                  datasets: [{
-                    label: "Matches",
-                    data: Object.values(activityData),
-                    borderColor: "#3498db",
-                    backgroundColor: gradAct,
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    pointBackgroundColor: "#3498db",
-                    pointRadius: 3,
-                    pointHoverRadius: 5
-                  }]
+            new ApexCharts(document.querySelector("#activityChart"), {
+                series: [{ name: "Matches", data: Object.values(activityData) }],
+                chart: { type: "area", height: 200, toolbar: {show:false} },
+                xaxis: { 
+                    categories: Object.keys(activityData),
+                    labels: { show: false }
                 },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        y: { 
-                            beginAtZero: true, 
-                            ticks: { stepSize: 1 },
-                            grid: { color: "rgba(255,255,255,0.05)" }
-                        },
-                        x: { grid: { display: false } }
-                    },
-                    interaction: { mode: "index", intersect: false }
-                }
-            });
+                colors: ["#3498db"],
+                dataLabels: { enabled: false },
+                stroke: { curve: "smooth", width: 2 },
+                fill: {
+                     type: "gradient",
+                     gradient: {
+                         shadeIntensity: 1,
+                         opacityFrom: 0.7,
+                         opacityTo: 0.1,
+                         stops: [0, 90, 100]
+                     }
+                },
+                grid: { show: false },
+                tooltip: { theme: "dark" }
+            }).render();
         }
     </script>';
 

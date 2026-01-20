@@ -7,11 +7,11 @@ on_player_pain local.player local.attacker local.damage local.mod local.location
     local.payload = "type=player_pain"
     local.payload = local.payload + "&match_id=" + level.match_id
     local.payload = local.payload + "&timestamp=" + level.time
-    local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.player "victim"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
     local.payload = local.payload + "&damage=" + local.damage
-    local.payload = local.payload + "&mod=" + local.mod
-    local.payload = local.payload + "&location=" + local.location
+    local.payload = local.payload + "&meansofdeath=" + local.mod
+    local.payload = local.payload + "&hit_location=" + local.location
 
     thread tracker_common.scr::send_to_api local.payload
 end

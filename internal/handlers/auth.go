@@ -373,6 +373,112 @@ func (h *Handler) VerifyToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// SMFVerifyToken handles the specific format sent by tracker.scr (Form Data)
+// POST /api/v1/auth/smf-verify
+// Form Data: token, guid, player_name, server_ip, server_port, server_id
+func (h *Handler) SMFVerifyToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if err := r.ParseForm(); err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Invalid form data")
+		return
+	}
+
+	token := r.Form.Get("token")
+	playerGUID := r.Form.Get("guid")
+	playerName := r.Form.Get("player_name")
+	// serverIP := r.Form.Get("server_ip")
+	// serverPort := r.Form.Get("server_port")
+	serverID := r.Form.Get("server_id")
+
+	// IP of the player is the request IP, effectively
+	// In a real setup, we might trust the game server to report the player's IP
+	// but for now we'll use the request RemoteAddr if server_ip is the game server itself.
+	// Actually, tracker.scr usually runs on the SERVER, so the request comes from the SERVER IP.
+	// The player's IP might not be passed correctly unless we add it to the script.
+	// For now, allow the server to proxy the auth.
+
+	if token == "" {
+		h.jsonResponse(w, http.StatusUnauthorized, map[string]interface{}{
+			"success": false,
+			"message": "Token is required",
+		})
+		return
+	}
+
+	// Look up token
+	var forumUserID int
+	var tokenID string
+	var expiresAt time.Time
+	var usedAt *time.Time
+	var isActive bool
+
+	err := h.pg.QueryRow(ctx, `
+		SELECT id, forum_user_id, expires_at, used_at, is_active
+		FROM login_tokens
+		WHERE token = $1
+	`, token).Scan(&tokenID, &forumUserID, &expiresAt, &usedAt, &isActive)
+
+	if err != nil {
+		h.jsonResponse(w, http.StatusUnauthorized, map[string]interface{}{
+			"success": false,
+			"message": "Invalid token",
+		})
+		return
+	}
+
+	if !isActive || time.Now().After(expiresAt) {
+		h.jsonResponse(w, http.StatusUnauthorized, map[string]interface{}{
+			"success": false,
+			"message": "Token expired or inactive",
+		})
+		return
+	}
+
+	// If used, we check if it was used for the SAME player recently?
+	// For now, let's allow reuse if it's the valid session, or just enforce one-time use logic same as VerifyToken.
+	// Simplified: Mark as used.
+
+	if usedAt == nil {
+		_, err = h.pg.Exec(ctx, `
+			UPDATE login_tokens 
+			SET used_at = NOW(), used_player_guid = $2
+			WHERE id = $3
+		`, "tracker_proxy", playerGUID, tokenID)
+		if err != nil {
+			h.logger.Errorw("Failed to mark token used", "error", err)
+		}
+	}
+
+	// Link GUID
+	if playerGUID != "" {
+		_, err = h.pg.Exec(ctx, `
+			INSERT INTO smf_user_mappings (smf_member_id, primary_guid, updated_at)
+			VALUES ($1, $2, NOW())
+			ON CONFLICT (smf_member_id) 
+			DO UPDATE SET primary_guid = $2, updated_at = NOW()
+		`, forumUserID, playerGUID)
+		if err != nil {
+			h.logger.Errorw("Failed to link GUID", "error", err)
+		}
+	}
+
+	// Log attempt
+	h.pg.Exec(ctx, `
+		INSERT INTO login_token_history 
+		(forum_user_id, token, server_name, player_guid, success)
+		VALUES ($1, $2, $3, $4, true)
+	`, forumUserID, token, serverID, playerGUID)
+
+	// Return format expected by tracker.scr
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"success":     true,
+		"member_id":   forumUserID,
+		"member_name": playerName, // In real integration, fetch from forum DB
+		"guid":        playerGUID,
+	})
+}
+
 // GetLoginHistory returns login history for a forum user
 // GET /api/v1/auth/history?forum_user_id=123
 func (h *Handler) GetLoginHistory(w http.ResponseWriter, r *http.Request) {

@@ -519,7 +519,57 @@ function template_mohaa_player()
         <div class="mohaa-tab-content" id="tab-overview">
             <div class="windowbg">
                 <h4>Performance Chart</h4>
-                <canvas id="player-performance-chart" width="400" height="200"></canvas>
+                <div id="player-performance-chart"></div>
+            </div>
+            <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+            <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                var matches = ' . json_encode(array_reverse($context['mohaa_player']['matches'] ?? [])) . ';
+                if (matches.length > 0) {
+                    var labels = matches.map(m => m.map_name);
+                    var kds = matches.map(m => parseFloat(m.kd).toFixed(2));
+                    var kills = matches.map(m => parseInt(m.kills));
+
+                    var options = {
+                        series: [{
+                            name: "K/D Ratio",
+                            type: "line",
+                            data: kds
+                        }, {
+                            name: "Kills",
+                            type: "column",
+                            data: kills
+                        }],
+                        chart: {
+                            height: 300,
+                            type: "line",
+                            toolbar: { show: false }
+                        },
+                        stroke: { width: [3, 0], curve: "smooth" },
+                        plotOptions: { bar: { borderRadius: 4, columnWidth: "40%" } },
+                        dataLabels: { enabled: false },
+                        labels: labels,
+                        xaxis: { labels: { show: false } }, // Hide map names if too many
+                        colors: ["#FFA000", "#1976D2"],
+                        yaxis: [{
+                            title: { text: "K/D Ratio", style: { color: "#FFA000" } },
+                            labels: { style: { colors: "#FFA000" } },
+                            min: 0
+                        }, {
+                            opposite: true,
+                            title: { text: "Kills", style: { color: "#1976D2" } },
+                            labels: { style: { colors: "#1976D2" } }
+                        }],
+                        grid: { borderColor: "#f1f1f1" },
+                        tooltip: { theme: "light" }
+                    };
+
+                    new ApexCharts(document.querySelector("#player-performance-chart"), options).render();
+                } else {
+                    document.getElementById("player-performance-chart").innerHTML = "<p class=\'centertext\'>Not enough data for performance chart.</p>";
+                }
+            });
+            </script>
             </div>
         </div>';
     

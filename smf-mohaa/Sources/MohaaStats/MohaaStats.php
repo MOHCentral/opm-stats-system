@@ -94,6 +94,11 @@ function MohaaStats_MenuButtons(array &$buttons): void
                 'href' => $scripturl . '?action=mohaastats;sa=maps',
                 'show' => true,
             ],
+            'weapons' => [
+                'title' => $txt['mohaa_weapons'] ?? 'Weapons',
+                'href' => $scripturl . '?action=mohaastats;sa=weapons',
+                'show' => true,
+            ],
             'gametypes' => [
                 'title' => $txt['mohaa_gametypes'] ?? 'Game Types',
                 'href' => $scripturl . '?action=mohaastats;sa=gametypes',
@@ -186,6 +191,7 @@ function MohaaStats_Main(): void
         'leaderboards' => 'MohaaStatsLeaderboard',
         'leaderboard' => 'MohaaStatsLeaderboard',
         'weapons' => 'MohaaStatsLeaderboard',
+        'weapon' => 'MohaaStatsLeaderboard',
         'player' => 'MohaaStatsPlayer',
         'matches' => 'MohaaStats',
         'match' => 'MohaaStatsMatch',
@@ -205,7 +211,8 @@ function MohaaStats_Main(): void
         'main' => 'MohaaStats_MainPage',
         'leaderboards' => 'MohaaStats_Leaderboards',
         'leaderboard' => 'MohaaStats_Leaderboards',
-        'weapons' => 'MohaaStats_WeaponLeaderboard',
+        'weapons' => 'MohaaStats_Weapons',
+        'weapon' => 'MohaaStats_WeaponDetail',
         'player' => 'MohaaStats_Player',
         'matches' => 'MohaaStats_Matches',
         'match' => 'MohaaStats_MatchDetail',
@@ -603,22 +610,57 @@ function MohaaStats_UnlinkIdentity(int $userId, int $identityId): void
 }
 
 /**
- * Weapon leaderboard page
+ * Weapons statistics page
  */
-function MohaaStats_WeaponLeaderboard(): void
+function MohaaStats_Weapons(): void
 {
     global $context, $txt;
     
-    $context['page_title'] = $txt['mohaa_weapon_leaderboard'];
-    $context['sub_template'] = 'mohaa_stats_weapon_leaderboard';
+    $context['page_title'] = $txt['mohaa_weapons'] ?? 'Weapons';
+    $context['sub_template'] = 'mohaa_stats_weapons';
     
-    $weapon = isset($_GET['weapon']) ? $_GET['weapon'] : 'garand';
+    $weapon = isset($_GET['weapon']) ? $_GET['weapon'] : '';
     
     $api = new MohaaStatsAPIClient();
     
     $context['mohaa_weapon'] = $weapon;
+    
+    // Get all weapons simple list
     $context['mohaa_weapons_list'] = $api->getWeaponsList();
-    $context['mohaa_weapon_data'] = $api->getWeaponStats($weapon);
+    
+    // Get global weapon stats for listing/Popularity
+    $context['mohaa_global_weapon_stats'] = $api->getGlobalWeaponStats();
+    
+    if (!empty($weapon)) {
+        $context['mohaa_weapon_data'] = $api->getWeaponDetails($weapon);
+        $context['mohaa_weapon_leaderboard'] = $api->getWeaponLeaderboard($weapon, 25);
+    } else {
+        $context['mohaa_weapon_data'] = [];
+        $context['mohaa_weapon_leaderboard'] = [];
+    }
+}
+
+/**
+ * Single weapon detail page (Dedicated)
+ */
+function MohaaStats_WeaponDetail(): void
+{
+    global $context, $txt;
+    
+    $weapon = isset($_GET['weapon']) ? $_GET['weapon'] : '';
+    
+    if (empty($weapon)) {
+        redirectexit('action=mohaastats;sa=weapons');
+        return;
+    }
+    
+    $context['page_title'] = ($txt['mohaa_weapon'] ?? 'Weapon') . ' - ' . ucfirst($weapon);
+    $context['sub_template'] = 'mohaa_stats_weapon_detail';
+    
+    $api = new MohaaStatsAPIClient();
+    
+    $context['mohaa_weapon'] = $weapon;
+    $context['mohaa_weapon_data'] = $api->getWeaponDetails($weapon);
     $context['mohaa_weapon_leaderboard'] = $api->getWeaponLeaderboard($weapon, 25);
 }
 

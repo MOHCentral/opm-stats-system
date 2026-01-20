@@ -17,6 +17,7 @@ function template_mohaa_player_full()
     $color_muted = '#9e9e9e';
     
     echo '
+     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <div class="mohaa-profile-container" style="background: '.$color_bg.'; color: '.$color_text.'; padding: 20px; font-family: \'Roboto\', sans-serif;">
         <!-- Header Section -->
         <div class="mohaa-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid '.$color_accent.'; padding-bottom: 15px; margin-bottom: 20px;">
@@ -84,7 +85,8 @@ function template_mohaa_player_full()
 
         <!-- Weapon Performance Table -->
         <h3 style="border-left: 4px solid #FFC107; padding-left: 10px; margin-bottom: 15px; text-transform: uppercase;">Weapon Mastery</h3>
-        <div style="background: '.$color_panel.'; border: 1px solid #333; overflow: hidden;">
+        <div style="display: grid; grid-template-columns: 1fr 300px; gap: 20px;">
+            <div style="background: '.$color_panel.'; border: 1px solid #333; overflow: hidden;">
             <table style="width: 100%; border-collapse: collapse; color: '.$color_text.';">
                 <thead>
                     <tr style="background: #111; text-transform: uppercase; font-size: 13px;">
@@ -118,7 +120,65 @@ function template_mohaa_player_full()
     echo '
                 </tbody>
             </table>
+                </tbody>
+            </table>
         </div>
+        
+        <!-- Chart Container -->
+        <div style="background: '.$color_panel.'; border: 1px solid #333; padding: 15px; display: flex; align-items: center; justify-content: center;">
+            <div id="playerWeaponChart" style="width: 100%;"></div>
+        </div>
+    </div>
+        </div>
+        
+        <!-- Weapon Chart Script -->
+        <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var weaponData = ' . json_encode(array_slice($deep['weapons'] ?? [], 0, 8)) . ';
+            if (weaponData.length > 0) {
+                var labels = weaponData.map(function(w) { return w.name; });
+                var series = weaponData.map(function(w) { return parseInt(w.kills); });
+                
+                var options = {
+                    series: series,
+                    labels: labels,
+                    chart: {
+                        type: "donut",
+                        height: 300,
+                        foreColor: "#e0e0e0"
+                    },
+                    colors: ["#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B", "#FFC107", "#FF9800", "#FF5722", "#F44336"],
+                    plotOptions: {
+                        pie: {
+                            donut: {
+                                size: "65%",
+                                labels: {
+                                    show: true,
+                                    name: { color: "#e0e0e0" },
+                                    value: { color: "#ffffff" },
+                                    total: {
+                                        show: true,
+                                        label: "Total Kills",
+                                        color: "#9e9e9e",
+                                        formatter: function (w) {
+                                            return w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    stroke: { show: false },
+                    dataLabels: { enabled: false },
+                    legend: { position: "right" },
+                    tooltip: { theme: "dark" }
+                };
+                
+                var chart = new ApexCharts(document.querySelector("#playerWeaponChart"), options);
+                chart.render();
+            }
+        });
+        </script>
     </div>';
 }
 

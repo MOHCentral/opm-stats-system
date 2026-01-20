@@ -133,8 +133,13 @@ class MohaaStatsAPIClient
     public function getGameTypeDetails(string $gameType): ?array { return $this->get('/stats/gametype/' . urlencode($gameType)); }
     public function getGameTypeLeaderboard(string $gameType, int $limit = 25): ?array { return $this->get('/stats/leaderboard/gametype/' . urlencode($gameType), ['limit' => $limit]); }
     
+    // Weapon Stats
+    public function getGlobalWeaponStats(): ?array { return $this->get('/stats/weapons'); }
     public function getWeaponsList(): ?array { return $this->get('/stats/weapons/list'); }
-    public function getWeaponStats(string $weaponId): ?array { return $this->get('/stats/weapon/' . urlencode($weaponId)); }
+    public function getWeaponDetails(string $weaponId): ?array { return $this->get('/stats/weapon/' . urlencode($weaponId)); }
+    public function getWeaponStats(string $weaponId): ?array { return $this->getWeaponDetails($weaponId); } // Alias
+    public function getWeaponLeaderboard(string $weaponId, int $limit = 25): ?array { return $this->get('/stats/leaderboard/weapon/' . urlencode($weaponId), ['limit' => $limit]); }
+    
     public function initClaim(int $forumUserId): ?array { return $this->post('/auth/claim/init', ['forum_user_id'=>$forumUserId]); }
     public function initDeviceAuth(int $forumUserId, bool $regenerate = false): ?array { return $this->post('/auth/device', ['forum_user_id'=>$forumUserId, 'regenerate'=>$regenerate]); }
 

@@ -64,7 +64,7 @@ function template_mohaa_stats_leaderboard()
         .player-avatar-small { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #34495e; color: #fff; font-size: 10px; margin-right: 8px; font-weight: bold; }
     </style>
     
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-theme-alpine.css">
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/dist/ag-grid-community.min.js"></script>
@@ -124,7 +124,7 @@ function template_mohaa_stats_leaderboard()
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     
     <div class="windowbg mohaa-lb-wrap" style="padding: 20px;">';
     
@@ -247,7 +247,7 @@ function template_mohaa_stats_leaderboard()
     
         <!-- Chart Section (Moved Bottom) -->
         <div class="mohaa-chart-container" style="position: relative; height:300px; width:100%; margin-bottom: 40px; border: 1px solid rgba(0,0,0,0.05); border-radius: 8px; padding: 10px; background: #fff;">
-            <canvas id="leaderboardChart"></canvas>
+            <div id="leaderboardChart"></div>
         </div>
 
         <div style="padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.05);">
@@ -310,71 +310,70 @@ function template_mohaa_stats_leaderboard()
     <script>
         (function() {
             var initChart = function() {
-                var ctx = document.getElementById("leaderboardChart").getContext("2d");
+                var el = document.querySelector("#leaderboardChart");
+                if (!el) return;
                 
                 // Destroy existing if any
                 if (window.myLeaderboardChart) {
                     window.myLeaderboardChart.destroy();
                 }
             
-            // Gradient for bars
-            var gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, "rgba(52, 152, 219, 0.8)");
-            gradient.addColorStop(1, "rgba(41, 128, 185, 0.2)");
+                var options = {
+                    series: [{
+                        name: "' . ucfirst($current_stat) . '",
+                        data: ' . json_encode($chartData) . '
+                    }],
+                    chart: {
+                        type: "bar",
+                        height: 300,
+                        toolbar: { show: false },
+                        animations: { enabled: true }
+                    },
+                    plotOptions: {
+                        bar: {
+                            borderRadius: 6,
+                            columnWidth: "50%",
+                            distributed: true // Colors per bar
+                        }
+                    },
+                    dataLabels: { enabled: false },
+                    xaxis: {
+                        categories: ' . json_encode($chartLabels) . ',
+                        labels: {
+                            style: { colors: "#2c3e50", fontWeight: "bold" }
+                        }
+                    },
+                    yaxis: {
+                        labels: { style: { colors: "#7f8c8d" } }
+                    },
+                    colors: ["#3498db"],
+                    fill: {
+                        type: "gradient",
+                        gradient: {
+                            shade: "light",
+                            type: "vertical",
+                            shadeIntensity: 0.5,
+                            gradientToColors: ["#a1c4fd"],
+                            inverseColors: true,
+                            opacityFrom: 0.9,
+                            opacityTo: 0.8,
+                            stops: [0, 100]
+                        }
+                    },
+                    legend: { show: false },
+                    title: {
+                        text: "Top 10 Performers - ' . ucfirst($current_stat) . '",
+                        align: "center",
+                        style: { color: "#2c3e50", fontSize: "16px", fontFamily: "Inter, sans-serif" }
+                    },
+                    tooltip: { theme: "light" }
+                };
 
-            var chart = new Chart(ctx, {
-                type: "bar",
-                data: {
-                    labels: ', json_encode($chartLabels), ',
-                    datasets: [{
-                        label: "', ucfirst($current_stat), '",
-                        data: ', json_encode($chartData), ',
-                        backgroundColor: gradient,
-                        borderColor: "#3498db",
-                        borderWidth: 1,
-                        borderRadius: 4,
-                        hoverBackgroundColor: "#5dade2"
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        title: {
-                            display: true,
-                            text: "Top 10 Performers - ', ucfirst($current_stat), '",
-                            color: "#2c3e50",
-                            font: { size: 16 }
-                        },
-                        tooltip: {
-                            mode: "index",
-                            intersect: false,
-                            backgroundColor: "rgba(44, 62, 80, 0.9)",
-                            titleColor: "#ecf0f1",
-                            bodyFont: { size: 13 }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: "rgba(0,0,0,0.05)" },
-                            ticks: { color: "#7f8c8d" }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: "#34495e", font: { weight: "bold" } }
-                        }
-                    },
-                    animation: {
-                        duration: 1500,
-                        easing: "easeOutQuart"
-                    }
-                }
-            });
-            
-            // Save reference
-            window.myLeaderboardChart = chart;
+                var chart = new ApexCharts(el, options);
+                chart.render();
+                
+                // Save reference
+                window.myLeaderboardChart = chart;
             };
 
             if (document.readyState === "loading") {
@@ -552,11 +551,114 @@ function template_mohaa_stats_weapon_leaderboard()
 }
 
 /**
+ * Embeddable CSS for consistent Dashboard styling
+ * Matches War Room dark theme: #24282e cards, #4a6b8a accents
+ */
+function template_mohaa_dashboard_css() {
+    echo '
+    <style>
+        .mohaa-page-dashboard {
+            display: flex; flex-direction: column; gap: 20px;
+            font-family: inherit;
+        }
+        
+        /* Unset SMF defaults that might interfere */
+        .mohaa-page-dashboard h3, .mohaa-page-dashboard h4 { margin: 0; padding: 0; border: none; }
+        
+        /* Unified Card Style - SMF Theme Inspired */
+        .mohaa-summary-card, .mohaa-chart-card, .mohaa-entity-card, .mohaa-detail-panel, .mohaa-filter-bar {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            color: #444;
+            box-sizing: border-box;
+            background: linear-gradient(to bottom, #fdfdfd 0%, #f4f4f4 100%);
+        }
+        
+        /* Summary Row */
+        .mohaa-summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .mohaa-summary-card { padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .mohaa-summary-card .stat-icon { font-size: 2rem; margin-bottom: 8px; color: #555; }
+        .mohaa-summary-card .stat-value { font-size: 1.8rem; font-weight: 700; color: #3b5998; line-height: 1.2; text-shadow: 1px 1px 1px #fff; }
+        .mohaa-summary-card .stat-label { font-size: 0.85rem; color: #777; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 5px; }
+        
+        /* Chart Card */
+        .mohaa-charts-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .mohaa-chart-card { padding: 20px; overflow: hidden; background: #fff; }
+        .mohaa-chart-card h4 { 
+            color: #444; border-bottom: 1px solid #eee; padding-bottom: 12px; margin-bottom: 15px; 
+            font-size: 1rem; font-weight: 600; text-transform: uppercase;
+        }
+        
+        /* Filter Bar */
+        .mohaa-filter-bar { padding: 15px 20px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; }
+        .mohaa-filter-bar label { font-weight: 600; color: #555; text-transform: uppercase; font-size: 0.9rem; }
+        .mohaa-filter-bar select, .mohaa-filter-bar input {
+            background: #fff; color: #444; border: 1px solid #ccc; padding: 8px 12px; border-radius: 4px; font-size: 0.95rem; min-width: 200px;
+        }
+        
+        /* Entity Grid (Maps/Weapons/Gametypes) */
+        .mohaa-entity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .mohaa-entity-card { 
+            cursor: pointer; text-decoration: none !important; overflow: hidden; display: flex; flex-direction: column; 
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            background: #fff;
+        }
+        .mohaa-entity-card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-color: #aaa; }
+        
+        .mohaa-entity-card .entity-image { height: 140px; background: #e0e0e0; display: flex; align-items: center; justify-content: center; position: relative; border-bottom: 1px solid #ddd; }
+        .mohaa-entity-card .entity-image img { width: 100%; height: 100%; object-fit: cover; }
+        .mohaa-entity-card .entity-placeholder { font-size: 3rem; opacity: 0.3; color: #000; }
+        
+        .mohaa-entity-card .entity-header { padding: 12px; text-align: center; background: #f9f9f9; border-bottom: 1px solid #eee; }
+        .mohaa-entity-card .entity-name { font-weight: 700; font-size: 1.1rem; color: #333; display: block; }
+        .mohaa-entity-card .entity-desc { font-size: 0.8rem; color: #777; margin-top: 4px; display: block; }
+        .mohaa-entity-card .entity-icon { font-size: 2.5rem; margin-bottom: 10px; display: block; }
+        
+        .mohaa-entity-card .entity-stats { display: grid; grid-template-columns: repeat(3, 1fr); padding: 12px; gap: 4px; background: #fff; flex-grow: 1; }
+        .mohaa-entity-card .stat { text-align: center; }
+        .mohaa-entity-card .stat-value { color: #3b5998; font-weight: 700; font-size: 1.1rem; display: block; }
+        .mohaa-entity-card .stat-label { color: #888; font-size: 0.75rem; text-transform: uppercase; margin-top: 2px; display: block; }
+        
+        /* Section Title (Unified) */
+        .mohaa-section-title {
+            background: url("Themes/default/images/theme/main_block.png") repeat-x scroll 0 -160px #e4e4e4;
+            padding: 8px 12px; border-radius: 6px 6px 0 0; 
+            display: flex; align-items: center; gap: 12px; margin: 0 0 -1px 0; z-index: 10; position: relative;
+            border: 1px solid #ccc; border-bottom: none;
+            color: #444;
+        }
+        .mohaa-section-title h3 { margin: 0; font-size: 1.1rem; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 1px 1px 0 #fff; }
+        .mohaa-section-title .title-icon { font-size: 1.2rem; }
+        
+        /* Detail Section */
+        .mohaa-detail-section { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .mohaa-detail-panel h4 {  color: #555; border-bottom: 1px solid #ddd; padding-bottom: 12px; margin: 0 0 15px 0; font-size: 1rem; font-weight: 600; text-transform: uppercase; }
+        
+        /* Data Table */
+        .mohaa-data-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid #ddd; }
+        .mohaa-data-table th { background: #f0f0f0; padding: 10px; color: #555; font-weight: 700; text-transform: uppercase; font-size: 0.8rem; border-bottom: 2px solid #ddd; text-align: left; background-image: linear-gradient(to bottom, #f9f9f9, #e9e9e9); }
+        .mohaa-data-table td { padding: 10px; color: #444; border-bottom: 1px solid #eee; }
+        .mohaa-data-table tr:hover td { background: #f4f8fc; }
+        .mohaa-data-table a { color: #3b5998; text-decoration: none; font-weight: 600; }
+        .mohaa-data-table a:hover { text-decoration: underline; color: #d63c3c; }
+        
+        .mohaa-back-btn { display: inline-block; padding: 6px 12px; background: #f0f0f0; border: 1px solid #ccc; color: #444; border-radius: 4px; text-decoration: none; margin-bottom: 15px; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .mohaa-back-btn:hover { background: #e0e0e0; color: #222; }
+        
+        .stat-good { color: #2ecc71; font-weight: bold; }
+        .stat-warn { color: #e67e22; font-weight: bold; }
+        .stat-bad { color: #e74c3c; font-weight: bold; }
+    </style>';
+}
+
+/**
  * Map leaderboard template - Comprehensive Map Statistics Dashboard
  */
 function template_mohaa_stats_map_leaderboard()
 {
-    global $context, $scripturl, $txt;
+    global $context, $scripturl, $txt, $settings;
 
     $selectedMap = $context['mohaa_map'] ?? '';
     $maps = $context['mohaa_maps_list'] ?? [];
@@ -576,120 +678,71 @@ function template_mohaa_stats_map_leaderboard()
     usort($topMaps, fn($a, $b) => ($b['total_matches'] ?? 0) <=> ($a['total_matches'] ?? 0));
     $topMaps = array_slice($topMaps, 0, 8);
     
-    // CSS
-    echo '
-    <style>
-    .mohaa-maps-dashboard { display: flex; flex-direction: column; gap: 20px; }
-    .mohaa-maps-header { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 10px; }
-    .mohaa-maps-stat-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border-radius: 12px; padding: 20px; text-align: center;
-        border: 1px solid rgba(255,255,255,0.1);
-    }
-    .mohaa-maps-stat-card .stat-icon { font-size: 2rem; margin-bottom: 10px; }
-    .mohaa-maps-stat-card .stat-value { font-size: 1.8rem; font-weight: bold; color: #fff; }
-    .mohaa-maps-stat-card .stat-label { color: #888; font-size: 0.85rem; margin-top: 5px; }
-    .mohaa-maps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-    .mohaa-map-card {
-        background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
-        border-radius: 12px; overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.1);
-        transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;
-    }
-    .mohaa-map-card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
-    .mohaa-map-card .map-image {
-        width: 100%; height: 140px; object-fit: cover;
-        background: #2a2a3e; display: flex; align-items: center; justify-content: center;
-    }
-    .mohaa-map-card .map-image img { width: 100%; height: 100%; object-fit: cover; }
-    .mohaa-map-card .map-placeholder { color: #666; font-size: 3rem; }
-    .mohaa-map-card .map-info { padding: 15px; }
-    .mohaa-map-card .map-name { font-size: 1.1rem; font-weight: bold; color: #fff; margin-bottom: 8px; }
-    .mohaa-map-card .map-stats { display: flex; justify-content: space-between; gap: 10px; }
-    .mohaa-map-card .map-stat { text-align: center; }
-    .mohaa-map-card .map-stat-value { font-weight: bold; color: #4fc3f7; }
-    .mohaa-map-card .map-stat-label { font-size: 0.75rem; color: #888; }
-    .mohaa-map-card.selected { border-color: #4fc3f7; box-shadow: 0 0 15px rgba(79,195,247,0.3); }
-    .mohaa-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .mohaa-chart-container { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
-    .mohaa-chart-container h4 { margin: 0 0 15px 0; color: #fff; font-size: 1rem; }
-    .mohaa-map-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .mohaa-heatmap-section { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
-    .mohaa-heatmap-section img { max-width: 100%; border-radius: 8px; }
-    .mohaa-map-leaderboard { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
-    .mohaa-map-leaderboard h4 { margin: 0 0 15px 0; color: #fff; }
-    .mohaa-map-leaderboard table { width: 100%; }
-    .mohaa-map-leaderboard th, .mohaa-map-leaderboard td { padding: 10px; text-align: left; }
-    .mohaa-map-leaderboard tr:hover { background: rgba(255,255,255,0.05); }
-    .mohaa-filters-bar { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
-    .mohaa-filter-select { padding: 8px 15px; border-radius: 6px; background: #2a2a3e; color: #fff; border: 1px solid #444; }
-    @media (max-width: 768px) {
-        .mohaa-maps-header { grid-template-columns: repeat(2, 1fr); }
-        .mohaa-charts-row, .mohaa-map-detail { grid-template-columns: 1fr; }
-    }
-    </style>';
+    // Load unified dashboard CSS
+    template_mohaa_dashboard_css();
     
+    // Section Title
     echo '
-    <div class="cat_bar">
-        <h3 class="catbg">🗺️ ', $txt['mohaa_map_stats'] ?? 'Map Statistics', '</h3>
+    <div class="mohaa-section-title">
+        <span class="title-icon">🗺️</span>
+        <h3>', $txt['mohaa_map_stats'] ?? 'Map Statistics', '</h3>
     </div>
     
-    <div class="windowbg mohaa-maps-dashboard">';
+    <div class="mohaa-page-dashboard">';
     
-    // Aggregate Stats Header
+    // Summary Stats Row
     echo '
-        <div class="mohaa-maps-header">
-            <div class="mohaa-maps-stat-card">
-                <div class="stat-icon">🗺️</div>
-                <div class="stat-value">', count($maps), '</div>
-                <div class="stat-label">Total Maps</div>
+        <div class="mohaa-summary-row">
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🗺️</span>
+                <span class="stat-value">', count($maps), '</span>
+                <span class="stat-label">Total Maps</span>
             </div>
-            <div class="mohaa-maps-stat-card">
-                <div class="stat-icon">🎮</div>
-                <div class="stat-value">', number_format($totalMatches), '</div>
-                <div class="stat-label">Total Matches</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🎮</span>
+                <span class="stat-value">', number_format($totalMatches), '</span>
+                <span class="stat-label">Total Matches</span>
             </div>
-            <div class="mohaa-maps-stat-card">
-                <div class="stat-icon">💀</div>
-                <div class="stat-value">', number_format($totalKills), '</div>
-                <div class="stat-label">Total Kills</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">💀</span>
+                <span class="stat-value">', number_format($totalKills), '</span>
+                <span class="stat-label">Total Kills</span>
             </div>
-            <div class="mohaa-maps-stat-card">
-                <div class="stat-icon">🏆</div>
-                <div class="stat-value">', !empty($topMaps) ? ($topMaps[0]['display_name'] ?? $topMaps[0]['name'] ?? 'N/A') : 'N/A', '</div>
-                <div class="stat-label">Most Popular Map</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🏆</span>
+                <span class="stat-value">', !empty($topMaps) ? htmlspecialchars($topMaps[0]['display_name'] ?? $topMaps[0]['name'] ?? 'N/A') : 'N/A', '</span>
+                <span class="stat-label">Most Popular</span>
             </div>
         </div>';
     
-    // Charts Row - Map Popularity
+    // Charts Row
     echo '
         <div class="mohaa-charts-row">
-            <div class="mohaa-chart-container">
+            <div class="mohaa-chart-card">
                 <h4>📊 Map Popularity (By Matches)</h4>
                 <div id="mapPopularityChart" style="height: 300px;"></div>
             </div>
-            <div class="mohaa-chart-container">
+            <div class="mohaa-chart-card">
                 <h4>💀 Map Lethality (Kills Per Map)</h4>
                 <div id="mapKillsChart" style="height: 300px;"></div>
             </div>
         </div>';
     
-    // Map Filter / Search
+    // Filter Bar
     echo '
-        <div class="mohaa-filters-bar">
-            <strong>Select Map:</strong>
-            <form action="', $scripturl, '?action=mohaastats;sa=maps" method="get" style="display: inline-flex; gap: 10px;">
+        <div class="mohaa-filter-bar">
+            <label>🔍 Select Map:</label>
+            <form action="', $scripturl, '" method="get" style="display: inline-flex; gap: 10px;">
                 <input type="hidden" name="action" value="mohaastats" />
                 <input type="hidden" name="sa" value="maps" />
-                <select name="map" class="mohaa-filter-select" onchange="this.form.submit()">
+                <select name="map" onchange="this.form.submit()">
                     <option value="">-- All Maps Overview --</option>';
     
     foreach ($maps as $m) {
         $mapName = $m['name'] ?? '';
         $displayName = $m['display_name'] ?? $mapName;
         $selected = ($mapName === $selectedMap) ? ' selected' : '';
-        echo '
-                    <option value="', htmlspecialchars($mapName), '"', $selected, '>', htmlspecialchars($displayName), '</option>';
+        echo '<option value="', htmlspecialchars($mapName), '"', $selected, '>', htmlspecialchars($displayName), '</option>';
     }
     
     echo '
@@ -702,58 +755,59 @@ function template_mohaa_stats_map_leaderboard()
         $displayName = $mapData['display_name'] ?? $selectedMap;
         
         echo '
-        <div class="cat_bar" style="margin-top: 10px;">
-            <h3 class="catbg">📍 ', htmlspecialchars($displayName), ' - Detailed Statistics</h3>
+        <div class="mohaa-section-title" style="margin-top: 15px;">
+            <span class="title-icon">📍</span>
+            <h3>', htmlspecialchars($displayName), ' - Details</h3>
         </div>
         
-        <div class="mohaa-maps-header" style="grid-template-columns: repeat(4, 1fr);">
-            <div class="mohaa-maps-stat-card">
-                <div class="stat-icon">🎮</div>
-                <div class="stat-value">', number_format($mapData['total_matches'] ?? 0), '</div>
-                <div class="stat-label">Matches Played</div>
+        <div class="mohaa-summary-row">
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🎮</span>
+                <span class="stat-value">', number_format($mapData['total_matches'] ?? 0), '</span>
+                <span class="stat-label">Matches Played</span>
             </div>
-            <div class="mohaa-maps-stat-card">
-                <div class="stat-icon">💀</div>
-                <div class="stat-value">', number_format($mapData['total_kills'] ?? 0), '</div>
-                <div class="stat-label">Total Kills</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">💀</span>
+                <span class="stat-value">', number_format($mapData['total_kills'] ?? 0), '</span>
+                <span class="stat-label">Total Kills</span>
             </div>
-            <div class="mohaa-maps-stat-card">
-                <div class="stat-icon">⏱️</div>
-                <div class="stat-value">', format_playtime($mapData['total_playtime'] ?? 0), '</div>
-                <div class="stat-label">Total Playtime</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">⏱️</span>
+                <span class="stat-value">', format_playtime($mapData['total_playtime'] ?? 0), '</span>
+                <span class="stat-label">Total Playtime</span>
             </div>
-            <div class="mohaa-maps-stat-card">
-                <div class="stat-icon">⚔️</div>
-                <div class="stat-value">', ($mapData['total_matches'] > 0) ? round($mapData['total_kills'] / $mapData['total_matches'], 1) : 0, '</div>
-                <div class="stat-label">Avg Kills/Match</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">⚔️</span>
+                <span class="stat-value">', ($mapData['total_matches'] > 0) ? round($mapData['total_kills'] / $mapData['total_matches'], 1) : 0, '</span>
+                <span class="stat-label">Avg Kills/Match</span>
             </div>
         </div>
         
-        <div class="mohaa-map-detail">
-            <div class="mohaa-heatmap-section">
+        <div class="mohaa-detail-section">
+            <div class="mohaa-detail-panel">
                 <h4>🔥 Kill Heatmap</h4>
-                <div id="map-heatmap" style="position: relative; min-height: 300px; background: #0a0a15; border-radius: 8px; overflow: hidden;">
-                    <img src="Themes/default/images/mohaastats/maps/', htmlspecialchars($selectedMap), '.jpg" 
+                <div id="map-heatmap" style="position: relative; min-height: 280px; background: #1a1d21; border-radius: 8px; overflow: hidden;">
+                    <img src="', $settings['theme_url'], '/images/mohaastats/maps/', htmlspecialchars($selectedMap), '.jpg" 
                          alt="', htmlspecialchars($displayName), '" 
                          style="width: 100%; display: block;"
-                         onerror="this.style.display=\'none\'; this.parentNode.innerHTML=\'<div style=padding:50px;text-align:center;color:#666>Map preview not available</div>\';">
+                         onerror="this.style.display=\'none\'; this.parentNode.innerHTML=\'<div style=padding:50px;text-align:center;color:#7f8c8d>Map preview not available</div>\';">
                 </div>
-                <div style="margin-top: 10px; display: flex; gap: 10px;">
-                    <button onclick="switchHeatmapType(\'kills\')" class="button" id="btn-kills" style="flex: 1;">💀 Kills</button>
-                    <button onclick="switchHeatmapType(\'deaths\')" class="button" id="btn-deaths" style="flex: 1;">☠️ Deaths</button>
+                <div style="margin-top: 12px; display: flex; gap: 10px;">
+                    <button onclick="switchHeatmapType(\'kills\')" class="mohaa-chip active" id="btn-kills" style="flex: 1;">💀 Kills</button>
+                    <button onclick="switchHeatmapType(\'deaths\')" class="mohaa-chip inactive" id="btn-deaths" style="flex: 1;">☠️ Deaths</button>
                 </div>
             </div>
             
-            <div class="mohaa-map-leaderboard">
+            <div class="mohaa-detail-panel">
                 <h4>🏆 Top Players on ', htmlspecialchars($displayName), '</h4>
-                <table class="table_grid">
+                <table class="mohaa-data-table">
                     <thead>
-                        <tr class="title_bar">
+                        <tr>
                             <th style="width: 40px;">#</th>
-                            <th>Player</th>
-                            <th style="width: 80px;">Kills</th>
-                            <th style="width: 80px;">Deaths</th>
-                            <th style="width: 70px;">K/D</th>
+                            <th style="text-align: left;">Player</th>
+                            <th>Kills</th>
+                            <th>Deaths</th>
+                            <th>K/D</th>
                         </tr>
                     </thead>
                     <tbody>';
@@ -763,39 +817,43 @@ function template_mohaa_stats_map_leaderboard()
                 $kills = (int)($player['kills'] ?? 0);
                 $deaths = (int)($player['deaths'] ?? 0);
                 $kd = $deaths > 0 ? round($kills / $deaths, 2) : $kills;
-                $kdClass = $kd >= 2 ? 'color: #4caf50;' : ($kd >= 1 ? 'color: #ffc107;' : 'color: #f44336;');
+                $kdClass = $kd >= 2 ? 'stat-good' : ($kd >= 1 ? 'stat-warn' : 'stat-bad');
                 
                 echo '
-                        <tr class="windowbg">
+                        <tr>
                             <td><strong>', $rank + 1, '</strong></td>
-                            <td>
-                                <a href="', $scripturl, '?action=mohaastats;sa=player;id=', urlencode($player['id'] ?? ''), '">
+                            <td style="text-align: left;">
+                                <a href="', $scripturl, '?action=mohaastats;sa=player;id=', urlencode($player['id'] ?? ''), '" class="player-link">
                                     ', htmlspecialchars($player['name'] ?? 'Unknown'), '
                                 </a>
                             </td>
                             <td>', number_format($kills), '</td>
                             <td>', number_format($deaths), '</td>
-                            <td style="', $kdClass, ' font-weight: bold;">', $kd, '</td>
+                            <td class="', $kdClass, '">', $kd, '</td>
                         </tr>';
             }
         } else {
-            echo '
-                        <tr class="windowbg"><td colspan="5" style="text-align: center; color: #888;">No player data available</td></tr>';
+            echo '<tr><td colspan="5" style="text-align: center; color: #7f8c8d; padding: 20px;">No player data available</td></tr>';
         }
         
         echo '
                     </tbody>
                 </table>
             </div>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <a href="', $scripturl, '?action=mohaastats;sa=maps" class="mohaa-back-btn">⬅ Back to All Maps</a>
         </div>';
     } else {
         // Show all maps grid when no specific map selected
         echo '
-        <div class="cat_bar" style="margin-top: 10px;">
-            <h3 class="catbg">🗺️ All Maps</h3>
+        <div class="mohaa-section-title" style="margin-top: 15px;">
+            <span class="title-icon">🗺️</span>
+            <h3>All Maps</h3>
         </div>
         
-        <div class="mohaa-maps-grid">';
+        <div class="mohaa-entity-grid">';
         
         foreach ($maps as $m) {
             $mapName = $m['name'] ?? '';
@@ -804,26 +862,27 @@ function template_mohaa_stats_map_leaderboard()
             $kills = $m['total_kills'] ?? 0;
             
             echo '
-            <a href="', $scripturl, '?action=mohaastats;sa=maps;map=', urlencode($mapName), '" class="mohaa-map-card">
-                <div class="map-image">
-                    <img src="Themes/default/images/mohaastats/maps/', htmlspecialchars($mapName), '.jpg" 
+            <a href="', $scripturl, '?action=mohaastats;sa=maps;map=', urlencode($mapName), '" class="mohaa-entity-card">
+                <div class="entity-image">
+                    <img src="', $settings['theme_url'], '/images/mohaastats/maps/', htmlspecialchars($mapName), '.jpg" 
                          alt="', htmlspecialchars($displayName), '"
-                         onerror="this.style.display=\'none\'; this.parentNode.innerHTML=\'<div class=map-placeholder>🗺️</div>\';">
+                         onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'block\';">
+                    <div class="placeholder" style="display:none;">🗺️</div>
                 </div>
-                <div class="map-info">
-                    <div class="map-name">', htmlspecialchars($displayName), '</div>
-                    <div class="map-stats">
-                        <div class="map-stat">
-                            <div class="map-stat-value">', number_format($matches), '</div>
-                            <div class="map-stat-label">Matches</div>
+                <div class="entity-body">
+                    <div class="entity-name" style="margin-bottom: 12px;">', htmlspecialchars($displayName), '</div>
+                    <div class="entity-stats">
+                        <div class="entity-stat">
+                            <span class="entity-stat-value">', number_format($matches), '</span>
+                            <span class="entity-stat-label">Matches</span>
                         </div>
-                        <div class="map-stat">
-                            <div class="map-stat-value">', number_format($kills), '</div>
-                            <div class="map-stat-label">Kills</div>
+                        <div class="entity-stat">
+                            <span class="entity-stat-value">', number_format($kills), '</span>
+                            <span class="entity-stat-label">Kills</span>
                         </div>
-                        <div class="map-stat">
-                            <div class="map-stat-value">', $matches > 0 ? round($kills / $matches) : 0, '</div>
-                            <div class="map-stat-label">Avg K/M</div>
+                        <div class="entity-stat">
+                            <span class="entity-stat-value">', $matches > 0 ? round($kills / $matches) : 0, '</span>
+                            <span class="entity-stat-label">Avg K/M</span>
                         </div>
                     </div>
                 </div>
@@ -832,9 +891,10 @@ function template_mohaa_stats_map_leaderboard()
         
         if (empty($maps)) {
             echo '
-            <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #888;">
-                <div style="font-size: 3rem; margin-bottom: 10px;">🗺️</div>
-                <div>No map data available yet. Play some matches!</div>
+            <div class="mohaa-empty-state" style="grid-column: 1/-1;">
+                <div class="empty-icon">🗺️</div>
+                <h4>No Map Data</h4>
+                <p>No map data available yet. Play some matches!</p>
             </div>';
         }
         
@@ -1111,7 +1171,7 @@ function template_mohaa_stat_card($card)
 
 function template_mohaa_stats_gametypes()
 {
-    global $context, $txt, $scripturl;
+    global $context, $txt, $scripturl, $settings;
     
     $selectedGameType = $context['mohaa_gametype'] ?? '';
     $gameTypes = $context['mohaa_gametypes_list'] ?? [];
@@ -1139,101 +1199,63 @@ function template_mohaa_stats_gametypes()
         }
     }
     
-    // CSS
-    echo '
-    <style>
-    .mohaa-gametypes-dashboard { display: flex; flex-direction: column; gap: 20px; }
-    .mohaa-gametypes-header { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 10px; }
-    .mohaa-gametypes-stat-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border-radius: 12px; padding: 20px; text-align: center;
-        border: 1px solid rgba(255,255,255,0.1);
-    }
-    .mohaa-gametypes-stat-card .stat-icon { font-size: 2rem; margin-bottom: 10px; }
-    .mohaa-gametypes-stat-card .stat-value { font-size: 1.8rem; font-weight: bold; color: #fff; }
-    .mohaa-gametypes-stat-card .stat-label { color: #888; font-size: 0.85rem; margin-top: 5px; }
-    .mohaa-gametypes-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .mohaa-gametypes-chart-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border-radius: 12px; padding: 20px;
-        border: 1px solid rgba(255,255,255,0.1);
-    }
-    .mohaa-gametypes-chart-card h4 { color: #fff; margin: 0 0 15px 0; }
-    .mohaa-gametypes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-    .mohaa-gametype-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border-radius: 12px; overflow: hidden; cursor: pointer;
-        border: 1px solid rgba(255,255,255,0.1);
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .mohaa-gametype-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-    .mohaa-gametype-card-header { padding: 20px; text-align: center; background: rgba(0,0,0,0.2); }
-    .mohaa-gametype-card-header .icon { font-size: 3rem; margin-bottom: 10px; }
-    .mohaa-gametype-card-header .name { font-size: 1.3rem; font-weight: bold; color: #fff; }
-    .mohaa-gametype-card-header .description { color: #888; font-size: 0.85rem; margin-top: 5px; }
-    .mohaa-gametype-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); padding: 15px; }
-    .mohaa-gametype-card-stats .stat { text-align: center; }
-    .mohaa-gametype-card-stats .stat-value { font-size: 1.2rem; font-weight: bold; color: #4fc3f7; }
-    .mohaa-gametype-card-stats .stat-label { font-size: 0.75rem; color: #888; }
-    .mohaa-gametype-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .mohaa-gametype-detail-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-    .mohaa-gametype-maps-list { max-height: 400px; overflow-y: auto; }
-    .mohaa-select-form { margin: 15px 0; }
-    .mohaa-select-form select { padding: 8px 15px; border-radius: 6px; border: 1px solid #444; background: #2a2a3e; color: #fff; }
-    </style>';
+    // Load unified dashboard CSS
+    template_mohaa_dashboard_css();
     
+    // Section Title
     echo '
-    <div class="cat_bar">
-        <h3 class="catbg">🎮 Game Type Statistics</h3>
+    <div class="mohaa-section-title">
+        <span class="title-icon">🎮</span>
+        <h3>Game Type Statistics</h3>
     </div>
     
-    <div class="mohaa-gametypes-dashboard">';
+    <div class="mohaa-page-dashboard">';
     
-    // Header stats
+    // Summary Stats Row
     echo '
-        <div class="mohaa-gametypes-header">
-            <div class="mohaa-gametypes-stat-card">
-                <div class="stat-icon">🎮</div>
-                <div class="stat-value">', count($gameTypes), '</div>
-                <div class="stat-label">Game Types</div>
+        <div class="mohaa-summary-row">
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🎮</span>
+                <span class="stat-value">', count($gameTypes), '</span>
+                <span class="stat-label">Game Types</span>
             </div>
-            <div class="mohaa-gametypes-stat-card">
-                <div class="stat-icon">⚔️</div>
-                <div class="stat-value">', number_format($totalMatches), '</div>
-                <div class="stat-label">Total Matches</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">⚔️</span>
+                <span class="stat-value">', number_format($totalMatches), '</span>
+                <span class="stat-label">Total Matches</span>
             </div>
-            <div class="mohaa-gametypes-stat-card">
-                <div class="stat-icon">💀</div>
-                <div class="stat-value">', number_format($totalKills), '</div>
-                <div class="stat-label">Total Kills</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">💀</span>
+                <span class="stat-value">', number_format($totalKills), '</span>
+                <span class="stat-label">Total Kills</span>
             </div>
-            <div class="mohaa-gametypes-stat-card">
-                <div class="stat-icon">🏆</div>
-                <div class="stat-value">', htmlspecialchars($mostPopular ?: 'N/A'), '</div>
-                <div class="stat-label">Most Popular</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🏆</span>
+                <span class="stat-value">', htmlspecialchars($mostPopular ?: 'N/A'), '</span>
+                <span class="stat-label">Most Popular</span>
             </div>
         </div>';
     
     // Charts row
     echo '
-        <div class="mohaa-gametypes-charts">
-            <div class="mohaa-gametypes-chart-card">
+        <div class="mohaa-charts-row">
+            <div class="mohaa-chart-card">
                 <h4>📊 Game Type Popularity (By Matches)</h4>
-                <div id="gametypePopularityChart"></div>
+                <div id="gametypePopularityChart" style="height: 300px;"></div>
             </div>
-            <div class="mohaa-gametypes-chart-card">
+            <div class="mohaa-chart-card">
                 <h4>💀 Kill Distribution By Game Type</h4>
-                <div id="gametypeKillsChart"></div>
+                <div id="gametypeKillsChart" style="height: 300px;"></div>
             </div>
         </div>';
     
-    // Game type selector
+    // Filter Bar
     echo '
-        <div class="mohaa-select-form">
+        <div class="mohaa-filter-bar">
+            <label>🔍 Select Game Type:</label>
             <form method="get" action="', $scripturl, '">
                 <input type="hidden" name="action" value="mohaastats">
                 <input type="hidden" name="sa" value="gametypes">
-                Select Game Type: 
                 <select name="gametype" onchange="this.form.submit()">
                     <option value="">-- All Game Types Overview --</option>';
     
@@ -1256,41 +1278,45 @@ function template_mohaa_stats_gametypes()
         $gtIcon = $gameTypeData['icon'] ?? '🎮';
         $gtDesc = $gameTypeData['description'] ?? '';
         
+        // Back button
         echo '
-        <div class="cat_bar">
-            <h3 class="catbg">', $gtIcon, ' ', htmlspecialchars($gtName), ' - Detailed Statistics</h3>
+        <a href="', $scripturl, '?action=mohaastats;sa=gametypes" class="mohaa-back-btn">← Back to All Game Types</a>
+        
+        <div class="mohaa-section-title">
+            <span class="title-icon">', $gtIcon, '</span>
+            <h3>', htmlspecialchars($gtName), ' - Detailed Statistics</h3>
         </div>
         
-        <div class="mohaa-gametype-detail-stats">
-            <div class="mohaa-gametypes-stat-card">
-                <div class="stat-icon">⚔️</div>
-                <div class="stat-value">', number_format((int)($gameTypeData['total_matches'] ?? 0)), '</div>
-                <div class="stat-label">Matches Played</div>
+        <div class="mohaa-summary-row">
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">⚔️</span>
+                <span class="stat-value">', number_format((int)($gameTypeData['total_matches'] ?? 0)), '</span>
+                <span class="stat-label">Matches Played</span>
             </div>
-            <div class="mohaa-gametypes-stat-card">
-                <div class="stat-icon">💀</div>
-                <div class="stat-value">', number_format((int)($gameTypeData['total_kills'] ?? 0)), '</div>
-                <div class="stat-label">Total Kills</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">💀</span>
+                <span class="stat-value">', number_format((int)($gameTypeData['total_kills'] ?? 0)), '</span>
+                <span class="stat-label">Total Kills</span>
             </div>
-            <div class="mohaa-gametypes-stat-card">
-                <div class="stat-icon">🗺️</div>
-                <div class="stat-value">', number_format((int)($gameTypeData['map_count'] ?? 0)), '</div>
-                <div class="stat-label">Maps</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🗺️</span>
+                <span class="stat-value">', number_format((int)($gameTypeData['map_count'] ?? 0)), '</span>
+                <span class="stat-label">Maps</span>
             </div>
-            <div class="mohaa-gametypes-stat-card">
-                <div class="stat-icon">👥</div>
-                <div class="stat-value">', number_format((int)($gameTypeData['unique_players'] ?? 0)), '</div>
-                <div class="stat-label">Unique Players</div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">👥</span>
+                <span class="stat-value">', number_format((int)($gameTypeData['unique_players'] ?? 0)), '</span>
+                <span class="stat-label">Unique Players</span>
             </div>
         </div>
         
-        <div class="mohaa-gametype-detail" style="margin-top: 20px;">
-            <div class="mohaa-gametypes-chart-card">
+        <div class="mohaa-detail-section">
+            <div class="mohaa-detail-panel">
                 <h4>🗺️ Maps in ', htmlspecialchars($gtName), '</h4>
-                <div class="mohaa-gametype-maps-list">
-                    <table class="table_grid" style="width: 100%;">
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table class="mohaa-data-table">
                         <thead>
-                            <tr class="title_bar">
+                            <tr>
                                 <th>Map</th>
                                 <th>Matches</th>
                                 <th>Kills</th>
@@ -1302,7 +1328,7 @@ function template_mohaa_stats_gametypes()
         if (!empty($maps)) {
             foreach ($maps as $map) {
                 echo '
-                            <tr class="windowbg">
+                            <tr>
                                 <td>
                                     <a href="', $scripturl, '?action=mohaastats;sa=maps;map=', urlencode($map['name'] ?? ''), '">
                                         ', htmlspecialchars($map['display_name'] ?? $map['name'] ?? 'Unknown'), '
@@ -1313,7 +1339,7 @@ function template_mohaa_stats_gametypes()
                             </tr>';
             }
         } else {
-            echo '<tr class="windowbg"><td colspan="3" style="text-align: center; color: #888;">No maps data</td></tr>';
+            echo '<tr><td colspan="3" class="mohaa-empty-state">No maps data</td></tr>';
         }
         
         echo '
@@ -1322,11 +1348,11 @@ function template_mohaa_stats_gametypes()
                 </div>
             </div>
             
-            <div class="mohaa-gametypes-chart-card">
+            <div class="mohaa-detail-panel">
                 <h4>🏆 Top Players in ', htmlspecialchars($gtName), '</h4>
-                <table class="table_grid" style="width: 100%;">
+                <table class="mohaa-data-table">
                     <thead>
-                        <tr class="title_bar">
+                        <tr>
                             <th>#</th>
                             <th>Player</th>
                             <th>Kills</th>
@@ -1341,10 +1367,10 @@ function template_mohaa_stats_gametypes()
                 $kills = (int)($player['kills'] ?? 0);
                 $deaths = (int)($player['deaths'] ?? 0);
                 $kd = $deaths > 0 ? round($kills / $deaths, 2) : $kills;
-                $kdClass = $kd >= 2 ? 'color: #4caf50;' : ($kd >= 1 ? 'color: #ffc107;' : 'color: #f44336;');
+                $kdClass = $kd >= 2 ? 'stat-good' : ($kd >= 1 ? 'stat-warn' : 'stat-bad');
                 
                 echo '
-                        <tr class="windowbg">
+                        <tr>
                             <td><strong>', $rank + 1, '</strong></td>
                             <td>
                                 <a href="', $scripturl, '?action=mohaastats;sa=player;id=', urlencode($player['id'] ?? ''), '">
@@ -1353,11 +1379,11 @@ function template_mohaa_stats_gametypes()
                             </td>
                             <td>', number_format($kills), '</td>
                             <td>', number_format($deaths), '</td>
-                            <td style="', $kdClass, ' font-weight: bold;">', $kd, '</td>
+                            <td class="', $kdClass, '">', $kd, '</td>
                         </tr>';
             }
         } else {
-            echo '<tr class="windowbg"><td colspan="5" style="text-align: center; color: #888;">No player data</td></tr>';
+            echo '<tr><td colspan="5" class="mohaa-empty-state">No player data</td></tr>';
         }
         
         echo '
@@ -1368,11 +1394,12 @@ function template_mohaa_stats_gametypes()
     } else {
         // Show all game types grid
         echo '
-        <div class="cat_bar" style="margin-top: 10px;">
-            <h3 class="catbg">🎮 All Game Types</h3>
+        <div class="mohaa-section-title">
+            <span class="title-icon">🎮</span>
+            <h3>All Game Types</h3>
         </div>
         
-        <div class="mohaa-gametypes-grid">';
+        <div class="mohaa-entity-grid">';
         
         foreach ($gameTypes as $gt) {
             $id = $gt['id'] ?? '';
@@ -1384,24 +1411,24 @@ function template_mohaa_stats_gametypes()
             $mapCount = (int)($gt['map_count'] ?? 0);
             
             echo '
-            <a href="', $scripturl, '?action=mohaastats;sa=gametypes;gametype=', urlencode($id), '" class="mohaa-gametype-card">
-                <div class="mohaa-gametype-card-header">
-                    <div class="icon">', $icon, '</div>
-                    <div class="name">', htmlspecialchars($name), '</div>
-                    <div class="description">', htmlspecialchars($desc), '</div>
+            <a href="', $scripturl, '?action=mohaastats;sa=gametypes;gametype=', urlencode($id), '" class="mohaa-entity-card">
+                <div class="entity-header">
+                    <span class="entity-icon">', $icon, '</span>
+                    <span class="entity-name">', htmlspecialchars($name), '</span>
+                    <span class="entity-desc">', htmlspecialchars($desc), '</span>
                 </div>
-                <div class="mohaa-gametype-card-stats">
+                <div class="entity-stats">
                     <div class="stat">
-                        <div class="stat-value">', number_format($matches), '</div>
-                        <div class="stat-label">Matches</div>
+                        <span class="stat-value">', number_format($matches), '</span>
+                        <span class="stat-label">Matches</span>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">', number_format($kills), '</div>
-                        <div class="stat-label">Kills</div>
+                        <span class="stat-value">', number_format($kills), '</span>
+                        <span class="stat-label">Kills</span>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">', number_format($mapCount), '</div>
-                        <div class="stat-label">Maps</div>
+                        <span class="stat-value">', number_format($mapCount), '</span>
+                        <span class="stat-label">Maps</span>
                     </div>
                 </div>
             </a>';
@@ -1456,4 +1483,323 @@ function template_mohaa_stats_gametypes()
         }
     });
     </script>';
+}
+
+// ============================================================================
+// WEAPONS LIST TEMPLATE
+// ============================================================================
+
+function template_mohaa_stats_weapons()
+{
+    global $context, $scripturl, $settings;
+    
+    $weapons = $context['mohaa_weapons_list'] ?? [];
+    
+    // Calculate aggregate stats
+    $totalKills = 0;
+    $totalHeadshots = 0;
+    foreach ($weapons as $w) {
+        $totalKills += (int)($w['kills'] ?? 0);
+        $totalHeadshots += (int)($w['headshots'] ?? 0);
+    }
+    
+    // Find deadliest weapon
+    $deadliest = '';
+    $maxKills = 0;
+    foreach ($weapons as $w) {
+        if ((int)($w['kills'] ?? 0) > $maxKills) {
+            $maxKills = (int)($w['kills'] ?? 0);
+            $deadliest = $w['name'] ?? 'Unknown';
+        }
+    }
+    
+    // Load unified dashboard CSS
+    template_mohaa_dashboard_css();
+    
+    // Section Title
+    echo '
+    <div class="mohaa-section-title">
+        <span class="title-icon">🔫</span>
+        <h3>Weapon Statistics</h3>
+    </div>
+    
+    <div class="mohaa-page-dashboard">';
+    
+    // Summary Stats Row
+    echo '
+        <div class="mohaa-summary-row">
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🔫</span>
+                <span class="stat-value">', count($weapons), '</span>
+                <span class="stat-label">Weapons</span>
+            </div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">💀</span>
+                <span class="stat-value">', number_format($totalKills), '</span>
+                <span class="stat-label">Total Kills</span>
+            </div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🎯</span>
+                <span class="stat-value">', number_format($totalHeadshots), '</span>
+                <span class="stat-label">Total Headshots</span>
+            </div>
+            <div class="mohaa-summary-card">
+                <span class="stat-icon">🏆</span>
+                <span class="stat-value">', htmlspecialchars($deadliest ?: 'N/A'), '</span>
+                <span class="stat-label">Deadliest</span>
+            </div>
+        </div>';
+    
+    // Charts row
+    echo '
+        <div class="mohaa-charts-row">
+            <div class="mohaa-chart-card">
+                <h4>🔥 Most Popular Weapons (Kills)</h4>
+                <div id="weaponKillsChart" style="height: 300px;"></div>
+            </div>
+            <div class="mohaa-chart-card">
+                <h4>🎯 Accuracy Comparison</h4>
+                <div id="weaponAccuracyChart" style="height: 300px;"></div>
+            </div>
+        </div>';
+    
+    // Filter Bar
+    echo '
+        <div class="mohaa-filter-bar">
+            <label>🔍 Filter Weapons:</label>
+            <input type="text" id="weaponSearch" placeholder="Search weapons..." onkeyup="filterWeapons()">
+        </div>';
+    
+    // Entity Grid
+    echo '
+        <div class="mohaa-entity-grid" id="weaponsGrid">';
+        
+        foreach ($weapons as $w) {
+            $name = $w['name'] ?? 'Unknown';
+            $kills = (int)($w['kills'] ?? 0);
+            $img = $settings['theme_url'] . '/images/mohaastats/weapons/' . $name . '.png';
+            
+            // Calc derived stats
+            $hits = (int)($w['hits'] ?? 0);
+            $shots = (int)($w['shots'] ?? 0);
+            $accuracy = $shots > 0 ? round(($hits / $shots) * 100, 1) . '%' : 'N/A';
+            $headshots = (int)($w['headshots'] ?? 0);
+            $hsRatio = $kills > 0 ? round(($headshots / $kills) * 100, 1) . '%' : '0%';
+            
+            echo '
+            <a href="', $scripturl, '?action=mohaastats;sa=weapon;id=', urlencode($name), '" class="mohaa-entity-card" data-name="', strtolower($name), '">
+                <div class="entity-image">
+                    <img src="', $img, '" alt="', htmlspecialchars($name), '" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'flex\';">
+                    <span class="entity-placeholder" style="display:none;">🔫</span>
+                </div>
+                <div class="entity-header">
+                    <span class="entity-name">', htmlspecialchars($name), '</span>
+                </div>
+                <div class="entity-stats">
+                    <div class="stat">
+                        <span class="stat-value">', number_format($kills), '</span>
+                        <span class="stat-label">Kills</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">', $accuracy, '</span>
+                        <span class="stat-label">Accuracy</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">', $headshots, '</span>
+                        <span class="stat-label">Headshots</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">', $hsRatio, '</span>
+                        <span class="stat-label">HS%</span>
+                    </div>
+                </div>
+            </a>';
+        }
+        
+        echo '
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script>
+    function filterWeapons() {
+        var input = document.getElementById("weaponSearch");
+        var filter = input.value.toLowerCase();
+        var cards = document.querySelectorAll(".mohaa-entity-card[data-name]");
+        
+        for (var i = 0; i < cards.length; i++) {
+            var name = cards[i].getAttribute("data-name");
+            if (name.indexOf(filter) > -1) {
+                cards[i].style.display = "";
+            } else {
+                cards[i].style.display = "none";
+            }
+        }
+    }
+    
+    document.addEventListener("DOMContentLoaded", function() {
+        var weapons = ', json_encode(array_slice($weapons, 0, 10)), '; // Top 10 for charts
+        
+        // Kills Chart
+        if (document.getElementById("weaponKillsChart") && weapons.length > 0) {
+            new ApexCharts(document.getElementById("weaponKillsChart"), {
+                series: [{ name: "Kills", data: weapons.map(w => w.kills || 0) }],
+                chart: { type: "bar", height: 300, background: "transparent", toolbar: { show: false } },
+                plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
+                colors: ["#e91e63"],
+                xaxis: { categories: weapons.map(w => w.name), labels: { style: { colors: "#888" } } },
+                yaxis: { labels: { style: { colors: "#fff" } } },
+                theme: { mode: "dark" }
+            }).render();
+        }
+        
+        // Accuracy Chart
+        var accWeapons = weapons.filter(w => (w.shots || 0) > 100);
+        
+        if (document.getElementById("weaponAccuracyChart") && accWeapons.length > 0) {
+            new ApexCharts(document.getElementById("weaponAccuracyChart"), {
+                 series: [{ 
+                    name: "Accuracy %", 
+                    data: accWeapons.map(w => ((w.hits / w.shots) * 100).toFixed(1)) 
+                }],
+                chart: { type: "radar", height: 300, background: "transparent", toolbar: { show: false } },
+                xaxis: { categories: accWeapons.map(w => w.name), labels: { style: { colors: "#888" } } },
+                fill: { opacity: 0.2, colors: ["#4fc3f7"] },
+                stroke: { show: true, width: 2, colors: ["#4fc3f7"], dashArray: 0 },
+                markers: { size: 4, colors: ["#fff"], strokeColors: "#4fc3f7", strokeWidth: 2 },
+                yaxis: { show: false },
+                theme: { mode: "dark" }
+            }).render();
+        }
+    });
+    </script>';
+}
+
+// ============================================================================
+// WEAPON DETAIL TEMPLATE
+// ============================================================================
+
+function template_mohaa_stats_weapon_detail() 
+{
+    global $context, $scripturl, $settings;
+    
+    $weapon = $context['mohaa_weapon_data'] ?? [];
+    $name = $weapon['weapon'] ?? 'Unknown';
+    $leaderboard = $context['mohaa_weapon_leaderboard'] ?? [];
+    
+    // Stats
+    $kills = (int)($weapon['kills'] ?? 0);
+    $hits = (int)($weapon['hits'] ?? 0);
+    $shots = (int)($weapon['shots'] ?? 0);
+    $headshots = (int)($weapon['headshots'] ?? 0);
+    
+    $accuracy = $shots > 0 ? round(($hits / $shots) * 100, 2) . '%' : '0%';
+    $hsRatio = $kills > 0 ? round(($headshots / $kills) * 100, 2) . '%' : '0%';
+    
+    $img = $settings['theme_url'] . '/images/mohaastats/weapons/' . $name . '.png';
+    
+    // Load unified dashboard CSS
+    template_mohaa_dashboard_css();
+    
+    // Back button
+    echo '
+    <a href="', $scripturl, '?action=mohaastats;sa=weapons" class="mohaa-back-btn">← Back to Weapon List</a>';
+    
+    // Section Title
+    echo '
+    <div class="mohaa-section-title">
+        <span class="title-icon">🔫</span>
+        <h3>Weapon Detail: ', htmlspecialchars($name), '</h3>
+    </div>
+    
+    <div class="mohaa-page-dashboard">';
+    
+    // Weapon image + summary row
+    echo '
+        <div class="mohaa-detail-section">
+            <div class="mohaa-detail-panel" style="text-align: center; flex: 0 0 250px;">
+                <div class="entity-image" style="height: 150px; margin-bottom: 15px;">
+                    <img src="', $img, '" alt="', htmlspecialchars($name), '" style="max-width: 100%; max-height: 100%;" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'flex\';">
+                    <span class="entity-placeholder" style="display:none; font-size: 4rem;">🔫</span>
+                </div>
+                <div style="font-weight: bold; font-size: 1.4rem; color: #fff;">', htmlspecialchars($name), '</div>
+            </div>
+            
+            <div class="mohaa-detail-panel" style="flex: 1;">
+                <div class="mohaa-summary-row" style="margin-bottom: 0;">
+                    <div class="mohaa-summary-card">
+                        <span class="stat-icon">💀</span>
+                        <span class="stat-value" style="color: #e91e63;">', number_format($kills), '</span>
+                        <span class="stat-label">Total Kills</span>
+                    </div>
+                    <div class="mohaa-summary-card">
+                        <span class="stat-icon">🎯</span>
+                        <span class="stat-value" style="color: #4fc3f7;">', $accuracy, '</span>
+                        <span class="stat-label">Global Accuracy</span>
+                    </div>
+                    <div class="mohaa-summary-card">
+                        <span class="stat-icon">🎯</span>
+                        <span class="stat-value" style="color: #ff9800;">', $hsRatio, '</span>
+                        <span class="stat-label">Headshot Ratio</span>
+                    </div>
+                    <div class="mohaa-summary-card">
+                        <span class="stat-icon">💥</span>
+                        <span class="stat-value" style="color: #8bc34a;">', number_format($shots), '</span>
+                        <span class="stat-label">Shots Fired</span>
+                    </div>
+                </div>
+            </div>
+        </div>';
+    
+    // Leaderboard
+    echo '
+        <div class="mohaa-section-title">
+            <span class="title-icon">🏆</span>
+            <h3>Top Specialists with ', htmlspecialchars($name), '</h3>
+        </div>
+        
+        <table class="mohaa-data-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Player</th>
+                    <th>Kills</th>
+                    <th>Shots</th>
+                    <th>Hits</th>
+                    <th>Accuracy</th>
+                    <th>Headshots</th>
+                </tr>
+            </thead>
+            <tbody>';
+            
+    if (!empty($leaderboard)) {
+        $rank = 1;
+        foreach ($leaderboard as $entry) {
+            $pName = $entry['player'] ?? 'Unknown';
+            $pKills = (int)($entry['kills'] ?? 0);
+            $pHits = (int)($entry['hits'] ?? 0);
+            $pShots = (int)($entry['shots'] ?? 0);
+            $pHS = (int)($entry['headshots'] ?? 0);
+            
+            $pAcc = $pShots > 0 ? round(($pHits / $pShots) * 100, 1) . '%' : 'N/A';
+            
+            echo '
+                <tr>
+                    <td>', $rank++, '</td>
+                    <td><a href="', $scripturl, '?action=mohaastats;sa=player;id=', urlencode($pName), '">', htmlspecialchars($pName), '</a></td>
+                    <td class="stat-bad">', number_format($pKills), '</td>
+                    <td>', number_format($pShots), '</td>
+                    <td>', number_format($pHits), '</td>
+                    <td style="color:#4fc3f7;">', $pAcc, '</td>
+                    <td style="color:#ff9800;">', number_format($pHS), '</td>
+                </tr>';
+        }
+    } else {
+        echo '<tr><td colspan="7" class="mohaa-empty-state">No data available for this weapon</td></tr>';
+    }
+            
+    echo '
+            </tbody>
+        </table>
+    </div>';
 }

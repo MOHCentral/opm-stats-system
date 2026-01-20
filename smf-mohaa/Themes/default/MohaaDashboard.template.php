@@ -151,37 +151,53 @@ function template_dashboard_my_performance()
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script>
     document.addEventListener("DOMContentLoaded", function() {
         var ctx = document.getElementById("myPerformanceChart");
         if (ctx) {
-            new Chart(ctx, {
-                type: "line",
-                data: {
-                    labels: ', json_encode($perf['labels'] ?? []), ',
-                    datasets: [{
-                        label: "Kills",
-                        data: ', json_encode($perf['kills'] ?? []), ',
-                        borderColor: "#4ade80",
-                        backgroundColor: "rgba(74, 222, 128, 0.1)",
-                        fill: true,
-                        tension: 0.3
-                    }, {
-                        label: "Deaths",
-                        data: ', json_encode($perf['deaths'] ?? []), ',
-                        borderColor: "#f87171",
-                        backgroundColor: "transparent",
-                        tension: 0.3
-                    }]
+            var labels = ' . json_encode($perf['labels'] ?? []) . ';
+            var kills = ' . json_encode($perf['kills'] ?? []) . ';
+            var deaths = ' . json_encode($perf['deaths'] ?? []) . ';
+            
+            var options = {
+                series: [{
+                    name: "Kills",
+                    data: kills
+                }, {
+                    name: "Deaths",
+                    data: deaths
+                }],
+                chart: {
+                    height: 200,
+                    type: "area",
+                    toolbar: { show: false },
+                    zoom: { enabled: false }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: "top" } },
-                    scales: { y: { beginAtZero: true } }
-                }
-            });
+                dataLabels: { enabled: false },
+                stroke: { curve: "smooth", width: 2 },
+                xaxis: {
+                    categories: labels,
+                    labels: { show: false },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false }
+                },
+                yaxis: { show: false },
+                colors: ["#4ade80", "#f87171"],
+                fill: {
+                    type: "gradient",
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.7,
+                        opacityTo: 0.1,
+                        stops: [0, 90, 100]
+                    }
+                },
+                grid: { show: false, padding: { left: 0, right: 0, top: 0, bottom: 0 } },
+                tooltip: { theme: "dark" }
+            };
+
+            new ApexCharts(ctx, options).render();
         }
     });
     </script>';
@@ -482,20 +498,33 @@ function template_dashboard_weapons()
     document.addEventListener("DOMContentLoaded", function() {
         var ctx = document.getElementById("globalWeaponChart");
         if (ctx) {
-            new Chart(ctx, {
-                type: "doughnut",
-                data: {
-                    labels: ', json_encode(array_column(array_slice($weapons, 0, 5), 'name')), ',
-                    datasets: [{
-                        data: ', json_encode(array_column(array_slice($weapons, 0, 5), 'kills')), ',
-                        backgroundColor: ["#4a5d23", "#8b9a4b", "#c4b896", "#d4a574", "#6b7280"]
-                    }]
+            var labels = ' . json_encode(array_column(array_slice($weapons, 0, 5), 'name')) . ';
+            var data = ' . json_encode(array_column(array_slice($weapons, 0, 5), 'kills')) . ';
+            
+            var options = {
+                series: data.map(Number),
+                labels: labels,
+                chart: { type: "donut", height: 250 },
+                plotOptions: {
+                    pie: {
+                        donut: {
+                            size: "70%",
+                            labels: {
+                                show: true,
+                                name: { color: "#888" },
+                                value: { color: "#fff" }
+                            }
+                        }
+                    }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
-            });
+                dataLabels: { enabled: false },
+                legend: { position: "right", labels: { colors: "#888" } },
+                colors: ["#4ea64e", "#8da745", "#c4b896", "#d4a574", "#6b7280"],
+                stroke: { show: false },
+                tooltip: { theme: "dark" }
+            };
+            
+            new ApexCharts(ctx, options).render();
         }
     });
     </script>

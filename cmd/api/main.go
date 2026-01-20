@@ -147,7 +147,7 @@ func main() {
 			r.Get("/teams/performance", h.GetFactionPerformance) // [NEW]
 			r.Get("/matches", h.GetMatches)
 			r.Get("/weapons", h.GetGlobalWeaponStats)
-			r.Get("/weapons/list", h.GetWeaponsList) // [NEW] Simple list for dropdowns
+			r.Get("/weapons/list", h.GetWeaponsList)     // [NEW] Simple list for dropdowns
 			r.Get("/weapon/{weapon}", h.GetWeaponDetail) // [NEW] Single weapon details
 
 			// Map statistics endpoints
@@ -157,8 +157,8 @@ func main() {
 			r.Get("/map/{mapId}", h.GetMapDetail) // Single map details
 
 			// Game type statistics endpoints (derived from map prefixes)
-			r.Get("/gametypes", h.GetGameTypeStats)          // All game types with stats
-			r.Get("/gametypes/list", h.GetGameTypesList)     // Simple list for dropdowns
+			r.Get("/gametypes", h.GetGameTypeStats)            // All game types with stats
+			r.Get("/gametypes/list", h.GetGameTypesList)       // Simple list for dropdowns
 			r.Get("/gametype/{gameType}", h.GetGameTypeDetail) // Single game type details
 			r.Get("/leaderboard/gametype/{gameType}", h.GetGameTypeLeaderboard)
 
@@ -255,6 +255,7 @@ func main() {
 			// Identity claiming (in-game verification)
 			r.Post("/claim/init", h.InitIdentityClaim)
 			r.Post("/claim/verify", h.VerifyIdentityClaim)
+			r.Post("/smf-verify", h.SMFVerifyToken) // Legacy tracker script auth
 		})
 
 		// User endpoints

@@ -2,6 +2,24 @@
 // OpenMOHAA Telemetry Tracker - Bot Extensions
 // ============================================================================
 
+on_actor_spawn local.actor:
+    local.payload = "type=actor_spawn"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    // local.payload = local.payload + "&actor=" + local.actor // Entity ID
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
+on_actor_killed local.actor local.attacker:
+    local.payload = "type=actor_killed"
+    local.payload = local.payload + "&match_id=" + level.match_id
+    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
+
+    thread tracker_common.scr::send_to_api local.payload
+end
+
 on_bot_spawn local.bot:
     local.payload = "type=bot_spawn"
     local.payload = local.payload + "&match_id=" + level.match_id

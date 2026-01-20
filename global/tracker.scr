@@ -61,94 +61,13 @@ main:
         registercmd "whoami" "cmd_whoami"
     
         // ========================================================================
-        // COMBAT EVENT SUBSCRIPTIONS
+        // EVENT SUBSCRIPTIONS
         // ========================================================================
-        event_subscribe "player_kill" "on_player_kill"
-        event_subscribe "player_death" "on_player_death"
-        event_subscribe "player_damage" "on_player_damage"
-        event_subscribe "player_pain" "tracker_combat_ext.scr::on_player_pain"
-        event_subscribe "weapon_fire" "on_weapon_fire"
-        event_subscribe "weapon_hit" "on_weapon_hit"
-        event_subscribe "player_headshot" "on_player_headshot"
-        event_subscribe "weapon_reload" "on_weapon_reload"
-        event_subscribe "weapon_reload_done" "tracker_combat_ext.scr::on_weapon_reload_done"
-        event_subscribe "weapon_change" "on_weapon_change"
-        event_subscribe "weapon_ready" "tracker_combat_ext.scr::on_weapon_ready"
-        event_subscribe "weapon_no_ammo" "tracker_combat_ext.scr::on_weapon_no_ammo"
-        event_subscribe "weapon_holster" "tracker_combat_ext.scr::on_weapon_holster"
-        event_subscribe "weapon_raise" "tracker_combat_ext.scr::on_weapon_raise"
-        event_subscribe "weapon_drop" "tracker_combat_ext.scr::on_weapon_drop"
-        event_subscribe "grenade_throw" "on_grenade_throw"
-        event_subscribe "grenade_explode" "on_grenade_explode"
-        event_subscribe "player_suicide" "tracker_combat_ext.scr::on_player_suicide"
-        event_subscribe "player_crushed" "tracker_combat_ext.scr::on_player_crushed"
-        event_subscribe "player_telefragged" "tracker_combat_ext.scr::on_player_telefragged"
-        event_subscribe "player_roadkill" "tracker_combat_ext.scr::on_player_roadkill"
-        event_subscribe "player_bash" "tracker_combat_ext.scr::on_player_bash"
-        event_subscribe "player_teamkill" "tracker_combat_ext.scr::on_player_teamkill"
-    
-        // ========================================================================
-        // MOVEMENT EVENT SUBSCRIPTIONS
-        // ========================================================================
-        event_subscribe "player_spawn" "tracker_movement_ext.scr::on_player_spawn"
-        event_subscribe "player_jump" "on_player_jump"
-        event_subscribe "player_land" "on_player_land"
-        event_subscribe "player_crouch" "on_player_crouch"
-        event_subscribe "player_prone" "on_player_prone"
-        event_subscribe "player_distance" "on_player_distance"
-    
-        // ========================================================================
-        // INTERACTION EVENT SUBSCRIPTIONS
-        // ========================================================================
-        event_subscribe "ladder_mount" "on_ladder_mount"
-        event_subscribe "ladder_dismount" "on_ladder_dismount"
-        event_subscribe "item_pickup" "on_item_pickup"
-        event_subscribe "health_pickup" "tracker_items_ext.scr::on_health_pickup"
-        event_subscribe "ammo_pickup" "tracker_items_ext.scr::on_ammo_pickup"
-        event_subscribe "armor_pickup" "tracker_items_ext.scr::on_armor_pickup"
-        event_subscribe "item_drop" "on_item_drop"
-        event_subscribe "player_use" "on_player_use"
-        event_subscribe "player_use_object_start" "tracker_interaction_ext.scr::on_player_use_object_start"
-        event_subscribe "player_use_object_finish" "tracker_interaction_ext.scr::on_player_use_object_finish"
-        event_subscribe "player_spectate" "tracker_interaction_ext.scr::on_player_spectate"
-        event_subscribe "player_freeze" "tracker_interaction_ext.scr::on_player_freeze"
-    
-        // ========================================================================
-        // SESSION EVENT SUBSCRIPTIONS
-        // ========================================================================
-        event_subscribe "client_connect" "on_client_connect"
-        event_subscribe "client_disconnect" "on_client_disconnect"
-        event_subscribe "client_begin" "on_client_begin"
-        event_subscribe "client_userinfo_changed" "tracker_client_ext.scr::on_client_userinfo_changed"
-        event_subscribe "team_join" "on_team_join"
-        event_subscribe "player_say" "on_player_say"
+        // Initialization logic is split into separate scripts for organization.
+        
+        thread global/tracker_init_player.scr::init
+        thread global/tracker_init_server.scr::init
 
-        // ========================================================================
-        // GAME FLOW / WORLD / VEHICLE / BOT EVENT SUBSCRIPTIONS
-        // ========================================================================
-        event_subscribe "game_init" "tracker_gameflow_ext.scr::on_game_init"
-        event_subscribe "game_start" "tracker_gameflow_ext.scr::on_game_start"
-        event_subscribe "game_end" "tracker_gameflow_ext.scr::on_game_end"
-        event_subscribe "round_start" "tracker_gameflow_ext.scr::on_round_start"
-        event_subscribe "round_end" "tracker_gameflow_ext.scr::on_round_end"
-        event_subscribe "team_win" "tracker_gameflow_ext.scr::on_team_win"
-        event_subscribe "objective_update" "tracker_gameflow_ext.scr::on_objective_update"
-
-        event_subscribe "door_open" "tracker_world_ext.scr::on_door_open"
-        event_subscribe "door_close" "tracker_world_ext.scr::on_door_close"
-
-        event_subscribe "vehicle_enter" "tracker_vehicle_ext.scr::on_vehicle_enter"
-        event_subscribe "vehicle_exit" "tracker_vehicle_ext.scr::on_vehicle_exit"
-        event_subscribe "vehicle_death" "tracker_vehicle_ext.scr::on_vehicle_death"
-        event_subscribe "vehicle_collision" "tracker_vehicle_ext.scr::on_vehicle_collision"
-        event_subscribe "turret_enter" "tracker_vehicle_ext.scr::on_turret_enter"
-        event_subscribe "turret_exit" "tracker_vehicle_ext.scr::on_turret_exit"
-
-        event_subscribe "bot_spawn" "tracker_bot_ext.scr::on_bot_spawn"
-        event_subscribe "bot_killed" "tracker_bot_ext.scr::on_bot_killed"
-        event_subscribe "bot_roam" "tracker_bot_ext.scr::on_bot_roam"
-        event_subscribe "bot_curious" "tracker_bot_ext.scr::on_bot_curious"
-        event_subscribe "bot_attack" "tracker_bot_ext.scr::on_bot_attack"
     
         println "Subscribed to all 30 player events."
     
