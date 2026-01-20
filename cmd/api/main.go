@@ -141,10 +141,12 @@ func main() {
 		// Stats endpoints (for frontend)
 		r.Route("/stats", func(r chi.Router) {
 			r.Get("/global", h.GetGlobalStats)
-			r.Get("/global/activity", h.GetGlobalActivity) // [NEW]
+			r.Get("/global/activity", h.GetServerActivity)
+			r.Get("/server/pulse", h.GetServerPulse)
+			r.Get("/server/maps", h.GetServerMaps)
+			r.Get("/teams/performance", h.GetFactionPerformance) // [NEW]
 			r.Get("/matches", h.GetMatches)
 			r.Get("/weapons", h.GetGlobalWeaponStats)
-			r.Get("/maps/popularity", h.GetMapPopularity) // [NEW]
 
 			r.Get("/leaderboard", h.GetLeaderboard)            // [UPDATED] Unified handler
 			r.Get("/leaderboard/cards", h.GetLeaderboardCards) // [NEW] Summary cards
@@ -188,6 +190,19 @@ func main() {
 			r.Get("/query", h.GetDynamicStats)
 			r.Get("/server/{serverId}/stats", h.GetServerStats)
 			r.Get("/live/matches", h.GetLiveMatches)
+		})
+
+		// Tournament endpoints
+		r.Route("/tournaments", func(r chi.Router) {
+			r.Get("/", h.GetTournaments)
+			r.Get("/{id}", h.GetTournament)
+			r.Get("/{id}/stats", h.GetTournamentStats)
+		})
+
+		// Achievement endpoints
+		r.Route("/achievements", func(r chi.Router) {
+			r.Get("/match/{match_id}", h.GetMatchAchievements)
+			r.Get("/tournament/{tournament_id}", h.GetTournamentAchievements)
 		})
 
 		// Auth endpoints

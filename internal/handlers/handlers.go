@@ -41,6 +41,9 @@ type Handler struct {
 	gamification  *logic.GamificationService
 	matchReport   *logic.MatchReportService
 	advancedStats *logic.AdvancedStatsService
+	teamStats     *logic.TeamStatsService
+	tournament    *logic.TournamentService
+	achievements  *logic.AchievementsService // [NEW]
 	jwtSecret     []byte
 }
 
@@ -56,6 +59,9 @@ func New(cfg Config) *Handler {
 		gamification:  logic.NewGamificationService(cfg.ClickHouse),
 		matchReport:   logic.NewMatchReportService(cfg.ClickHouse),
 		advancedStats: logic.NewAdvancedStatsService(cfg.ClickHouse),
+		teamStats:     logic.NewTeamStatsService(cfg.ClickHouse),
+		tournament:    logic.NewTournamentService(cfg.ClickHouse),
+		achievements:  logic.NewAchievementsService(cfg.ClickHouse), // [NEW]
 		jwtSecret:     []byte(cfg.JWTSecret),
 	}
 }
@@ -905,17 +911,35 @@ func (h *Handler) GetAchievement(w http.ResponseWriter, r *http.Request) {
 
 // GetRecentAchievements returns a global feed of recent unlocks
 func (h *Handler) GetRecentAchievements(w http.ResponseWriter, r *http.Request) {
-	_ = r.Context()
-	// Mock implementation until ClickHouse 'unlocks' table is ready
-	// Retrieve recent 'achievement_unlocked' events from raw_events?
-	// For now, return empty or mock
+	// Mock implementation
+	mockData := []map[string]interface{}{
+		{
+			"id":          "ach-1",
+			"name":        "First Blood",
+			"description": "Get the first kill of the match",
+			"icon":        "🩸",
+			"player_name": "Private Ryan",
+			"unlocked_at": "2023-10-27T14:30:00Z",
+		},
+		{
+			"id":          "ach-2",
+			"name":        "Untouchable",
+			"description": "Finish a match with 0 deaths",
+			"icon":        "🛡️",
+			"player_name": "CamperPro",
+			"unlocked_at": "2023-10-27T14:25:00Z",
+		},
+		{
+			"id":          "ach-3",
+			"name":        "Bullseye",
+			"description": "10 Headshots in a row",
+			"icon":        "🎯",
+			"player_name": "SniperWolf",
+			"unlocked_at": "2023-10-27T14:20:00Z",
+		},
+	}
 
-	// Real implementation would look like:
-	/*
-		rows, err := h.ch.Query(ctx, "SELECT ... FROM achievement_unlocks ORDER BY timestamp DESC LIMIT 50")
-	*/
-
-	h.jsonResponse(w, http.StatusOK, []interface{}{})
+	h.jsonResponse(w, http.StatusOK, mockData)
 }
 
 // GetAchievementLeaderboard returns players ranked by achievement points
@@ -988,65 +1012,8 @@ func (h *Handler) GetPlayerDeepStats(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, http.StatusOK, stats)
 }
 
-// GetPlayerPeakPerformance returns when a player performs best (time analysis)
-func (h *Handler) GetPlayerPeakPerformance(w http.ResponseWriter, r *http.Request) {
-	guid := chi.URLParam(r, "guid")
-	ctx := r.Context()
 
-	peak, err := h.advancedStats.GetPeakPerformance(ctx, guid)
-	if err != nil {
-		h.logger.Errorw("Failed to get peak performance", "guid", guid, "error", err)
-		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate peak performance")
-		return
-	}
 
-	h.jsonResponse(w, http.StatusOK, peak)
-}
-
-// GetPlayerDrillDown drills into a specific stat by dimension
-func (h *Handler) GetPlayerDrillDown(w http.ResponseWriter, r *http.Request) {
-	guid := chi.URLParam(r, "guid")
-	stat := r.URL.Query().Get("stat")
-	dimension := r.URL.Query().Get("dimension")
-	limitStr := r.URL.Query().Get("limit")
-	ctx := r.Context()
-
-	limit := 10
-	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-		limit = l
-	}
-
-	if stat == "" {
-		stat = "kills"
-	}
-	if dimension == "" {
-		dimension = "weapon"
-	}
-
-	result, err := h.advancedStats.GetDrillDown(ctx, guid, stat, dimension, limit)
-	if err != nil {
-		h.logger.Errorw("Failed to get drill-down", "guid", guid, "error", err)
-		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate drill-down")
-		return
-	}
-
-	h.jsonResponse(w, http.StatusOK, result)
-}
-
-// GetPlayerComboMetrics returns cross-dimensional stat combinations
-func (h *Handler) GetPlayerComboMetrics(w http.ResponseWriter, r *http.Request) {
-	guid := chi.URLParam(r, "guid")
-	ctx := r.Context()
-
-	combo, err := h.advancedStats.GetComboMetrics(ctx, guid)
-	if err != nil {
-		h.logger.Errorw("Failed to get combo metrics", "guid", guid, "error", err)
-		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate combo metrics")
-		return
-	}
-
-	h.jsonResponse(w, http.StatusOK, combo)
-}
 
 // GetPlayerVehicleStats returns vehicle and turret statistics
 func (h *Handler) GetPlayerVehicleStats(w http.ResponseWriter, r *http.Request) {
@@ -1314,68 +1281,10 @@ func (h *Handler) GetPlayerBodyHeatmap(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, http.StatusOK, heatmap)
 }
 
-// GetMapHeatmap returns global heatmap for a map (all players)
-func (h *Handler) GetMapHeatmap(w http.ResponseWriter, r *http.Request) {
-	mapName := chi.URLParam(r, "map")
-	heatmapType := r.URL.Query().Get("type") // "kills" or "deaths"
-	if heatmapType == "" {
-		heatmapType = "kills"
-	}
-	ctx := r.Context()
 
-	var query string
-	if heatmapType == "deaths" {
-		query = `
-			SELECT 
-				round(target_pos_x / 100) * 100,
-				round(target_pos_y / 100) * 100,
-				count() as count
-			FROM raw_events
-			WHERE event_type = 'kill' 
-			  AND map_name = ?
-			  AND target_pos_x != 0
-			GROUP BY 
-				round(target_pos_x / 100) * 100,
-				round(target_pos_y / 100) * 100
-		`
-	} else {
-		query = `
-			SELECT 
-				round(actor_pos_x / 100) * 100,
-				round(actor_pos_y / 100) * 100,
-				count() as count
-			FROM raw_events
-			WHERE event_type = 'kill' 
-			  AND map_name = ?
-			  AND actor_pos_x != 0
-			GROUP BY 
-				round(actor_pos_x / 100) * 100,
-				round(actor_pos_y / 100) * 100
-		`
-	}
 
-	rows, err := h.ch.Query(ctx, query, mapName)
-	if err != nil {
-		h.errorResponse(w, http.StatusInternalServerError, "Query failed")
-		return
-	}
-	defer rows.Close()
 
-	var points []models.HeatmapPoint
-	for rows.Next() {
-		var p models.HeatmapPoint
-		if err := rows.Scan(&p.X, &p.Y, &p.Count); err != nil {
-			continue
-		}
-		points = append(points, p)
-	}
 
-	h.jsonResponse(w, http.StatusOK, models.HeatmapData{
-		MapName: mapName,
-		Points:  points,
-		Type:    heatmapType,
-	})
-}
 
 // GetMatchDetails returns full details for a match
 func (h *Handler) GetMatchDetails(w http.ResponseWriter, r *http.Request) {

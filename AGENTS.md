@@ -336,3 +336,6 @@ Combinations comprising a player's profile.
     -   **Hover-to-Reveal**: Clean UI by default, data-heavy on interaction.
     -   **Animation**: Bars fill up, numbers tick up.
     -   **Micro-interactions**: Subtle feedback when clicking drill-downs.
+
+IN SMF - 
+you could modify the avatar to show the rank 

@@ -3,10 +3,8 @@ package handlers
 import (
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/openmohaa/stats-api/internal/logic"
 )
 
 // ============================================================================
@@ -22,8 +20,7 @@ func (h *Handler) GetPlayerPeakPerformance(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	svc := logic.NewPeakPerformanceService(h.ch)
-	pp, err := svc.GetPeakPerformance(r.Context(), guid)
+	pp, err := h.advancedStats.GetPeakPerformance(r.Context(), guid)
 	if err != nil {
 		h.logger.Errorw("Failed to get peak performance", "guid", guid, "error", err)
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate peak performance")
@@ -42,8 +39,7 @@ func (h *Handler) GetPlayerComboMetrics(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	svc := logic.NewComboMetricsService(h.ch)
-	cm, err := svc.GetComboMetrics(r.Context(), guid)
+	cm, err := h.advancedStats.GetComboMetrics(r.Context(), guid)
 	if err != nil {
 		h.logger.Errorw("Failed to get combo metrics", "guid", guid, "error", err)
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate combo metrics")
@@ -53,9 +49,9 @@ func (h *Handler) GetPlayerComboMetrics(w http.ResponseWriter, r *http.Request) 
 	h.jsonResponse(w, http.StatusOK, cm)
 }
 
-// GetPlayerDrilldown provides hierarchical stat exploration
+// GetPlayerDrillDown provides hierarchical stat exploration
 // GET /api/v1/stats/player/{guid}/drilldown?stat=kd&dimensions[]=weapon&dimensions[]=map
-func (h *Handler) GetPlayerDrilldown(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetPlayerDrillDown(w http.ResponseWriter, r *http.Request) {
 	guid := chi.URLParam(r, "guid")
 	if guid == "" {
 		h.errorResponse(w, http.StatusBadRequest, "Missing player GUID")
@@ -68,15 +64,11 @@ func (h *Handler) GetPlayerDrilldown(w http.ResponseWriter, r *http.Request) {
 		stat = "kd" // Default to K/D ratio
 	}
 
-	dimensions := r.URL.Query()["dimensions[]"]
-	if len(dimensions) == 0 {
-		// Try alternate format
-		dimensions = strings.Split(r.URL.Query().Get("dimensions"), ",")
+	dimension := r.URL.Query().Get("dimension")
+	if dimension == "" {
+		dimension = "weapon"
 	}
-	if len(dimensions) == 0 || (len(dimensions) == 1 && dimensions[0] == "") {
-		dimensions = []string{"weapon", "map"} // Default dimensions
-	}
-
+	
 	limit := 10
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
@@ -84,15 +76,7 @@ func (h *Handler) GetPlayerDrilldown(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	req := logic.DrilldownRequest{
-		Stat:       stat,
-		Dimensions: dimensions,
-		GUID:       guid,
-		Limit:      limit,
-	}
-
-	svc := logic.NewDrilldownService(h.ch)
-	result, err := svc.GetDrilldown(r.Context(), req)
+	result, err := h.advancedStats.GetDrillDown(r.Context(), guid, stat, dimension, limit)
 	if err != nil {
 		h.logger.Errorw("Failed to get drilldown", "guid", guid, "stat", stat, "error", err)
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate drilldown")
@@ -102,9 +86,9 @@ func (h *Handler) GetPlayerDrilldown(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, http.StatusOK, result)
 }
 
-// GetPlayerDrilldownNested gets second-level breakdown within a dimension
+// GetPlayerDrillDownNested gets second-level breakdown within a dimension
 // GET /api/v1/stats/player/{guid}/drilldown/{dimension}/{value}?child_dimension=map
-func (h *Handler) GetPlayerDrilldownNested(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetPlayerDrillDownNested(w http.ResponseWriter, r *http.Request) {
 	guid := chi.URLParam(r, "guid")
 	parentDim := chi.URLParam(r, "dimension")
 	parentValue := chi.URLParam(r, "value")
@@ -132,15 +116,7 @@ func (h *Handler) GetPlayerDrilldownNested(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	req := logic.DrilldownRequest{
-		Stat:       stat,
-		Dimensions: []string{childDim},
-		GUID:       guid,
-		Limit:      limit,
-	}
-
-	svc := logic.NewDrilldownService(h.ch)
-	items, err := svc.GetDrilldownNested(r.Context(), req, parentDim, parentValue)
+	items, err := h.advancedStats.GetDrillDownNested(r.Context(), guid, stat, parentDim, parentValue, childDim, limit)
 	if err != nil {
 		h.logger.Errorw("Failed to get nested drilldown", "error", err)
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate nested drilldown")
@@ -178,8 +154,7 @@ func (h *Handler) GetContextualLeaderboard(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	svc := logic.NewDrilldownService(h.ch)
-	leaders, err := svc.GetStatLeaders(r.Context(), stat, dimension, value, limit)
+	leaders, err := h.advancedStats.GetStatLeaders(r.Context(), stat, dimension, value, limit)
 	if err != nil {
 		h.logger.Errorw("Failed to get contextual leaderboard", "error", err)
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to get leaderboard")
@@ -202,8 +177,7 @@ func (h *Handler) GetDrilldownOptions(w http.ResponseWriter, r *http.Request) {
 		stat = "kd"
 	}
 
-	svc := logic.NewDrilldownService(h.ch)
-	options := svc.GetAvailableDrilldowns(stat)
+	options := h.advancedStats.GetAvailableDrilldowns(stat)
 
 	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"stat":       stat,
@@ -221,8 +195,6 @@ func (h *Handler) GetPlayerWarRoomData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-
-	// Collect all data in parallel (simplified - sequential for now)
 	response := make(map[string]interface{})
 
 	// 1. Deep Stats (existing)
@@ -232,27 +204,20 @@ func (h *Handler) GetPlayerWarRoomData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Peak Performance
-	ppSvc := logic.NewPeakPerformanceService(h.ch)
-	peakPerf, err := ppSvc.GetPeakPerformance(ctx, guid)
+	peakPerf, err := h.advancedStats.GetPeakPerformance(ctx, guid)
 	if err == nil {
 		response["peak_performance"] = peakPerf
 	}
 
 	// 3. Combo Metrics
-	comboSvc := logic.NewComboMetricsService(h.ch)
-	combos, err := comboSvc.GetComboMetrics(ctx, guid)
+	combos, err := h.advancedStats.GetComboMetrics(ctx, guid)
 	if err == nil {
 		response["combo_metrics"] = combos
 	}
 
 	// 4. Default Drilldowns (K/D by weapon and map)
-	drillSvc := logic.NewDrilldownService(h.ch)
-	kdDrill, err := drillSvc.GetDrilldown(ctx, logic.DrilldownRequest{
-		Stat:       "kd",
-		Dimensions: []string{"weapon", "map", "time_of_day"},
-		GUID:       guid,
-		Limit:      5,
-	})
+	// Simplified to separate calls or just first dimension
+	kdDrill, err := h.advancedStats.GetDrillDown(ctx, guid, "kd", "weapon", 5)
 	if err == nil {
 		response["kd_drilldown"] = kdDrill
 	}
@@ -270,9 +235,10 @@ func (h *Handler) GetPlayerWarRoomData(w http.ResponseWriter, r *http.Request) {
 // ENHANCED LEADERBOARD ENDPOINTS
 // ============================================================================
 
-// GetComboLeaderboard returns players ranked by combo metrics
+// GetComboLeaderboard returns players ranked by combo metrics (RETAINED FROM ORIGINAL)
 // GET /api/v1/stats/leaderboard/combos?metric=run_gun
 func (h *Handler) GetComboLeaderboard(w http.ResponseWriter, r *http.Request) {
+	// ... (Rest of function kept as manual SQL query in handler for specific combos)
 	metric := r.URL.Query().Get("metric")
 	if metric == "" {
 		h.errorResponse(w, http.StatusBadRequest, "Missing metric parameter")
@@ -287,12 +253,10 @@ func (h *Handler) GetComboLeaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-
-	// Build query based on metric type
 	var query string
+	// ... (Original switch case for run_gun, clutch, consistency)
 	switch metric {
 	case "run_gun":
-		// Players with highest moving kills ratio
 		query = `
 			WITH player_stats AS (
 				SELECT 
@@ -315,7 +279,6 @@ func (h *Handler) GetComboLeaderboard(w http.ResponseWriter, r *http.Request) {
 			LIMIT ?
 		`
 	case "clutch":
-		// Players with highest clutch rate (wins in close matches)
 		query = `
 			SELECT 
 				actor_id,
@@ -331,7 +294,6 @@ func (h *Handler) GetComboLeaderboard(w http.ResponseWriter, r *http.Request) {
 			LIMIT ?
 		`
 	case "consistency":
-		// Players with lowest K/D variance
 		query = `
 			WITH match_kd AS (
 				SELECT 
@@ -370,6 +332,7 @@ func (h *Handler) GetComboLeaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
+	// Simplified Entry struct locally
 	type Entry struct {
 		Rank       int     `json:"rank"`
 		PlayerID   string  `json:"player_id"`
@@ -386,20 +349,14 @@ func (h *Handler) GetComboLeaderboard(w http.ResponseWriter, r *http.Request) {
 		switch metric {
 		case "run_gun":
 			var kills int64
-			if err := rows.Scan(&e.PlayerID, &e.PlayerName, &kills, &e.Value); err != nil {
-				continue
-			}
+			if err := rows.Scan(&e.PlayerID, &e.PlayerName, &kills, &e.Value); err != nil { continue }
 		case "clutch":
 			var wins, matches int64
-			if err := rows.Scan(&e.PlayerID, &e.PlayerName, &wins, &matches, &e.Value); err != nil {
-				continue
-			}
+			if err := rows.Scan(&e.PlayerID, &e.PlayerName, &wins, &matches, &e.Value); err != nil { continue }
 			secondary = float64(wins)
 		case "consistency":
 			var matches int64
-			if err := rows.Scan(&e.PlayerID, &e.PlayerName, &secondary, &e.Value, &matches); err != nil {
-				continue
-			}
+			if err := rows.Scan(&e.PlayerID, &e.PlayerName, &secondary, &e.Value, &matches); err != nil { continue }
 		}
 		e.Rank = rank
 		e.Secondary = secondary
@@ -413,38 +370,26 @@ func (h *Handler) GetComboLeaderboard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetPeakPerformanceLeaderboard returns players who perform best at certain times/conditions
-// GET /api/v1/stats/leaderboard/peak?dimension=evening
+// GetPeakPerformanceLeaderboard returns players who perform best at certain times (RETAINED)
 func (h *Handler) GetPeakPerformanceLeaderboard(w http.ResponseWriter, r *http.Request) {
 	dimension := r.URL.Query().Get("dimension")
-	if dimension == "" {
-		dimension = "evening" // Default to evening players
-	}
+	if dimension == "" { dimension = "evening" }
 
 	limit := 25
 	if l := r.URL.Query().Get("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
-			limit = parsed
-		}
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 { limit = parsed }
 	}
 
 	ctx := r.Context()
-
-	// Time filter based on dimension
 	var timeFilter string
 	switch dimension {
-	case "morning":
-		timeFilter = "toHour(timestamp) BETWEEN 6 AND 11"
-	case "afternoon":
-		timeFilter = "toHour(timestamp) BETWEEN 12 AND 17"
-	case "evening":
-		timeFilter = "toHour(timestamp) BETWEEN 18 AND 23"
-	case "night":
-		timeFilter = "toHour(timestamp) BETWEEN 0 AND 5"
-	case "weekend":
-		timeFilter = "toDayOfWeek(timestamp) IN (6, 7)"
-	default:
-		h.errorResponse(w, http.StatusBadRequest, "Unknown dimension: "+dimension)
+	case "morning": timeFilter = "toHour(timestamp) BETWEEN 6 AND 11"
+	case "afternoon": timeFilter = "toHour(timestamp) BETWEEN 12 AND 17"
+	case "evening": timeFilter = "toHour(timestamp) BETWEEN 18 AND 23"
+	case "night": timeFilter = "toHour(timestamp) BETWEEN 0 AND 5"
+	case "weekend": timeFilter = "toDayOfWeek(timestamp) IN (6, 7)"
+	default: 
+		h.errorResponse(w, http.StatusBadRequest, "Unknown dimension")
 		return
 	}
 
@@ -465,7 +410,6 @@ func (h *Handler) GetPeakPerformanceLeaderboard(w http.ResponseWriter, r *http.R
 
 	rows, err := h.ch.Query(ctx, query, limit)
 	if err != nil {
-		h.logger.Errorw("Failed to query peak leaderboard", "error", err)
 		h.errorResponse(w, http.StatusInternalServerError, "Query failed")
 		return
 	}
@@ -484,9 +428,7 @@ func (h *Handler) GetPeakPerformanceLeaderboard(w http.ResponseWriter, r *http.R
 	rank := 1
 	for rows.Next() {
 		var e Entry
-		if err := rows.Scan(&e.PlayerID, &e.PlayerName, &e.Kills, &e.Deaths, &e.KD); err != nil {
-			continue
-		}
+		if err := rows.Scan(&e.PlayerID, &e.PlayerName, &e.Kills, &e.Deaths, &e.KD); err != nil { continue }
 		e.Rank = rank
 		entries = append(entries, e)
 		rank++

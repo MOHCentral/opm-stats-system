@@ -848,3 +848,124 @@ func (s *AdvancedStatsService) GetBotStats(ctx context.Context, guid string) (*B
 
 	return stats, nil
 }
+
+// =============================================================================
+// NESTED DRILLDOWNS & CONTEXTUAL LEADERBOARDS
+// =============================================================================
+
+// GetDrillDownNested returns a second-level breakdown
+func (s *AdvancedStatsService) GetDrillDownNested(ctx context.Context, guid, stat, parentDim, parentValue, childDim string, limit int) ([]DrillDownItem, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	var parentCol, childCol string
+	// Mapping dimensions to columns... simplified
+	getCol := func(dim string) string {
+		switch dim {
+		case "weapon": return "actor_weapon"
+		case "map": return "map_name"
+		case "hour": return "toHour(timestamp)"
+		case "day": return "toDayOfWeek(timestamp)"
+		case "victim": return "target_name"
+		case "hitloc": return "extract(extra, 'hitloc')"
+		default: return "actor_weapon"
+		}
+	}
+	parentCol = getCol(parentDim)
+	childCol = getCol(childDim)
+
+	query := fmt.Sprintf(`
+		SELECT 
+			%s as child_val,
+			count() as count
+		FROM raw_events
+		WHERE event_type = 'player_kill' AND actor_id = ? AND %s = ? AND %s != ''
+		GROUP BY child_val
+		ORDER BY count DESC
+		LIMIT ?
+	`, childCol, parentCol, childCol)
+
+	rows, err := s.ch.Query(ctx, query, guid, parentValue, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []DrillDownItem
+	var total int64
+	for rows.Next() {
+		var item DrillDownItem
+		if err := rows.Scan(&item.Label, &item.Value); err != nil {
+			continue
+		}
+		items = append(items, item)
+		total += item.Value
+	}
+	
+	for i := range items {
+		if total > 0 {
+			items[i].Percentage = (float64(items[i].Value) / float64(total)) * 100
+		}
+	}
+	return items, nil
+}
+
+// GetStatLeaders returns players ranked by a stat in a specific context (e.g. Best with MP40)
+func (s *AdvancedStatsService) GetStatLeaders(ctx context.Context, stat, dimension, value string, limit int) ([]map[string]interface{}, error) {
+	if limit <= 0 {
+		limit = 25
+	}
+
+	var filterCol string
+	switch dimension {
+	case "weapon": filterCol = "actor_weapon"
+	case "map": filterCol = "map_name"
+	case "time": filterCol = "toHour(timestamp)" // Value expected as string number
+	default: filterCol = "map_name"
+	}
+
+	// Dynamic query construction
+	// Assume stat is 'kills' for now, can expand later
+	query := fmt.Sprintf(`
+		SELECT 
+			actor_id,
+			any(actor_name) as name,
+			count() as val
+		FROM raw_events
+		WHERE event_type = 'player_kill' AND %s = ? AND actor_id != ''
+		GROUP BY actor_id
+		ORDER BY val DESC
+		LIMIT ?
+	`, filterCol)
+
+	rows, err := s.ch.Query(ctx, query, value, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var leaders []map[string]interface{}
+	rank := 1
+	for rows.Next() {
+		var id, name string
+		var val int64
+		if err := rows.Scan(&id, &name, &val); err != nil {
+			continue
+		}
+		leaders = append(leaders, map[string]interface{}{
+			"rank": rank,
+			"player_id": id,
+			"player_name": name,
+			"value": val,
+		})
+		rank++
+	}
+	return leaders, nil
+}
+
+// GetAvailableDrilldowns returns valid dimensions for a stat
+func (s *AdvancedStatsService) GetAvailableDrilldowns(stat string) []string {
+	// Static return for now
+	return []string{"weapon", "map", "victim", "hitloc", "hour", "day"}
+}

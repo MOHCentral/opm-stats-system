@@ -254,6 +254,85 @@ send_grenade_throw() {
     payload+="&pos_y=$(random_pos)"
     payload+="&pos_z=50"
     
+    
+    send_event "$payload"
+}
+
+send_reload() {
+    local name="$1"
+    local guid="$2"
+    local weapon="${3:-$(random_weapon)}"
+    
+    local payload="type=reload"
+    payload+="&match_id=${MATCH_ID}"
+    payload+="&timestamp=$(timestamp)"
+    payload+="&player_name=${name}"
+    payload+="&player_guid=${guid}"
+    payload+="&weapon=${weapon}"
+    payload+="&ammo_before=$((RANDOM % 10))"
+    payload+="&ammo_after=30"
+    
+    send_event "$payload"
+}
+
+send_weapon_drop() {
+    local name="$1"
+    local guid="$2"
+    local weapon="${3:-$(random_weapon)}"
+    
+    local payload="type=weapon_drop"
+    payload+="&match_id=${MATCH_ID}"
+    payload+="&timestamp=$(timestamp)"
+    payload+="&player_name=${name}"
+    payload+="&player_guid=${guid}"
+    payload+="&weapon=${weapon}"
+    
+    send_event "$payload"
+}
+
+send_ladder_mount() {
+    local name="$1"
+    local guid="$2"
+    
+    local payload="type=ladder_mount"
+    payload+="&match_id=${MATCH_ID}"
+    payload+="&timestamp=$(timestamp)"
+    payload+="&player_name=${name}"
+    payload+="&player_guid=${guid}"
+    payload+="&pos_x=$(random_pos)"
+    payload+="&pos_y=$(random_pos)"
+    payload+="&pos_z=100"
+    
+    send_event "$payload"
+}
+
+send_crouch() {
+    local name="$1"
+    local guid="$2"
+    
+    local payload="type=player_crouch"
+    payload+="&match_id=${MATCH_ID}"
+    payload+="&timestamp=$(timestamp)"
+    payload+="&player_name=${name}"
+    payload+="&player_guid=${guid}"
+    payload+="&pos_x=$(random_pos)"
+    payload+="&pos_y=$(random_pos)"
+    payload+="&pos_z=0"
+    
+    send_event "$payload"
+}
+
+send_vehicle_collision() {
+    local name="$1"
+    local guid="$2"
+    
+    local payload="type=vehicle_collision"
+    payload+="&match_id=${MATCH_ID}"
+    payload+="&timestamp=$(timestamp)"
+    payload+="&player_name=${name}"
+    payload+="&player_guid=${guid}"
+    payload+="&velocity=$((RANDOM % 100))"
+    
     send_event "$payload"
 }
 
@@ -450,6 +529,33 @@ test_full_match() {
         if [ $((RANDOM % 10)) -eq 0 ]; then
             local messages=("nice shot!" "gg" "lol" "wow" "noob" "ez")
             send_chat "$vic_name" "$vic_guid" "${messages[$RANDOM % ${#messages[@]}]}"
+        fi
+        
+        # Creative Stats Events
+        # Random Reload (OCD Reloading)
+        if [ $((RANDOM % 3)) -eq 0 ]; then
+             send_reload "$att_name" "$att_guid" "$weapon" > /dev/null 2>&1
+        fi
+        
+        # Random Weapon Drop (Butterfingers)
+        if [ $((RANDOM % 10)) -eq 0 ]; then
+             send_weapon_drop "$vic_name" "$vic_guid" > /dev/null 2>&1
+        fi
+        
+        # Random Movement (Jump/Crouch/Ladder)
+        if [ $((RANDOM % 2)) -eq 0 ]; then
+             send_jump "$att_name" "$att_guid" > /dev/null 2>&1
+        fi
+        if [ $((RANDOM % 5)) -eq 0 ]; then
+             send_crouch "$att_name" "$att_guid" > /dev/null 2>&1
+        fi
+        if [ $((RANDOM % 15)) -eq 0 ]; then
+             send_ladder_mount "$att_name" "$att_guid" > /dev/null 2>&1
+        fi
+        
+        # Random Vehicle Collision (Road Rage)
+        if [ $((RANDOM % 20)) -eq 0 ]; then
+             send_vehicle_collision "$att_name" "$att_guid" > /dev/null 2>&1
         fi
         
         sleep 0.1

@@ -107,3 +107,57 @@ func (s *ServerStatsService) GetMapPopularity(ctx context.Context) ([]models.Map
 	}
 	return stats, nil
 }
+// ServerPulse represents the heartbeat of the server
+type ServerPulse struct {
+	LethalityRating  float64 `json:"lethality_rating"`   // Kills per minute
+	LeadExchangeRate float64 `json:"lead_exchange_rate"` // Estimated lead changes per match
+	TotalLeadPoured  int64   `json:"total_lead_poured"`  // Total bullets hit
+	MeatGrinderMap   string  `json:"meat_grinder_map"`   // Map with most deaths/minute
+	ActivePlayers    int64   `json:"active_players"`     // Currently online (approx)
+}
+
+// GetServerPulse returns high-level metrics about the server's "chaos level"
+func (s *ServerStatsService) GetServerPulse(ctx context.Context) (*ServerPulse, error) {
+	pulse := &ServerPulse{}
+
+	// 1. Lethality (Kills per distinct minute of gameplay, approx)
+	// We'll take total kills / total playtime hours
+	if err := s.ch.QueryRow(ctx, `
+		SELECT 
+			countIf(event_type='player_kill') / (sumIf(toFloat64OrZero(extract(extra, 'duration')), event_type='round_end') / 60 + 1) as kpm
+		FROM raw_events
+		WHERE timestamp >= now() - INTERVAL 24 HOUR
+	`).Scan(&pulse.LethalityRating); err != nil {
+		// Default to 0 if fails
+		pulse.LethalityRating = 0
+	}
+
+	// 2. Total Lead Poured (all weapon hits)
+	// Using a simple count for now, optimized
+	s.ch.QueryRow(ctx, `
+		SELECT count() FROM raw_events 
+		WHERE event_type = 'weapon_hit' AND timestamp >= now() - INTERVAL 24 HOUR
+	`).Scan(&pulse.TotalLeadPoured)
+
+	// 3. Meat Grinder Map
+	s.ch.QueryRow(ctx, `
+		SELECT map_name 
+		FROM raw_events 
+		WHERE event_type = 'player_death'
+		GROUP BY map_name 
+		ORDER BY count() DESC 
+		LIMIT 1
+	`).Scan(&pulse.MeatGrinderMap)
+
+	// 4. Active Players (unique IDs in last 15 mins)
+	s.ch.QueryRow(ctx, `
+		SELECT uniq(actor_id) 
+		FROM raw_events 
+		WHERE timestamp >= now() - INTERVAL 15 MINUTE AND actor_id != ''
+	`).Scan(&pulse.ActivePlayers)
+
+	// 5. Lead Exchange (Placeholder logic: 3 changes per match avg)
+	pulse.LeadExchangeRate = 3.5
+
+	return pulse, nil
+}
