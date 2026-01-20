@@ -59,6 +59,9 @@ function template_mohaa_teams_list()
                     <span class="team-captain">Captain: ', htmlspecialchars($team['captain_name']), '</span>
                 </div>
             </div>
+            
+            ' . (!empty($team['recruiting']) ? '<div class="recruiting-badge">👋 Recruiting</div>' : '') . '
+
             <div class="team-stats">
                 <div class="stat">
                     <span class="value">', $team['rating'], '</span>
@@ -99,6 +102,27 @@ function template_mohaa_teams_list()
         .team-stats .stat { text-align: center; }
         .team-stats .value { display: block; font-size: 1.2em; font-weight: bold; color: #4a5d23; }
         .team-stats .label { font-size: 0.8em; color: #666; }
+        
+        .recruiting-badge {
+            display: inline-block;
+            background: rgba(46, 125, 50, 0.9);
+            color: #fff;
+            font-size: 0.75em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            margin-top: 10px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            animation: recruitPulse 2s infinite;
+        }
+        
+        @keyframes recruitPulse {
+            0% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(46, 125, 50, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0); }
+        }
     </style>';
 }
 
@@ -233,7 +257,40 @@ function template_mohaa_team_view()
                 <div class="windowbg chart-container">
                     <canvas id="wlChart"></canvas>
                 </div>
+
+                <div class="cat_bar"><h4 class="catbg">Map Dominance</h4></div>
+                <div class="windowbg chart-container">
+                    <canvas id="mapChart"></canvas>
+                </div>
+
+                <div class="cat_bar"><h4 class="catbg">Activity (30 Days)</h4></div>
+                <div class="windowbg chart-container">
+                    <canvas id="activityChart"></canvas>
+                </div>
             </div>
+        </div>
+
+        <div class="mohaa-dashboard-sections" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+             <!-- Tournament History -->
+             <div>
+                <div class="cat_bar"><h4 class="catbg">🏆 Tournament History</h4></div>
+                <div class="windowbg">
+                ' . (!empty($context['mohaa_team']['tournaments']) ? '
+                    <ul class="tournament-list">
+                    ' . implode('', array_map(function($t) {
+                        return '<li><span class="t-badge">'.$t['badge'].'</span> <strong>'.$t['placement'].'</strong> - '.$t['name'].' <span class="t-date">('.date('M Y', $t['date']).')</span></li>';
+                    }, $context['mohaa_team']['tournaments'])) . '
+                    </ul>' : '<p class="centertext">No tournament participation yet.</p>') . '
+                </div>
+             </div>
+
+             <!-- Upcoming Matches -->
+             <div>
+                <div class="cat_bar"><h4 class="catbg">📅 Upcoming Matches</h4></div>
+                <div class="windowbg">
+                    <p class="centertext">No upcoming fixtures scheduled.</p>
+                </div>
+             </div>
         </div>
     </div>';
 
@@ -333,10 +390,16 @@ function template_mohaa_team_view()
         }
 
         const weaponData = ' . json_encode($context['mohaa_team']['stats']['weapon_usage'] ?? []) . ';
+        const mapData = ' . json_encode($context['mohaa_team']['stats']['map_stats'] ?? []) . ';
+        const activityData = ' . json_encode($context['mohaa_team']['stats']['activity_stats'] ?? []) . ';
         const wins = ' . $team['wins'] . ';
         const losses = ' . $team['losses'] . ';
         const draws = ' . $team['draws'] . ';
 
+        Chart.defaults.color = "#aab7c4";
+        Chart.defaults.font.family = "Segoe UI, system-ui, sans-serif";
+
+        // Weapon Chart (Doughnut)
         if (Object.keys(weaponData).length > 0) {
             new Chart(document.getElementById("weaponChart"), {
                 type: "doughnut",
@@ -344,25 +407,114 @@ function template_mohaa_team_view()
                     labels: Object.keys(weaponData),
                     datasets: [{
                         data: Object.values(weaponData),
-                        backgroundColor: ["#4ade80", "#60a5fa", "#f472b6", "#fbbf24", "#a78bfa"],
-                        borderWidth: 1
+                        backgroundColor: ["#3498db", "#e74c3c", "#f1c40f", "#2ecc71", "#9b59b6", "#1abc9c"],
+                        borderWidth: 0,
+                        hoverOffset: 4
                     }]
                 },
-                options: { responsive: true, plugins: { legend: { position: "right" } } }
+                options: { 
+                    responsive: true, 
+                    plugins: { 
+                        legend: { position: "right", labels: { boxWidth: 12, usePointStyle: true } },
+                        title: { display: false }
+                    },
+                    cutout: "70%"
+                }
             });
         }
 
+        // Win/Loss Chart (Pie)
         new Chart(document.getElementById("wlChart"), {
             type: "pie",
             data: {
                 labels: ["Wins", "Losses", "Draws"],
                 datasets: [{
                     data: [wins, losses, draws],
-                    backgroundColor: ["#4ade80", "#f87171", "#fbbf24"]
+                    backgroundColor: ["#2ecc71", "#e74c3c", "#95a5a6"],
+                    borderWidth: 0
                 }]
             },
-            options: { responsive: true }
+            options: { 
+                responsive: true,
+                plugins: { legend: { position: "bottom", labels: { boxWidth: 12, usePointStyle: true } } }
+            }
         });
+
+        // Map Dominance Chart (Horizontal Bar)
+        if (Object.keys(mapData).length > 0) {
+            const ctxMap = document.getElementById("mapChart").getContext("2d");
+            const gradMap = ctxMap.createLinearGradient(0, 0, 400, 0);
+            gradMap.addColorStop(0, "rgba(46, 204, 113, 0.8)");
+            gradMap.addColorStop(1, "rgba(39, 174, 96, 0.4)");
+
+            const mapLabels = Object.keys(mapData);
+            const mapWins = mapLabels.map(m => mapData[m].wins);
+            
+            new Chart(ctxMap, {
+                type: "bar",
+                indexAxis: "y",
+                data: {
+                  labels: mapLabels,
+                  datasets: [{
+                    label: "Wins",
+                    data: mapWins,
+                    backgroundColor: gradMap,
+                    borderRadius: 4,
+                    barPercentage: 0.6
+                  }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        x: { beginAtZero: true, grid: { color: "rgba(255,255,255,0.05)" } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // Activity Chart (Line with Gradient Fill)
+        if (Object.keys(activityData).length > 0) {
+            const ctxAct = document.getElementById("activityChart").getContext("2d");
+            const gradAct = ctxAct.createLinearGradient(0, 0, 0, 400);
+            gradAct.addColorStop(0, "rgba(52, 152, 219, 0.5)");
+            gradAct.addColorStop(1, "rgba(52, 152, 219, 0.0)");
+
+            new Chart(ctxAct, {
+                type: "line",
+                data: {
+                  labels: Object.keys(activityData),
+                  datasets: [{
+                    label: "Matches",
+                    data: Object.values(activityData),
+                    borderColor: "#3498db",
+                    backgroundColor: gradAct,
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: "#3498db",
+                    pointRadius: 3,
+                    pointHoverRadius: 5
+                  }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { 
+                            beginAtZero: true, 
+                            ticks: { stepSize: 1 },
+                            grid: { color: "rgba(255,255,255,0.05)" }
+                        },
+                        x: { grid: { display: false } }
+                    },
+                    interaction: { mode: "index", intersect: false }
+                }
+            });
+        }
     </script>';
 
     echo '
@@ -440,6 +592,12 @@ function template_mohaa_team_create()
                 <dt><label for="description">', $txt['mohaa_description'], '</label></dt>
                 <dd><textarea name="description" id="description" rows="4" cols="50"></textarea></dd>
                 
+                <dt><label for="recruiting">Recruiting Players?</label></dt>
+                <dd>
+                    <input type="checkbox" name="recruiting" id="recruiting" value="1" />
+                    <span class="smalltext">Check this if your team is actively looking for new members.</span>
+                </dd>
+
                 <dt><label for="logo_url">', $txt['mohaa_logo_url'], '</label></dt>
                 <dd><input type="url" name="logo_url" id="logo_url" size="50" placeholder="https://..." /></dd>
             </dl>
@@ -465,6 +623,40 @@ function template_mohaa_team_manage()
     echo '
     <div class="cat_bar">
         <h3 class="catbg">', $txt['mohaa_manage'], ': ', htmlspecialchars($team['team_name']), '</h3>
+    </div>
+    
+    <!-- Team Settings Form -->
+    <div class="cat_bar"><h4 class="catbg">⚙️ Team Settings</h4></div>
+    <div class="windowbg">
+        <form action="', $scripturl, '?action=mohaateams;sa=manage;id=', $team['id_team'], '" method="post">
+            <dl class="settings">
+                <dt><label for="description">Tag & Description:</label></dt>
+                <dd>
+                    <input type="text" name="team_tag" value="', htmlspecialchars($team['team_tag']), '" size="10" placeholder="Tag" />
+                    <textarea name="description" rows="2" style="width: 100%; margin-top: 5px;" placeholder="Team Description">', htmlspecialchars($team['description']), '</textarea>
+                </dd>
+                
+                <dt><label for="logo_url">Logo URL:</label></dt>
+                <dd>
+                    <input type="url" name="logo_url" value="', htmlspecialchars($team['logo_url']), '" style="width: 100%;" placeholder="https://..." />
+                </dd>
+                
+                <dt><label for="recruiting">Recruitment Status:</label></dt>
+                <dd>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="recruiting" value="1" ', (!empty($team['recruiting']) ? 'checked' : ''), '>
+                         <span style="font-weight: bold; color: ', (!empty($team['recruiting']) ? '#2ecc71' : '#7f8c8d'), ';">
+                            ', (!empty($team['recruiting']) ? '✅ actively recruiting' : '🚫 not recruiting'), '
+                        </span>
+                    </label>
+                </dd>
+            </dl>
+            <div style="text-align: right; margin-top: 10px;">
+                <input type="hidden" name="', $context['session_var'], '" value="', $context['session_id'], '" />
+                <input type="hidden" name="action" value="save_settings" />
+                <button type="submit" class="button">💾 Save Changes</button>
+            </div>
+        </form>
     </div>';
 
     // Pending join requests

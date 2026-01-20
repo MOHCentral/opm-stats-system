@@ -20,30 +20,21 @@ function template_mohaa_stats_leaderboard()
     
     echo '
     <style>
-        .mohaa-lb-wrap { font-family: "Segoe UI", sans-serif; }
-        .mohaa-filter-section { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-        .mohaa-filter-section strong { min-width: 60px; }
-        .mohaa-chip { padding: 5px 12px; border-radius: 16px; text-decoration: none; font-size: 0.85em; transition: all 0.2s; }
-        .mohaa-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .mohaa-chip.active { background: linear-gradient(135deg, #4a6b8a, #5d7d9a); color: #fff; }
-        .mohaa-chip.inactive { background: rgba(0,0,0,0.1); }
-        .mohaa-lb-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
-        .mohaa-lb-table th { padding: 10px 8px; text-align: center; font-weight: bold; white-space: nowrap; }
-        .mohaa-lb-table td { padding: 8px; text-align: center; }
-        .mohaa-lb-table tr:hover { background: rgba(74, 107, 138, 0.1); }
-        .rank-1 { background: linear-gradient(90deg, rgba(255,215,0,0.3), transparent) !important; }
-        .rank-2 { background: linear-gradient(90deg, rgba(192,192,192,0.3), transparent) !important; }
-        .rank-3 { background: linear-gradient(90deg, rgba(205,127,50,0.3), transparent) !important; }
-        .stat-positive { color: #4caf50; font-weight: bold; }
-        .stat-negative { color: #f44336; }
-        .stat-highlight { background: rgba(74, 107, 138, 0.15); font-weight: bold; }
+        /* CSS is loaded from mohaa_dashboard.css */
     </style>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <div class="cat_bar">
         <h3 class="catbg">🏆 Global Leaderboards</h3>
     </div>
     
-    <div class="windowbg mohaa-lb-wrap" style="padding: 20px;">';
+    <div class="windowbg mohaa-lb-wrap" style="padding: 20px;">
+    
+    <!-- Chart Section -->
+    <div class="mohaa-chart-container" style="position: relative; height:300px; width:100%">
+        <canvas id="leaderboardChart"></canvas>
+    </div>';
 
     // COMBAT Stats Group
     echo '
@@ -108,16 +99,16 @@ function template_mohaa_stats_leaderboard()
             <tr class="title_bar">
                 <th>#</th>
                 <th style="text-align:left;">Player</th>
-                <th>Kills</th>
-                <th>Deaths</th>
-                <th>K/D</th>
-                <th>HS</th>
-                <th>Acc%</th>
-                <th>Wins</th>
-                <th>Rounds</th>
-                <th>Obj</th>
-                <th>Dist</th>
-                <th>Time</th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kills;period=', $current_period, '">Kills</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=deaths;period=', $current_period, '">Deaths</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=kd;period=', $current_period, '">K/D</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=headshots;period=', $current_period, '">HS</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=accuracy;period=', $current_period, '">Acc%</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=wins;period=', $current_period, '">Wins</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=rounds;period=', $current_period, '">Rounds</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=objectives;period=', $current_period, '">Obj</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=distance;period=', $current_period, '">Dist</a></th>
+                <th><a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=playtime;period=', $current_period, '">Time</a></th>
             </tr>
         </thead>
         <tbody>';
@@ -179,10 +170,87 @@ function template_mohaa_stats_leaderboard()
     // Pagination
     if (!empty($context['page_index'])) {
         echo '
-    <div class="pagesection">
-        <div class="pagelinks">', $context['page_index'], '</div>
-    </div>';
+        <div class="pagesection">
+            <div class="pagelinks">', $context['page_index'], '</div>
+        </div>';
     }
+    
+    // Prepare Chart Data
+    $chartLabels = [];
+    $chartData = [];
+    $topCount = 0;
+    foreach ($leaderboard as $player) {
+        if ($topCount >= 10) break;
+        $chartLabels[] = $player['name'];
+        // Handle different stat types (percentages, raw numbers)
+        $val = $player[$current_stat] ?? 0;
+        // Clean up value if needed
+        $chartData[] = $val;
+        $topCount++;
+    }
+    
+    echo '
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var ctx = document.getElementById("leaderboardChart").getContext("2d");
+            
+            // Gradient for bars
+            var gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, "rgba(52, 152, 219, 0.8)");
+            gradient.addColorStop(1, "rgba(41, 128, 185, 0.2)");
+
+            new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: ', json_encode($chartLabels), ',
+                    datasets: [{
+                        label: "', ucfirst($current_stat), '",
+                        data: ', json_encode($chartData), ',
+                        backgroundColor: gradient,
+                        borderColor: "#3498db",
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        hoverBackgroundColor: "#5dade2"
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: "Top 10 Performers - ', ucfirst($current_stat), '",
+                            color: "#bdc3c7",
+                            font: { size: 16 }
+                        },
+                        tooltip: {
+                            mode: "index",
+                            intersect: false,
+                            backgroundColor: "rgba(0,0,0,0.8)",
+                            titleColor: "#f39c12",
+                            bodyFont: { size: 13 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: "rgba(255,255,255,0.05)" },
+                            ticks: { color: "#95a5a6" }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: "#ecf0f1", font: { weight: "bold" } }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: "easeOutQuart"
+                    }
+                }
+            });
+        });
+    </script>';
 }
 
 /**
@@ -534,7 +602,9 @@ function template_mohaa_stats_dashboard()
                 echo '
                 <li class="top-entry rank-', $rank, '">
                     <span class="rank">#', $rank, '</span>
-                    <span class="name">', htmlspecialchars($player['name']), '</span>
+                    <span class="name">
+                        <a href="', $scripturl, '?action=mohaastats;sa=player;id=', $player['id'], '">', htmlspecialchars($player['name']), '</a>
+                    </span>
                     <span class="value">', $player['value'], '</span>
                 </li>';
             }
@@ -582,7 +652,11 @@ function template_mohaa_stat_card($card)
             <li class="top-entry ' . $rankClass . '">
                 <div style="display: flex; align-items: center; width: 100%;">
                     <span class="rank">' . $entry['rank'] . '.</span>
-                    <span class="name">' . htmlspecialchars($entry['name']) . '</span>
+                    <span class="name">
+                        <a href="' . $scripturl . '?action=mohaastats;sa=player;id=' . ($entry['id'] ?? 0) . '" onclick="event.stopPropagation();">
+                            ' . htmlspecialchars($entry['name']) . '
+                        </a>
+                    </span>
                     <span class="value">' . $val . '</span>
                 </div>
             </li>';

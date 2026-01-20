@@ -313,6 +313,15 @@ function template_achievement_icon($icon)
         'grenade' => '💣',
         'pistol' => '🔫',
         'knife' => '🔪',
+        // Contextual / DNA Badges
+        'surgical' => '🩺',
+        'unstoppable' => '🚂',
+        'survivalist' => '🪵',
+        'guardian' => '🛡️',
+        'resourceful' => '👜',
+        'trigger_happy' => '🔫',
+        'ghost' => '👻',
+        'pacifist' => '🏳️',
     ];
 
     return $icons[$icon] ?? '🎖️';
