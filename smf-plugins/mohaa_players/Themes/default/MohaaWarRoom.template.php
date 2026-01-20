@@ -184,7 +184,7 @@ function template_mohaa_war_room()
                 <h1>', htmlspecialchars($member['real_name'] ?? $member['member_name'] ?? 'Soldier'), '</h1>
                 <div class="profile-meta">
                     <span class="tag-badge">', htmlspecialchars($player['clan_tag'] ?? 'N/A'), '</span>
-                    <span>ELO: <strong>', number_format($player['elo'] ?? 1000), '</strong></span>
+                    <span>ELO: <strong>', number_format($player['elo'] ?? 0), '</strong></span>
                 </div>
             </div>
             
@@ -621,11 +621,17 @@ function template_war_room_silhouette_content($player) {
         return $total > 0 ? round(($val / $total) * 100, 1) : 0;
     };
     
-    // Outgoing (Hits Dealt)
+    // Outgoing (Hits Dealt) - Use actual API data, no hardcoded fallbacks
     $head = $player['headshots'] ?? 0;
-    $torso = $player['torso_kills'] ?? ($kills * 0.4); 
-    // Limbs is remainder
-    $limbs = max(0, $kills - $head - $torso);
+    $torso = $player['torso_kills'] ?? 0; 
+    $limbs = $player['limb_kills'] ?? 0;
+    
+    // If no hitbox data at all, calculate from kills (only if we have kills but no breakdown)
+    $hasHitboxData = ($head + $torso + $limbs) > 0;
+    if (!$hasHitboxData && $kills > 0) {
+        // Show headshots if available, rest is unknown
+        $limbs = max(0, $kills - $head);
+    }
     
     $outHeadPct = $calcPct($head, $kills);
     $outTorsoPct = $calcPct($torso, $kills);

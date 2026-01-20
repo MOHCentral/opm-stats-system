@@ -198,7 +198,7 @@ function template_mohaa_war_room()
                 <h1>', htmlspecialchars($member['real_name'] ?? $member['member_name'] ?? 'Soldier'), '</h1>
                 <div class="profile-meta">
                     <span class="tag-badge">', htmlspecialchars($player['clan_tag'] ?? 'N/A'), '</span>
-                    <span>ELO: <strong>', number_format($player['elo'] ?? 1000), '</strong></span>
+                    <span>ELO: <strong>', number_format($player['elo'] ?? 0), '</strong></span>
                 </div>
             </div>
             
@@ -1084,11 +1084,17 @@ function template_war_room_silhouette_content($player) {
         return $total > 0 ? round(($val / $total) * 100, 1) : 0;
     };
     
-    // Outgoing (Hits Dealt)
+    // Outgoing (Hits Dealt) - Use actual API data, no hardcoded fallbacks
     $head = $player['headshots'] ?? 0;
-    $torso = $player['torso_kills'] ?? ($kills * 0.4); 
-    // Limbs is remainder
-    $limbs = max(0, $kills - $head - $torso);
+    $torso = $player['torso_kills'] ?? 0; 
+    $limbs = $player['limb_kills'] ?? 0;
+    
+    // If no hitbox data at all, calculate from kills (only if we have kills but no breakdown)
+    $hasHitboxData = ($head + $torso + $limbs) > 0;
+    if (!$hasHitboxData && $kills > 0) {
+        // Show headshots if available, rest is unknown
+        $limbs = max(0, $kills - $head);
+    }
     
     $outHeadPct = $calcPct($head, $kills);
     $outTorsoPct = $calcPct($torso, $kills);
@@ -1179,7 +1185,7 @@ function template_war_room_streaks_content($player) {
 
 function template_war_room_accuracy_content($player, $data) {
     $accuracy = $player['accuracy'] ?? 0;
-    $serverAvg = $data['server_avg_accuracy'] ?? 25;
+    $serverAvg = $data['server_avg_accuracy'] ?? 0;
     
     return '
     <div style="text-align: center; padding: 15px;">
@@ -1934,7 +1940,7 @@ function template_war_room_health_obj_content($data) {
         
         <div style="margin-top: 15px; padding: 10px; background: rgba(76, 175, 80, 0.1); border-radius: 6px; text-align: center;">
             <div style="font-size: 0.8em; opacity: 0.7;">Average HP at Kill</div>
-            <div style="font-size: 1.5em; font-weight: bold; color: #4caf50;">'.($data['avg_hp_at_kill'] ?? 75).'</div>
+            <div style="font-size: 1.5em; font-weight: bold; color: #4caf50;">'.($data['avg_hp_at_kill'] ?? 0).'</div>
         </div>
     </div>';
 }
@@ -1960,7 +1966,7 @@ function template_war_room_economy_content($data) {
             </div>
             <div style="padding: 15px; background: rgba(33, 150, 243, 0.1); border-radius: 6px; text-align: center;">
                 <div style="font-size: 0.8em; opacity: 0.7;">Avg Lifespan</div>
-                <div style="font-size: 1.3em; font-weight: bold; color: #2196f3;">'.($data['avg_lifespan_secs'] ?? 60).'s</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #2196f3;">'.($data['avg_lifespan_secs'] ?? 0).'s</div>
             </div>
         </div>
     </div>';
@@ -2018,7 +2024,7 @@ function template_war_room_peak_performance_content($data) {
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; text-align: center;">
             <div class="drilldown-stat" data-stat="kills" data-dimension="hour" style="cursor: pointer;">
                 <div style="font-size: 2em; margin-bottom: 5px;">🕐</div>
-                <div style="font-size: 1.6em; font-weight: bold; color: #4caf50;">'.sprintf('%02d:00', $bestHour['hour'] ?? 20).'</div>
+                <div style="font-size: 1.6em; font-weight: bold; color: #4caf50;">'.(isset($bestHour['hour']) ? sprintf('%02d:00', $bestHour['hour']) : 'N/A').'</div>
                 <div style="opacity: 0.7;">Best Hour</div>
                 <div style="font-size: 0.8em; color: #4caf50;">K/D: '.number_format($bestHour['kd_ratio'] ?? 0, 2).'</div>
             </div>

@@ -20,10 +20,40 @@ function template_mohaa_stats_leaderboard()
     
     echo '
     <style>
-    <style>
-        .mohaa-hero-stat { text-align: center; padding: 20px 15px; background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); margin-bottom: 20px; border-radius: 12px; color: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .mohaa-hero-stat h1 { color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.2); margin: 5px 0 5px 0; font-size: 2em; }
-        .mohaa-hero-stat p { color: #ecf0f1; font-size: 1em; opacity: 0.9; }
+        .mohaa-hero-stat { 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 25px;
+            padding: 40px; 
+            background: linear-gradient(135deg, #1a252f 0%, #2c3e50 100%); 
+            margin-bottom: 30px; 
+            border-radius: 12px; 
+            color: #ffffff; 
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.05);
+            text-align: left;
+        }
+        .mohaa-hero-stat .stat-icon {
+            font-size: 3.5em; 
+            line-height: 1;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+        }
+        .mohaa-hero-stat h1 { 
+            color: #ffffff; 
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3); 
+            margin: 0 0 5px 0; 
+            font-size: 2.2em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 700;
+        }
+        .mohaa-hero-stat p { 
+            color: #bdc3c7; 
+            font-size: 1.1em; 
+            margin: 0; 
+            max-width: 600px;
+        }
         
         .ag-theme-alpine { --ag-foreground-color: #2c3e50; --ag-header-foreground-color: #fff; --ag-header-background-color: #2c3e50; --ag-row-hover-color: rgba(52, 152, 219, 0.1); --ag-selected-row-background-color: rgba(52, 152, 219, 0.2); }
         .ag-theme-alpine .ag-header-cell { font-family: "Inter", sans-serif; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; }
@@ -35,7 +65,9 @@ function template_mohaa_stats_leaderboard()
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/ag-grid-community/dist/ag-grid-community.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-theme-alpine.css">
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/dist/ag-grid-community.min.js"></script>
     
     <div id="mohaa-leaderboard-dynamic">
     ';
@@ -76,19 +108,20 @@ function template_mohaa_stats_leaderboard()
         'team_wins' => ['title' => 'Team Wins', 'desc' => 'Games won as part of a team (Objective/TDM).', 'icon' => '🚩'],
         'ffa_wins' => ['title' => 'FFA Wins', 'desc' => 'Deathmatch games won solo.', 'icon' => '⚔️'],
         'losses' => ['title' => 'Losses', 'desc' => 'Matches lost or not placed 1st.', 'icon' => '☠️'],
-        'objectives_done' => ['title' => 'Objective Master', 'desc' => 'Mission objectives completed.', 'icon' => '🎯'],
-        'rounds_played' => ['title' => 'Veteran', 'desc' => 'Total rounds played in round-based modes.', 'icon' => '⏳'],
-        'games_finished' => ['title' => 'Ironman', 'desc' => 'Full matches completed from start to finish.', 'icon' => '🎮'],
+        'objectives' => ['title' => 'Objective Master', 'desc' => 'Mission objectives completed.', 'icon' => '🎯'],
+        'rounds' => ['title' => 'Veteran', 'desc' => 'Total rounds played in round-based modes.', 'icon' => '⏳'],
+        'playtime' => ['title' => 'Time Sink', 'desc' => 'Total time spent on the server.', 'icon' => '⏱️'],
+        'games' => ['title' => 'Ironman', 'desc' => 'Full matches completed from start to finish.', 'icon' => '🎮'],
     ];
 
     $info = $statInfo[$current_stat] ?? ['title' => ucfirst($current_stat), 'desc' => 'Global rankings for this metric.', 'icon' => '📊'];
 
     // Hero Section
     echo '
-    <div class="mohaa-hero-stat">
-        <div style="font-size: 3em; margin-bottom: 5px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">', $info['icon'], '</div>
-        <h1 style="font-size: 2em; text-transform: uppercase; letter-spacing: 2px;">', $info['title'], '</h1>
-        <p style="max-width: 600px; margin: 5px auto 0;">', $info['desc'], '</p>
+        <div style="text-align: left;">
+            <h1 style="font-size: 2em; text-transform: uppercase; letter-spacing: 2px; margin: 0;">', $info['title'], '</h1>
+            <p style="margin: 0; opacity: 0.9; font-size: 0.9em;">', $info['desc'], '</p>
+        </div>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -146,23 +179,35 @@ function template_mohaa_stats_leaderboard()
 
     // PERIOD Filters
     echo '
-        <div class="mohaa-filter-section" style="margin-top: 15px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 15px;">
-            <strong>📅 Period:</strong>';
+        <div class="mohaa-filter-section" style="margin-top: 15px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <strong style="margin-right: 5px; color: #7f8c8d; text-transform: uppercase; font-size: 0.85em; letter-spacing: 1px;">📅 Period:</strong>';
     $periods = ['all' => 'All Time', 'month' => 'This Month', 'week' => 'This Week', 'day' => 'Today'];
     foreach ($periods as $key => $label) {
         $class = ($current_period === $key) ? 'active' : 'inactive';
-        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $current_stat, ';period=', $key, '" class="mohaa-chip ', $class, '">', $label, '</a>';
+        $style = ($current_period === $key) 
+            ? 'background: #3498db; color: white; padding: 5px 12px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: bold; box-shadow: 0 2px 4px rgba(52,152,219,0.3);' 
+            : 'background: #ecf0f1; color: #7f8c8d; padding: 5px 12px; border-radius: 20px; text-decoration: none; font-size: 0.9em; transition: all 0.2s;';
+            
+        echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $current_stat, ';period=', $key, '" class="mohaa-chip" style="', $style, '">', $label, '</a>';
     }
     echo '</div>
     </div>';
 
     // LEADERBOARD TABLE - AG GRID
-    echo '
-    <div id="myGrid" class="ag-theme-alpine" style="height: 600px; width: 100%; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
-    
-    <script>
-        (function() {
-            var rowData = ', json_encode($leaderboard), ';
+    if (empty($leaderboard)) {
+        echo '
+        <div class="windowbg" style="text-align: center; padding: 60px 20px; border-radius: 8px; margin-top: 20px;">
+            <div style="font-size: 4em; margin-bottom: 15px; opacity: 0.5;">📉</div>
+            <h3 style="margin: 0; color: #7f8c8d;">No Data Available</h3>
+            <p style="color: #95a5a6;">There are no stats recorded for <strong>', $info['title'], '</strong> in this period.</p>
+        </div>';
+    } else {
+        echo '
+        <div id="myGrid" class="ag-theme-alpine" style="height: 600px; width: 100%; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 20px;"></div>
+        
+        <script>
+            (function() {
+                var rowData = ', json_encode($leaderboard), ';
             var scriptUrl = "', $scripturl, '";
             
             var rankRenderer = function(params) {
@@ -228,12 +273,54 @@ function template_mohaa_stats_leaderboard()
             };
             
             var eGridDiv = document.querySelector("#myGrid");
-            new agGrid.Grid(eGridDiv, gridOptions);
-            
-            // Expose for PJAX to re-init if needed? 
-            // Actually PJAX replaces the whole container, so re-executing this script works.
-        })();
-    </script>';
+            // Check for modern API or legacy API just in case
+            if (agGrid.createGrid) {
+                agGrid.createGrid(eGridDiv, gridOptions);
+            } else {
+                new agGrid.Grid(eGridDiv, gridOptions);
+            }
+                
+                // Expose for PJAX to re-init if needed? 
+                // Actually PJAX replaces the whole container, so re-executing this script works.
+            })();
+        </script>';
+    }
+
+    // STAT CATEGORY FILTERS (Moved to bottom)
+    echo '
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.05);">
+        <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px;">📊 Explore Other Metrics</h3>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px;">';
+        
+        $statGroups = [
+            '⚔️ Combat' => ['kills' => 'Kills', 'deaths' => 'Deaths', 'kd' => 'K/D Ratio', 'headshots' => 'Headshots', 'accuracy' => 'Accuracy', 'damage' => 'Damage Dealt'],
+            '💀 Special' => ['suicides' => 'Suicides', 'teamkills' => 'Team Kills', 'roadkills' => 'Roadkills', 'bash_kills' => 'Bash Kills', 'grenades' => 'Grenade Kills'],
+            '🎮 Game' => ['wins' => 'Wins', 'rounds' => 'Rounds Played', 'objectives' => 'Objectives', 'playtime' => 'Playtime'],
+            '🏃 Move' => ['distance' => 'Distance Run', 'jumps' => 'Jumps'],
+        ];
+
+        foreach ($statGroups as $groupName => $stats) {
+            echo '
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);">
+                <strong style="display: block; margin-bottom: 10px; color: #34495e; font-size: 0.9em; text-transform: uppercase;">', $groupName, '</strong>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+                foreach ($stats as $key => $label) {
+                    $isActive = ($current_stat === $key);
+                    $style = $isActive 
+                        ? 'background: #2c3e50; color: white; padding: 4px 10px; border-radius: 15px; text-decoration: none; font-size: 0.85em; font-weight: bold; box-shadow: 0 2px 4px rgba(44,62,80,0.3);' 
+                        : 'background: white; color: #7f8c8d; padding: 4px 10px; border-radius: 15px; text-decoration: none; font-size: 0.85em; border: 1px solid #dfe6e9; transition: all 0.2s;';
+                    
+                    echo '<a href="', $scripturl, '?action=mohaastats;sa=leaderboards;stat=', $key, ';period=', $current_period, '" style="', $style, '">', $label, '</a>';
+                }
+            echo '
+                </div>
+            </div>';
+        }
+
+    echo '
+        </div>
+    </div>';
 
     // Pagination
     if (!empty($context['page_index'])) {

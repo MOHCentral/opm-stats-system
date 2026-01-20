@@ -166,32 +166,81 @@ function template_mohaa_tournament_view()
     
     <!-- Bracket Tab -->
     <div id="tab-bracket" class="mohaa-tab-content" style="display: block;">
-        <div class="bracket-container">
+        <div class="bracket-container">';
+    
+    // Check if we have actual match data
+    $matches = $context['mohaa_tournament']['matches'] ?? [];
+    
+    if (empty($matches)) {
+        echo '
+            <div style="text-align: center; padding: 40px; width: 100%;">
+                <div style="font-size: 3em; margin-bottom: 15px;">🏆</div>
+                <h3>Bracket Not Yet Generated</h3>
+                <p style="color: #666;">The tournament bracket will appear here once the tournament starts.</p>';
+        
+        if ($t['status'] == 'open') {
+            echo '<p style="color: #888; font-size: 0.9em;">Current registrations: ', count($parts), '/', $t['max_teams'], ' teams</p>';
+        }
+        
+        echo '
+            </div>';
+    } else {
+        // Render actual bracket from database matches
+        // Group matches by round
+        $rounds = [];
+        foreach ($matches as $match) {
+            $roundNum = $match['round_number'] ?? 1;
+            if (!isset($rounds[$roundNum])) {
+                $rounds[$roundNum] = [];
+            }
+            $rounds[$roundNum][] = $match;
+        }
+        
+        $roundNames = [1 => 'Round 1', 2 => 'Quarter Finals', 3 => 'Semi Finals', 4 => 'Finals'];
+        $numRounds = count($rounds);
+        
+        foreach ($rounds as $roundNum => $roundMatches) {
+            $roundName = $roundNames[$roundNum] ?? "Round $roundNum";
+            if ($numRounds <= 2 && $roundNum == $numRounds) $roundName = 'Finals';
+            elseif ($numRounds <= 3 && $roundNum == $numRounds - 1) $roundName = 'Semi Finals';
+            elseif ($numRounds <= 4 && $roundNum == $numRounds - 2) $roundName = 'Quarter Finals';
+            
+            echo '
             <div class="bracket-round">
-                <div class="round-header">Quarter Finals</div>
+                <div class="round-header">', $roundName, '</div>';
+            
+            foreach ($roundMatches as $match) {
+                $team1 = htmlspecialchars($match['team1_name'] ?? 'TBD');
+                $team2 = htmlspecialchars($match['team2_name'] ?? 'TBD');
+                $score1 = $match['team1_score'] ?? '-';
+                $score2 = $match['team2_score'] ?? '-';
+                
+                $team1Class = '';
+                $team2Class = '';
+                if ($match['winner_id'] ?? 0) {
+                    if ($match['winner_id'] == ($match['team1_id'] ?? 0)) {
+                        $team1Class = 'winner';
+                        $team2Class = 'loser';
+                    } else {
+                        $team1Class = 'loser';
+                        $team2Class = 'winner';
+                    }
+                }
+                
+                echo '
                 <div class="matchup">
-                    <div class="b-team winner">Team Alpha <span class="score">10</span></div>
-                    <div class="b-team loser">Team Bravo <span class="score">4</span></div>
-                </div>
-                <!-- More mock matches for visual -->
-                <div class="matchup">
-                    <div class="b-team">Team Charlie <span class="score">-</span></div>
-                    <div class="b-team">Team Delta <span class="score">-</span></div>
-                </div>
-            </div>
-            <div class="bracket-round">
-                <div class="round-header">Semi Finals</div>
-                <div class="matchup placeholder">
-                    <div class="b-team">Winner M1</div>
-                    <div class="b-team">Winner M2</div>
-                </div>
-            </div>
-             <div class="bracket-round">
-                <div class="round-header">Finals</div>
-                <div class="matchup placeholder"></div>
-            </div>
+                    <div class="b-team ', $team1Class, '">', $team1, ' <span class="score">', $score1, '</span></div>
+                    <div class="b-team ', $team2Class, '">', $team2, ' <span class="score">', $score2, '</span></div>
+                </div>';
+            }
+            
+            echo '
+            </div>';
+        }
+    }
+    
+    echo '
         </div>
-        <p class="centertext" style="color:#666; margin-top:20px;">* Bracket visualization is currently in preview mode.</p>
     </div>
     
     <script>
