@@ -186,7 +186,7 @@ func (h *Handler) PageIndex(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.getDashboardStats(ctx)
 	if err != nil {
 		h.logger.Errorw("Failed to get dashboard stats", "error", err)
-		stats = &stubDashboardStats{} // Use defaults
+		stats = &DashboardStats{} // Use defaults
 	}
 
 	h.render(w, "index.html", map[string]interface{}{

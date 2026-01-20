@@ -33,6 +33,12 @@ const (
 // =============================================================================
 
 func sendEvent(t *testing.T, eventType string, params map[string]string) {
+	if err := sendEventSafe(t, eventType, params); err != nil {
+		t.Fatalf("Failed to send %s event: %v", eventType, err)
+	}
+}
+
+func sendEventSafe(t *testing.T, eventType string, params map[string]string) error {
 	data := url.Values{}
 	data.Set("type", eventType)
 	data.Set("server_token", serverToken)
@@ -44,16 +50,18 @@ func sendEvent(t *testing.T, eventType string, params map[string]string) {
 		data.Set(k, v)
 	}
 
-	resp, err := http.PostForm(apiBaseURL+"/api/v1/ingest/events", data)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.PostForm(apiBaseURL+"/api/v1/ingest/events", data)
 	if err != nil {
-		t.Fatalf("Failed to send %s event: %v", eventType, err)
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		t.Errorf("Event %s returned status %d: %s", eventType, resp.StatusCode, string(body))
+		return fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
 	}
+	return nil
 }
 
 func checkAPIHealth(t *testing.T) bool {
@@ -500,23 +508,43 @@ func TestSMF_LeaderboardPage(t *testing.T) {
 	content := string(body)
 
 	if !strings.Contains(content, "mohaastats") {
-		t.Log("⚠ SMF leaderboard page may not be configured")
+		t.Log("⚠ SMF leaderboard page may not be configured (missing 'mohaastats' in content)")
 	}
-	t.Log("✓ SMF Leaderboard page accessible")
+	
+	// Check for a known element from the leaderboard template
+	if !strings.Contains(content, "Leaderboard") {
+		t.Error("SMF Leaderboard page missing 'Leaderboard' title")
+	}
+	
+	t.Log("✓ SMF Leaderboard page accessible and renders template")
 }
 
 func TestSMF_PlayerPage(t *testing.T) {
-	resp, err := http.Get(smfBaseURL + "/index.php?action=mohaastats;sa=player;guid=" + testPlayerGUID)
+	// Attempt to view a player profile. 
+	// Note: We need a valid ID or GUID. Using testPlayerGUID which might not be linked in SMF during this specific test run 
+	// unless we ran the full simulation first.
+	// For integration check, we just want to see if the Profile Page loads without 500 and contains the Stats tab link.
+	
+	resp, err := http.Get(smfBaseURL + "/index.php?action=profile;u=1") 
 	if err != nil {
-		t.Fatalf("Failed to get SMF player page: %v", err)
+		t.Fatalf("Failed to get SMF player profile: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Logf("⚠ SMF player page returned status %d", resp.StatusCode)
+		t.Logf("⚠ SMF player profile returned status %d (User 1 might not exist)", resp.StatusCode)
 		return
 	}
-	t.Log("✓ SMF Player page accessible")
+	
+	body, _ := io.ReadAll(resp.Body)
+	content := string(body)
+
+	// Check for the injected Stats tab/link
+	if strings.Contains(content, "Stats") || strings.Contains(content, "mohaastats") {
+		t.Log("✓ SMF Profile Hook detected (Stats tab present)")
+	} else {
+		t.Log("⚠ SMF Profile Hook NOT detected (Stats tab missing on User 1)")
+	}
 }
 
 // =============================================================================

@@ -152,6 +152,14 @@ func main() {
 		if len(players) > 0 {
 			seedEventsWithPlayers(numMatches, players)
 		}
+	case "view":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: statscli view <username> or <guid>")
+			return
+		}
+		viewUser(os.Args[2])
+	case "seed-tournaments":
+		seedTournaments()
 	case "clear":
 		clearData()
 	case "status":
@@ -167,14 +175,236 @@ func printUsage() {
 Usage:
   statscli setup [users]     Create SMF users (default: 1000)
   statscli seed [matches]    Seed events with existing players (default: 500)
+  statscli seed-tournaments  Seed Teams and Tournaments
   statscli full [users] [matches]  Full setup: create users + seed events
+  statscli view <user>       View stats for a specific user
   statscli clear             Clear all test data
   statscli status            Show database status
 
 Examples:
   statscli full 1000 500     Create 1000 users, run 500 matches
-  statscli setup 500         Create 500 SMF users with tokens
-  statscli seed 1000         Run 1000 matches with existing players`)
+  statscli view PlayerOne    Show stats for PlayerOne`)
+}
+
+// ============================================================================
+// VIEW COMMAND
+// ============================================================================
+
+func viewUser(identifier string) {
+	fmt.Printf("Searching for user: %s...\n", identifier)
+
+	// Postgres connection for detailed stats
+	pg, err := sql.Open("postgres", PostgresURL)
+	if err != nil {
+		fmt.Printf("Error connecting to Postgres: %v\n", err)
+		return
+	}
+	defer pg.Close()
+
+	// MySQL for profile info
+	mysql, err := sql.Open("mysql", MySQLDSN)
+	if err != nil {
+		fmt.Printf("Error connecting to MySQL: %v\n", err)
+		return
+	}
+	defer mysql.Close()
+
+	var memberID int
+	var name, email string
+	var guid string
+
+	// Try to find by name first
+	err = mysql.QueryRow("SELECT id_member, member_name, email_address FROM smf_members WHERE member_name = ?", identifier).Scan(&memberID, &name, &email)
+	if err != nil {
+		// Try by GUID
+		err = mysql.QueryRow("SELECT m.id_member, m.member_name, m.email_address FROM smf_members m JOIN smf_mohaa_identities i ON m.id_member = i.id_member WHERE i.player_guid = ?", identifier).Scan(&memberID, &name, &email)
+		if err != nil {
+			fmt.Printf("User not found in SMF database.\n")
+			return
+		}
+	}
+
+	// Get GUID if we found by name
+	mysql.QueryRow("SELECT player_guid FROM smf_mohaa_identities WHERE id_member = ?", memberID).Scan(&guid)
+	if guid == "" {
+		guid = "N/A"
+	}
+
+	fmt.Printf("\n=== User Profile ===\n")
+	fmt.Printf("ID:       %d\n", memberID)
+	fmt.Printf("Name:     %s\n", name)
+	fmt.Printf("Email:    %s\n", email)
+	fmt.Printf("GUID:     %s\n", guid)
+
+	// Get Token Status
+	var tokenCount int
+	pg.QueryRow("SELECT COUNT(*) FROM player_tokens WHERE smf_user_id = $1", memberID).Scan(&tokenCount)
+	fmt.Printf("Tokens:   %d active tokens\n", tokenCount)
+
+	// Fetch Stats from ClickHouse via API (simulated or direct query if possible)
+	// Since we are CLI, querying ClickHouse directly is better for "View"
+	viewClickHouseStats(guid)
+}
+
+func viewClickHouseStats(guid string) {
+	if guid == "N/A" {
+		return
+	}
+
+	url := fmt.Sprintf("%s/?query=SELECT+countIf(event_type='kill'),+countIf(event_type='death')+FROM+raw_events+WHERE+actor_id='%s'", ClickHouseURL, guid)
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Printf("Error fetching stats: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var kills, deaths int
+	fmt.Fscan(resp.Body, &kills, &deaths)
+
+	kd := 0.0
+	if deaths > 0 {
+		kd = float64(kills) / float64(deaths)
+	}
+
+	fmt.Printf("\n=== Combat Stats ===\n")
+	fmt.Printf("Kills:    %d\n", kills)
+	fmt.Printf("Deaths:   %d\n", deaths)
+	fmt.Printf("K/D:      %.2f\n", kd)
+}
+
+// ============================================================================
+// TOURNAMENT SEEDER
+// ============================================================================
+
+func seedTournaments() {
+	fmt.Println("Seeding Teams & Tournaments...")
+
+	mysql, err := sql.Open("mysql", MySQLDSN)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	defer mysql.Close()
+
+	// Ensure Tables Exist
+	createTournamentTables(mysql)
+
+	// 1. Create Teams
+	teamNames := []string{"Bravo Six", "Delta Force", "Alpha Squad", "Omega", "Titans", "Rangers", "Ninjas", "Vikings", "Spartans", "Reapers"}
+
+	var teamIDs []int
+	for _, tName := range teamNames {
+		// Try insert
+		res, err := mysql.Exec("INSERT IGNORE INTO smf_mohaa_teams (team_name, status, created_at) VALUES (?, 'active', ?)", tName, time.Now().Unix())
+		if err != nil {
+			fmt.Printf("Error creating team %s: %v\n", tName, err)
+			continue
+		}
+
+		id, err := res.LastInsertId()
+
+		// If ID is 0, it means the row already existed (IGNORE)
+		if id == 0 {
+			err = mysql.QueryRow("SELECT id_team FROM smf_mohaa_teams WHERE team_name = ?", tName).Scan(&id)
+			if err != nil {
+				fmt.Printf("Error fetching existing team %s: %v\n", tName, err)
+				continue
+			}
+		}
+
+		if id != 0 {
+			teamIDs = append(teamIDs, int(id))
+		}
+	}
+	fmt.Printf("✓ Created/Loaded %d Teams\n", len(teamIDs))
+
+	if len(teamIDs) == 0 {
+		fmt.Println("⚠ No teams available. Aborting tournament seed.")
+		return
+	}
+
+	// 2. Assign Users to Teams (Randomly)
+	rows, _ := mysql.Query("SELECT id_member FROM smf_members LIMIT 100")
+	var memberIDs []int
+	for rows.Next() {
+		var id int
+		rows.Scan(&id)
+		memberIDs = append(memberIDs, id)
+	}
+	rows.Close()
+
+	if len(memberIDs) > 0 {
+		for i, id := range memberIDs {
+			teamID := teamIDs[i%len(teamIDs)]
+			role := "member"
+			if i < len(teamIDs) {
+				role = "captain" // First user assigned to each team is captain
+			}
+			mysql.Exec("INSERT IGNORE INTO smf_mohaa_team_members (id_team, id_member, role, status) VALUES (?, ?, ?, 'active')", teamID, id, role)
+		}
+		fmt.Printf("✓ Assigned %d users to teams\n", len(memberIDs))
+	} else {
+		fmt.Println("⚠ No users found to assign to teams.")
+	}
+
+	// 3. Create Tournaments
+	tournaments := []string{"Winter Championship 2026", "Summer Frag Fest"}
+	for _, tName := range tournaments {
+		res, err := mysql.Exec("INSERT INTO smf_mohaa_tournaments (name, status, format, max_teams, tournament_start) VALUES (?, 'active', 'single_elim', 16, ?)", tName, time.Now().Unix())
+		if err != nil {
+			fmt.Printf("Failed to create tournament: %v\n", err)
+			continue
+		}
+		tID, _ := res.LastInsertId()
+
+		// Register random teams
+		for i, teamID := range teamIDs {
+			if i >= 8 {
+				break
+			} // Register 8 teams
+			mysql.Exec("INSERT INTO smf_mohaa_tournament_registrations (id_tournament, id_team, status) VALUES (?, ?, 'approved')", tID, teamID)
+		}
+		fmt.Printf("✓ Created Tournament: %s (ID: %d)\n", tName, tID)
+	}
+}
+
+func createTournamentTables(db *sql.DB) {
+	// Minimal schema for Teams if missing
+	db.Exec(`CREATE TABLE IF NOT EXISTS smf_mohaa_teams (
+		id_team INT AUTO_INCREMENT PRIMARY KEY,
+		team_name VARCHAR(255) NOT NULL UNIQUE,
+		logo_url VARCHAR(255),
+		status VARCHAR(20) DEFAULT 'active',
+		created_at INT
+	)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS smf_mohaa_team_members (
+		id_team INT,
+		id_member INT,
+		role VARCHAR(20),
+		status VARCHAR(20),
+		PRIMARY KEY (id_team, id_member)
+	)`)
+
+	// Tournaments (as seen in PHP file)
+	db.Exec(`CREATE TABLE IF NOT EXISTS smf_mohaa_tournaments (
+		id_tournament INT AUTO_INCREMENT PRIMARY KEY,
+		name VARCHAR(255),
+		status VARCHAR(20) DEFAULT 'open',
+		format VARCHAR(20),
+		max_teams INT,
+		tournament_start INT,
+		id_winner_team INT DEFAULT 0
+	)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS smf_mohaa_tournament_registrations (
+		id_tournament INT,
+		id_team INT,
+		seed INT DEFAULT 0,
+		status VARCHAR(20),
+		PRIMARY KEY (id_tournament, id_team)
+	)`)
 }
 
 func setupUsers(numUsers int) []Player {
@@ -441,15 +671,22 @@ func clearData() {
 	if err == nil {
 		mysql.Exec("DELETE FROM smf_mohaa_identities WHERE member_id > 1")
 		mysql.Exec("DELETE FROM smf_members WHERE id_member > 1")
+
+		// Clear Tournaments & Teams
+		mysql.Exec("TRUNCATE TABLE smf_mohaa_tournaments")
+		mysql.Exec("TRUNCATE TABLE smf_mohaa_tournament_registrations")
+		mysql.Exec("TRUNCATE TABLE smf_mohaa_team_members")
+		mysql.Exec("TRUNCATE TABLE smf_mohaa_teams")
+
 		mysql.Close()
-		fmt.Println("✓ SMF test users cleared")
+		fmt.Println("✓ SMF test users & tournaments cleared")
 	}
 
 	fmt.Println("\nAll test data cleared.")
 }
 
 func showStatus() {
-	fmt.Println("=== Database Status ===\n")
+	fmt.Println("=== Database Status ===")
 
 	resp, err := http.Get(ClickHouseURL + "/?query=SELECT+count()+FROM+raw_events")
 	if err == nil {
@@ -532,6 +769,12 @@ func NewMatchSimulator(client *http.Client, stats *Stats, allPlayers []Player) *
 }
 
 func (m *MatchSimulator) Run() {
+	// 1. Simulate players logging in (Device Auth / Token Verify)
+	for _, p := range m.players {
+		m.loginPlayer(p)
+	}
+
+	// 2. Start Match
 	m.sendEvent(map[string]interface{}{
 		"type": "match_start", "match_id": m.matchID, "server_id": m.server.ID,
 		"server_token": ServerToken, "map_name": m.mapName,
@@ -570,6 +813,37 @@ func (m *MatchSimulator) Run() {
 		"timestamp": m.baseTS, "allies_score": rand.Intn(50), "axis_score": rand.Intn(50),
 	})
 	m.stats.AddMatch()
+}
+
+func (m *MatchSimulator) loginPlayer(p Player) {
+	// Simulate the Game Server verifying the player's token
+	// POST /api/v1/auth/verify
+
+	// payload: {"token": "...", "player_guid": "...", "server_name": "...", "player_ip": "..."}
+	// We use the player's stored token.
+
+	payload := map[string]string{
+		"token":          p.Token,
+		"player_guid":    p.GUID,
+		"server_name":    m.server.Name,
+		"server_address": m.server.ID, // server ID used as address identifier
+		"player_ip":      fmt.Sprintf("192.168.%d.%d", rand.Intn(255), rand.Intn(255)),
+	}
+
+	data, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", "http://localhost:8080/api/v1/auth/verify", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ServerToken) // Server authenticates itself to verify player
+
+	resp, err := m.client.Do(req)
+	if err != nil {
+		// Log error but continue (simulation robustness)
+		return
+	}
+	defer resp.Body.Close()
+
+	// We don't strictly assert success here for simulation speed,
+	// but this ensures the API side 'trusted_ips' and 'smf_user_mappings' logic is triggered.
 }
 
 func (m *MatchSimulator) simulateRound(roundNum int) {

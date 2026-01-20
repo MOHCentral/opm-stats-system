@@ -200,7 +200,7 @@ func main() {
 
 		// Auth endpoints
 		r.Route("/auth", func(r chi.Router) {
-			// OAuth2 Device Flow for headless game clients
+			// Device Code Flow for headless game clients
 			r.Post("/device", h.InitDeviceAuth)
 			r.Post("/token", h.PollDeviceToken)
 			r.Post("/verify", h.VerifyToken)
@@ -215,13 +215,7 @@ func main() {
 			r.Post("/pending-ips/{id}", h.ResolvePendingIPApproval)
 			r.Post("/pending-ips/mark-notified", h.MarkPendingIPsNotified)
 
-			// Web OAuth (Discord/Steam)
-			r.Get("/discord", h.DiscordAuth)
-			r.Get("/discord/callback", h.DiscordCallback)
-			r.Get("/steam", h.SteamAuth)
-			r.Get("/steam/callback", h.SteamCallback)
-
-			// Identity claiming
+			// Identity claiming (in-game verification)
 			r.Post("/claim/init", h.InitIdentityClaim)
 			r.Post("/claim/verify", h.VerifyIdentityClaim)
 		})

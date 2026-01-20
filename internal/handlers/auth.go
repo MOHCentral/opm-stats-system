@@ -790,30 +790,6 @@ func (h *Handler) MarkPendingIPsNotified(w http.ResponseWriter, r *http.Request)
 }
 
 // ============================================================================
-// OAUTH HANDLERS (Discord/Steam)
-// ============================================================================
-
-func (h *Handler) DiscordAuth(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement Discord OAuth redirect
-	http.Redirect(w, r, "https://discord.com/oauth2/authorize?...", http.StatusTemporaryRedirect)
-}
-
-func (h *Handler) DiscordCallback(w http.ResponseWriter, r *http.Request) {
-	// TODO: Handle Discord OAuth callback
-	h.jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func (h *Handler) SteamAuth(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement Steam OpenID redirect
-	http.Redirect(w, r, "https://steamcommunity.com/openid/login?...", http.StatusTemporaryRedirect)
-}
-
-func (h *Handler) SteamCallback(w http.ResponseWriter, r *http.Request) {
-	// TODO: Handle Steam OpenID callback
-	h.jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-// ============================================================================
 // IDENTITY CLAIM HANDLERS
 // ============================================================================
 
@@ -821,8 +797,17 @@ func (h *Handler) SteamCallback(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) InitIdentityClaim(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// TODO: Get user ID from JWT
-	userID := uuid.New()
+	// Get user ID from JWT context (set by UserAuth middleware)
+	userIDVal := ctx.Value("user_id")
+	if userIDVal == nil {
+		h.errorResponse(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		h.errorResponse(w, http.StatusUnauthorized, "Invalid user context")
+		return
+	}
 
 	code := generateUserCode()
 	claim := models.IdentityClaim{
@@ -887,27 +872,130 @@ func (h *Handler) VerifyIdentityClaim(w http.ResponseWriter, r *http.Request) {
 
 // ============================================================================
 // USER HANDLERS
+// User profile management is primarily handled by SMF forum
+// These endpoints provide API access to linked identity data
 // ============================================================================
 
 func (h *Handler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
-	// TODO: Get user from JWT and return profile
-	h.jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
+	ctx := r.Context()
+
+	// Get forum user ID from context (set by AuthMiddleware)
+	forumUserID, ok := ctx.Value("forum_user_id").(int)
+	if !ok || forumUserID == 0 {
+		h.errorResponse(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	// Query linked identities from PostgreSQL
+	var identities []map[string]interface{}
+	rows, err := h.pg.Query(ctx, `
+		SELECT player_guid, player_name, verified_at, last_seen
+		FROM player_identities
+		WHERE forum_user_id = $1 AND verified = true
+	`, forumUserID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var guid, name string
+			var verifiedAt, lastSeen *time.Time
+			if err := rows.Scan(&guid, &name, &verifiedAt, &lastSeen); err == nil {
+				identities = append(identities, map[string]interface{}{
+					"guid":        guid,
+					"name":        name,
+					"verified_at": verifiedAt,
+					"last_seen":   lastSeen,
+				})
+			}
+		}
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"forum_user_id": forumUserID,
+		"identities":    identities,
+	})
 }
 
 func (h *Handler) UpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
-	// TODO: Update user profile
-	h.jsonResponse(w, http.StatusOK, map[string]string{"status": "updated"})
+	// User profile updates are managed via SMF forum
+	h.jsonResponse(w, http.StatusNotImplemented, map[string]string{
+		"error":   "managed_by_smf",
+		"message": "Profile updates are managed through the SMF forum profile page.",
+		"url":     "/index.php?action=profile",
+	})
 }
 
 func (h *Handler) GetUserIdentities(w http.ResponseWriter, r *http.Request) {
-	// TODO: Return linked game identities
-	h.jsonResponse(w, http.StatusOK, []interface{}{})
+	ctx := r.Context()
+
+	forumUserID, ok := ctx.Value("forum_user_id").(int)
+	if !ok || forumUserID == 0 {
+		h.errorResponse(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	rows, err := h.pg.Query(ctx, `
+		SELECT player_guid, player_name, verified, verified_at, last_seen, created_at
+		FROM player_identities
+		WHERE forum_user_id = $1
+		ORDER BY verified DESC, last_seen DESC
+	`, forumUserID)
+	if err != nil {
+		h.errorResponse(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer rows.Close()
+
+	var identities []map[string]interface{}
+	for rows.Next() {
+		var guid, name string
+		var verified bool
+		var verifiedAt, lastSeen, createdAt *time.Time
+		if err := rows.Scan(&guid, &name, &verified, &verifiedAt, &lastSeen, &createdAt); err == nil {
+			identities = append(identities, map[string]interface{}{
+				"guid":        guid,
+				"name":        name,
+				"verified":    verified,
+				"verified_at": verifiedAt,
+				"last_seen":   lastSeen,
+				"created_at":  createdAt,
+			})
+		}
+	}
+
+	h.jsonResponse(w, http.StatusOK, identities)
 }
 
 func (h *Handler) UnlinkIdentity(w http.ResponseWriter, r *http.Request) {
-	// TODO: Unlink a game identity
-	h.jsonResponse(w, http.StatusOK, map[string]string{"status": "unlinked"})
+	ctx := r.Context()
+	guid := chi.URLParam(r, "guid")
+
+	forumUserID, ok := ctx.Value("forum_user_id").(int)
+	if !ok || forumUserID == 0 {
+		h.errorResponse(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	// Remove the identity link
+	result, err := h.pg.Exec(ctx, `
+		DELETE FROM player_identities
+		WHERE forum_user_id = $1 AND player_guid = $2
+	`, forumUserID, guid)
+	if err != nil {
+		h.errorResponse(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+
+	if result.RowsAffected() == 0 {
+		h.errorResponse(w, http.StatusNotFound, "Identity not found")
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]string{
+		"status":  "unlinked",
+		"message": "Game identity unlinked successfully",
+	})
 }
+
 // HELPERS
 // ============================================================================
 

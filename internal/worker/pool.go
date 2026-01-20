@@ -410,7 +410,7 @@ func (p *Pool) handleMatchStart(ctx context.Context, event *models.RawEvent) {
 	data, _ := json.Marshal(liveMatch)
 	p.config.Redis.HSet(ctx, "live_matches", event.MatchID, data)
 	p.config.Redis.SAdd(ctx, "active_match_ids", event.MatchID)
-	
+
 	// Clear any stale team data for this match
 	p.config.Redis.Del(ctx, "match:"+event.MatchID+":teams")
 }
@@ -474,7 +474,8 @@ func (p *Pool) handleMatchEnd(ctx context.Context, event *models.RawEvent) {
 	p.config.Redis.Del(ctx, "match:"+event.MatchID+":teams")
 	p.config.Redis.Del(ctx, "match:"+event.MatchID+":players")
 
-	// TODO: Check if this match is part of a tournament and trigger bracket advancement
+	// Tournament bracket advancement is handled by SMF plugin
+	// See: smf-plugins/mohaa_tournaments/ for bracket management
 }
 
 // handleTeamWin records the winner in Redis so match_end can pick it up
@@ -571,8 +572,21 @@ func (p *Pool) handleDisconnect(ctx context.Context, event *models.RawEvent) {
 // handleChat checks for claim codes
 func (p *Pool) handleChat(ctx context.Context, event *models.RawEvent) {
 	// Check if message is a claim code (format: !claim MOH-XXXX)
-	// This would trigger identity verification
-	// TODO: Implement claim code detection and verification
+	msg := event.Message
+	if len(msg) > 7 && msg[:7] == "!claim " {
+		code := msg[7:]
+		// Verify claim code exists in pending claims
+		claimKey := "identity_claim:" + code
+		userIDStr, err := p.config.Redis.Get(ctx, claimKey).Result()
+		if err == nil && userIDStr != "" {
+			// Mark claim as verified with player GUID
+			p.config.Redis.HSet(ctx, claimKey+":verified",
+				"player_guid", event.PlayerGUID,
+				"verified_at", time.Unix(int64(event.Timestamp), 0).Format(time.RFC3339),
+			)
+			p.config.Logger.Sugar().Infow("Claim code verified", "code", code, "guid", event.PlayerGUID)
+		}
+	}
 }
 
 // checkKillAchievements checks kill-based achievements

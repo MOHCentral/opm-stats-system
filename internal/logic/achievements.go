@@ -53,9 +53,9 @@ func (s *AchievementsService) getMatchAchievements(ctx context.Context, matchID,
 	// 1. Fetch Stats for this match
 	var (
 		kills, deaths, shotsFired, shotsHit float64
-		win int
+		win                                 int
 	)
-	
+
 	query := `
 		SELECT 
 			countIf(event_type = 'player_kill') as kills,
@@ -71,7 +71,7 @@ func (s *AchievementsService) getMatchAchievements(ctx context.Context, matchID,
 	// We'll trust the driver to return 0s or error.
 	if err := s.ch.QueryRow(ctx, query, matchID, playerID).Scan(&kills, &deaths, &shotsFired, &shotsHit, &win); err != nil {
 		// return nil, err // Or just return empty list if no stats found
-		return list, nil 
+		return list, nil
 	}
 
 	// ------------------------------------------------------------------
@@ -118,10 +118,8 @@ func (s *AchievementsService) getMatchAchievements(ctx context.Context, matchID,
 	}
 	list = append(list, sharpshooter)
 
-	// ------------------------------------------------------------------
-	// D. "Wipeout" (Gold): (Placeholder) usually requires time-window logic
-	// Hard to do with simple Aggregation. Skipping for MVP unless advanced query.
-	// ------------------------------------------------------------------
+	// "Wipeout" (Gold): Kill entire enemy team in one round
+	// Requires time-window logic with round boundaries - implementation pending round event tracking
 
 	return list, nil
 }
@@ -133,7 +131,7 @@ func (s *AchievementsService) getTournamentAchievements(ctx context.Context, tou
 	var (
 		wins, matches int
 	)
-	
+
 	// Get total wins and matches played in this tournament
 	query := `
 		SELECT 

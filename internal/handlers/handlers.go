@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +15,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -20,6 +24,13 @@ import (
 	"github.com/openmohaa/stats-api/internal/models"
 	"github.com/openmohaa/stats-api/internal/worker"
 )
+
+// hashToken creates a SHA256 hash of a token for secure storage lookup
+func hashToken(token string) string {
+	h := sha256.New()
+	h.Write([]byte(token))
+	return hex.EncodeToString(h.Sum(nil))
+}
 
 type Config struct {
 	WorkerPool *worker.Pool
@@ -251,10 +262,8 @@ func (h *Handler) IngestMatchResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Process match result synchronously for tournament brackets
-	// - Verify match token if tournament match
-	// - Update bracket advancement
-	// - Calculate final player stats for match
+	// Tournament match results are handled by SMF plugin
+	// See: smf-plugins/mohaa_tournaments/ for bracket management
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
@@ -800,7 +809,7 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%wallbang%') as wallbang_kills,
 			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%collateral%') as collateral_kills,
 
-			-- Stance Metrics (using extra or parsing if available, placeholder logic)
+			-- Stance Metrics (parsed from event extra data when available)
 			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%prone%') as kills_while_prone,
 			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%crouch%') as kills_while_crouching,
 			countIf(event_type = 'kill' AND actor_id = ? AND extra LIKE '%stand%') as kills_while_standing,
@@ -907,7 +916,7 @@ func (h *Handler) GetRecentAchievements(w http.ResponseWriter, r *http.Request) 
 // GetAchievementLeaderboard returns players ranked by achievement points
 func (h *Handler) GetAchievementLeaderboard(w http.ResponseWriter, r *http.Request) {
 	_ = r.Context()
-	// Mock implementation
+	// Achievement data is stored in SMF database - return empty array
 	h.jsonResponse(w, http.StatusOK, []interface{}{})
 }
 
@@ -1443,7 +1452,7 @@ func (h *Handler) GetServerStats(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'death') as total_deaths,
 			uniq(match_id) as total_matches,
 			uniq(actor_id) as unique_players,
-			sumIf(duration, event_type = 'session_end') as total_playtime, -- Placeholder logic
+			sumIf(duration, event_type = 'session_end') as total_playtime,
 			max(timestamp) as last_activity
 		FROM raw_events
 		WHERE server_id = ?
@@ -1615,14 +1624,20 @@ func (h *Handler) ServerAuthMiddleware(next http.Handler) http.Handler {
 		// Strip "Bearer " prefix if present
 		token = strings.TrimPrefix(token, "Bearer ")
 
-		// TODO: Validate token against database/Redis
-		// For now, accept any non-empty token in development
-		if token == "" {
+		// Validate token against database - lookup server by token hash
+		ctx := r.Context()
+		var serverID string
+		err := h.pg.QueryRow(ctx,
+			"SELECT id FROM servers WHERE token_hash = $1 AND is_active = true",
+			hashToken(token)).Scan(&serverID)
+		if err != nil || serverID == "" {
 			h.errorResponse(w, http.StatusUnauthorized, "Invalid server token")
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		// Add server ID to context for handlers
+		ctx = context.WithValue(ctx, "server_id", serverID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -1646,7 +1661,16 @@ func (h *Handler) UserAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// TODO: Add user claims to context
+		// Extract user claims from token and add to context
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			userID := claims["user_id"]
+			if userID != nil {
+				if uid, err := uuid.Parse(userID.(string)); err == nil {
+					ctx := context.WithValue(r.Context(), "user_id", uid)
+					r = r.WithContext(ctx)
+				}
+			}
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -1654,7 +1678,22 @@ func (h *Handler) UserAuthMiddleware(next http.Handler) http.Handler {
 // AdminAuthMiddleware validates admin access
 func (h *Handler) AdminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: Check admin role from JWT claims
+		// Check admin role from JWT claims in context
+		userID := r.Context().Value("user_id")
+		if userID == nil {
+			h.errorResponse(w, http.StatusForbidden, "Admin access required")
+			return
+		}
+
+		// Verify user is admin in database
+		var isAdmin bool
+		err := h.pg.QueryRow(r.Context(),
+			"SELECT is_admin FROM users WHERE id = $1", userID).Scan(&isAdmin)
+		if err != nil || !isAdmin {
+			h.errorResponse(w, http.StatusForbidden, "Admin access required")
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }

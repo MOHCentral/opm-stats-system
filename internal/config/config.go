@@ -23,12 +23,9 @@ type Config struct {
 	FlushInterval time.Duration
 
 	// Auth
-	JWTSecret       string
-	DiscordClientID string
-	DiscordSecret   string
-	SteamAPIKey     string
-	DeviceCodeTTL   time.Duration
-	AccessTokenTTL  time.Duration
+	JWTSecret      string
+	DeviceCodeTTL  time.Duration
+	AccessTokenTTL time.Duration
 
 	// Rate limiting
 	RateLimitPerSecond int
@@ -49,12 +46,9 @@ func Load() *Config {
 		BatchSize:     getEnvInt("BATCH_SIZE", 500),
 		FlushInterval: getEnvDuration("FLUSH_INTERVAL", 1*time.Second),
 
-		JWTSecret:       getEnv("JWT_SECRET", "dev-secret-change-in-production"),
-		DiscordClientID: getEnv("DISCORD_CLIENT_ID", ""),
-		DiscordSecret:   getEnv("DISCORD_SECRET", ""),
-		SteamAPIKey:     getEnv("STEAM_API_KEY", ""),
-		DeviceCodeTTL:   getEnvDuration("DEVICE_CODE_TTL", 10*time.Minute),
-		AccessTokenTTL:  getEnvDuration("ACCESS_TOKEN_TTL", 24*time.Hour),
+		JWTSecret:      getEnv("JWT_SECRET", "dev-secret-change-in-production"),
+		DeviceCodeTTL:  getEnvDuration("DEVICE_CODE_TTL", 10*time.Minute),
+		AccessTokenTTL: getEnvDuration("ACCESS_TOKEN_TTL", 24*time.Hour),
 
 		RateLimitPerSecond: getEnvInt("RATE_LIMIT_PER_SECOND", 100),
 		RateLimitBurst:     getEnvInt("RATE_LIMIT_BURST", 200),

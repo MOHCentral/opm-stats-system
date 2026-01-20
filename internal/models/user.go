@@ -13,12 +13,6 @@ type User struct {
 	Email        string    `json:"email,omitempty" db:"email"`
 	PasswordHash string    `json:"-" db:"password_hash"`
 
-	// OAuth links
-	DiscordID   string `json:"discord_id,omitempty" db:"discord_id"`
-	DiscordName string `json:"discord_name,omitempty" db:"discord_name"`
-	SteamID     string `json:"steam_id,omitempty" db:"steam_id"`
-	SteamName   string `json:"steam_name,omitempty" db:"steam_name"`
-
 	// Profile
 	AvatarURL string `json:"avatar_url,omitempty" db:"avatar_url"`
 	Country   string `json:"country,omitempty" db:"country"`
@@ -68,7 +62,7 @@ type IdentityClaim struct {
 	VerifiedAt *time.Time `json:"verified_at,omitempty" db:"verified_at"`
 }
 
-// DeviceAuthRequest for OAuth2 Device Flow
+// DeviceAuthRequest for Device Code Flow (in-game identity verification)
 type DeviceAuthRequest struct {
 	DeviceCode      string    `json:"device_code"`
 	UserCode        string    `json:"user_code"`        // Short code for user to enter
@@ -124,8 +118,6 @@ type Server struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
-
-
 
 // ClanTeam for team-based tournaments
 type ClanTeam struct {

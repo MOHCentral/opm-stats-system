@@ -180,16 +180,12 @@ func (s *PlayerStatsService) fillCombatStats(ctx context.Context, guid string, o
 		&out.TorsoKills, &out.LimbKills, &out.MeleeKills, &out.Suicides,
 		&out.TeamKills, &out.Roadkills, &out.BashKills,
 		&out.DamageDealt, &out.DamageTaken,
-		// New: Nutshots, Backstabs, FirstBloods, Longshots (simulated checks in SQL)
-		// For now we assume some hitlocs map to nutshots if available, or just mock it here
-		// In production, 'nutshot' would be a specific hitloc alias or mod
 	); err != nil {
 		return err
 	}
 
-	// Nutshots, Backstabs, FirstBloods, Longshots need specific event tracking
-	// These stay at 0 until proper game server events are implemented
-	// DO NOT fabricate data from division/estimation
+	// Nutshots, Backstabs, FirstBloods, Longshots require specific hitloc values from game server
+	// These fields stay at 0 until game server sends events with proper hitloc (e.g., 'groin', 'back')
 
 	if out.Deaths > 0 {
 		out.KDRatio = float64(out.Kills) / float64(out.Deaths)
