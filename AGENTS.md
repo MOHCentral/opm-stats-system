@@ -247,4 +247,92 @@ These are the raw events ingested by the API.
 | `client_connect` | Player join | clientNum |
 | `bot_killed` | PvE kill | bot, attacker |
 
+### 8. Advanced Analytics & Server Health
+**Goal**: Move beyond simple counters to "Player DNA" and "Behavioural Patterns".
+
+#### A. Main Server "Global Pulse"
+Macro-stats showing the "chaos level" of the server.
+-   **Server Lethality**: Total `player_kill` / `game_start`. (Bloodiness rating).
+-   **Lead Exchange Rate**: How often the #1 spot changes hands.
+-   **Meat Grinder Zone**: Heatmap of `player_death` events.
+-   **Total Lead Poured**: Sum of all `weapon_hit` events (Engagement volume).
+-   **Revolving Door**: Peak hours for `client_connect` vs `disconnect`.
+
+#### B. Deep-Dive Player DNA
+Combinations comprising a player's profile.
+-   **Surgical (Precision)**:
+    -   *Headhsot Efficiency*: `headshot` / `weapon_hit` %.
+    -   *One-Tap King*: Kills with exactly 1 `weapon_fire`.
+    -   *Trigger Discipline*: High Hit/Fire ratio.
+-   **Unstoppable (Aggression)**:
+    -   *Road Warrior*: `vehicle_kill` + `vehicle_enter` time.
+    -   *The Juggernaut*: Damage taken without dying.
+    -   *Aggression Factor*: Distance moved towards enemies / Time alive.
+-   **Survivalist (Tactics)**:
+    -   *The Ghost*: Distance moved with 0 damage taken.
+    -   *Ledge Camper*: Kills while `ladder_mount` or high Z-axis.
+    -   *The Scavenger*: `item_pickup` frequency when HP < 10%.
+
+#### C. Creative "Stat Cards" (Badges)
+| Card Name | Logic | Description |
+| :--- | :--- | :--- |
+| **Deadly Mechanic** | `vehicle_exit` + `kill` < 3s | Bail & Kill. |
+| **The Janitor** | `kill` on low HP victim | Cleaning up. |
+| **Olympic Sprinter** | `jump` + `sprint` dist | Constant movement. |
+| **The Spiteful** | `say` + `kill` < 2s | "Chat & Smack". |
+| **Iron Sights** | `weapon_ready` + `headshot` | Quick-scope style. |
+| **Denied** | `kill` vs victim on `objective` | Stopping the win. |
+
+#### D. Analytical Drill-Downs
+-   **"Most Deaths" Click**:
+    -   *By MOD*: Pie chart (Crushed vs Shot vs Bash).
+    -   *Nemesis*: Who killed you most?
+    -   *Last Words*: Last chat message before death.
+-   **"Total Distance" Click**:
+    -   *Travel Mode*: Walk vs Sprint vs Swim vs Drive.
+    -   *Verticality*: Ladder usage vs Jumping.
+
+    -   **Micro-interactions**: Subtle feedback when clicking drill-downs.
+
+### 10. The "Widget Library" (Creative Stats)
+**Concept**: A collection of fun, high-engagement stats derived from cross-referencing events.
+
+#### A. Combat & Arsenal
+-   **The Artilleryman**: `grenade_kill` / `grenade_throw` (Efficiency).
+-   **Shin-Buster**: High frequency of `player_pain` in `lower_legs`.
+-   **Peek-a-Boo**: `crouch` + `weapon_fire` (Tactical firing).
+-   **Turret Terror**: Kills while `turret_enter` is active.
+-   **Iron Fists**: Wins in `bash` vs `bash` duels.
+-   **Leap Frog**: Kills while airborne (`jump` -> `land`).
+
+#### B. Survival & Movement
+-   **Door Camper**: Kills within 2s of `door_open` (Ambush).
+-   **Pacifist Run**: Top placement with 0 `player_kill` (Scavenging).
+-   **Loot Goblin**: Total `item_pickup` count (Hoarding).
+-   **Escapist**: High `distance` traveled while HP < 20%.
+
+#### C. Social & World
+-   **Chatty Cathy**: High `player_say` frequency (Social Score).
+-   **Window Shopper**: Time spent in `spectate` (Observing).
+-   **Bot Bully**: High Ratio of `bot_killed` vs `player_killed`.
+-   **Medic?**: `health_pickup` (Damage Healed) > Damage Taken (Net Positive).
+
+#### D. Interactive UX Concepts
+-   **Kill Feed Timeline**: A draggable slider below the match summary.
+    -   *Interaction*: Drag to replay kills/deaths on the mini-map.
+-   **Heatmap Shift**: A slider to see how hotzones move from "Early Game" to "Late Game".
+-   **Nemesis Web**: A spider chart showing who killed you (Nodes) and how (Thickness = frequency).
+
 *This file acts as the primary instruction set for Copilot, Claude, Gemini, and Antigravity.*
+
+### 9. Visualization & UX Strategy
+**Core Philosophy**: "Data is Alive". Static tables are forbidden for detailed stats.
+
+-   **Mandatory Interactive Elements**:
+    -   **Spider/Radar Charts**: Required for "Player DNA" (compare Agility vs Accuracy vs Tactics).
+    -   **Heatmaps**: Required for "Meat Grinder" (Map coords) and "Prime Time" (Time of day).
+    -   **Interactive Line Graphs**: For "consistency" metrics (K/D over last 30 days).
+-   **UX Principles**:
+    -   **Hover-to-Reveal**: Clean UI by default, data-heavy on interaction.
+    -   **Animation**: Bars fill up, numbers tick up.
+    -   **Micro-interactions**: Subtle feedback when clicking drill-downs.
