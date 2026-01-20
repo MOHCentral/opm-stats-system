@@ -21,6 +21,62 @@ function MohaaPlayers_Actions(array &$actions): void
     $actions['mohaadashboard'] = ['MohaaPlayers.php', 'MohaaPlayers_Dashboard'];
     $actions['mohaacompare'] = ['MohaaPlayers.php', 'MohaaPlayers_Compare'];
     $actions['mohaaidentity'] = ['MohaaPlayers.php', 'MohaaPlayers_IdentityRedirect'];
+    $actions['mohaalazyload'] = ['MohaaPlayers.php', 'MohaaPlayers_LazyLoadTab'];
+}
+
+/**
+ * AJAX endpoint for lazy loading tab data (Peak Performance, Signature, etc.)
+ * Returns JSON data for the requested tab
+ */
+function MohaaPlayers_LazyLoadTab(): void
+{
+    global $user_info;
+    
+    // Must be logged in
+    if ($user_info['is_guest']) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'not_logged_in']);
+        exit;
+    }
+    
+    $tab = isset($_GET['tab']) ? $_GET['tab'] : '';
+    $myGuid = MohaaPlayers_GetLinkedGUID($user_info['id']);
+    
+    if (empty($myGuid)) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'no_linked_identity']);
+        exit;
+    }
+    
+    require_once(__DIR__ . '/MohaaStats/MohaaStatsAPI.php');
+    $api = new MohaaStatsAPIClient();
+    
+    $result = [];
+    
+    switch ($tab) {
+        case 'peak':
+            // Fetch peak performance data
+            $result = $api->get('/stats/player/' . urlencode($myGuid) . '/peak-performance');
+            break;
+            
+        case 'signature':
+            // Fetch combo metrics / signature data
+            $result = $api->get('/stats/player/' . urlencode($myGuid) . '/combos');
+            break;
+            
+        case 'drilldown':
+            // Fetch drilldown data for specific stat
+            $stat = isset($_GET['stat']) ? $_GET['stat'] : 'kd';
+            $result = $api->get('/stats/player/' . urlencode($myGuid) . '/drilldown', ['stat' => $stat]);
+            break;
+            
+        default:
+            $result = ['error' => 'unknown_tab'];
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode($result ?? [], JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 /**

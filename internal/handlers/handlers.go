@@ -264,7 +264,7 @@ func (h *Handler) GetGlobalStats(w http.ResponseWriter, r *http.Request) {
 
 	// Query aggregations
 	// Note: In a real prod env, we'd cache this heavily
-	var totalKills, totalMatches, activePlayers int64
+	var totalKills, totalMatches, activePlayers uint64
 
 	// Total Kills
 	if err := h.ch.QueryRow(ctx, "SELECT count() FROM raw_events WHERE event_type = 'kill'").Scan(&totalKills); err != nil {
@@ -373,8 +373,8 @@ func (h *Handler) GetGlobalWeaponStats(w http.ResponseWriter, r *http.Request) {
 
 	type WeaponStats struct {
 		Name      string `json:"name"`
-		Kills     int64  `json:"kills"`
-		Headshots int64  `json:"headshots"`
+		Kills     uint64 `json:"kills"`
+		Headshots uint64 `json:"headshots"`
 	}
 
 	stats := make([]WeaponStats, 0)
@@ -953,8 +953,8 @@ func (h *Handler) GetPlayerMatches(w http.ResponseWriter, r *http.Request) {
 	type MatchSummary struct {
 		MatchID   string    `json:"match_id"`
 		MapName   string    `json:"map_name"`
-		Kills     int64     `json:"kills"`
-		Deaths    int64     `json:"deaths"`
+		Kills     uint64    `json:"kills"`
+		Deaths    uint64    `json:"deaths"`
 		StartedAt time.Time `json:"started_at"`
 		EndedAt   time.Time `json:"ended_at"`
 	}
@@ -1179,10 +1179,10 @@ func (h *Handler) GetPlayerBodyHeatmap(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	heatmap := make(map[string]int64)
+	heatmap := make(map[string]uint64)
 	for rows.Next() {
 		var part string
-		var hits int64
+		var hits uint64
 		if err := rows.Scan(&part, &hits); err != nil {
 			continue
 		}
@@ -1276,8 +1276,8 @@ func (h *Handler) GetMatchDetails(w http.ResponseWriter, r *http.Request) {
 		MapName       string    `json:"map_name"`
 		StartedAt     time.Time `json:"started_at"`
 		EndedAt       time.Time `json:"ended_at"`
-		TotalKills    int64     `json:"total_kills"`
-		UniquePlayers int64     `json:"unique_players"`
+		TotalKills    uint64    `json:"total_kills"`
+		UniquePlayers uint64    `json:"unique_players"`
 	}
 
 	if err := row.Scan(&summary.MapName, &summary.StartedAt, &summary.EndedAt, &summary.TotalKills, &summary.UniquePlayers); err != nil {
@@ -1307,9 +1307,9 @@ func (h *Handler) GetMatchDetails(w http.ResponseWriter, r *http.Request) {
 	type PlayerScore struct {
 		PlayerID   string `json:"player_id"`
 		PlayerName string `json:"player_name"`
-		Kills      int64  `json:"kills"`
-		Deaths     int64  `json:"deaths"`
-		Headshots  int64  `json:"headshots"`
+		Kills      uint64 `json:"kills"`
+		Deaths     uint64 `json:"deaths"`
+		Headshots  uint64 `json:"headshots"`
 	}
 
 	var scoreboard []PlayerScore
