@@ -863,13 +863,20 @@ func (s *AdvancedStatsService) GetDrillDownNested(ctx context.Context, guid, sta
 	// Mapping dimensions to columns... simplified
 	getCol := func(dim string) string {
 		switch dim {
-		case "weapon": return "actor_weapon"
-		case "map": return "map_name"
-		case "hour": return "toHour(timestamp)"
-		case "day": return "toDayOfWeek(timestamp)"
-		case "victim": return "target_name"
-		case "hitloc": return "hitloc"
-		default: return "actor_weapon"
+		case "weapon":
+			return "actor_weapon"
+		case "map":
+			return "map_name"
+		case "hour":
+			return "toHour(timestamp)"
+		case "day":
+			return "toDayOfWeek(timestamp)"
+		case "victim":
+			return "target_name"
+		case "hitloc":
+			return "hitloc"
+		default:
+			return "actor_weapon"
 		}
 	}
 	parentCol = getCol(parentDim)
@@ -902,7 +909,7 @@ func (s *AdvancedStatsService) GetDrillDownNested(ctx context.Context, guid, sta
 		items = append(items, item)
 		total += item.Value
 	}
-	
+
 	for i := range items {
 		if total > 0 {
 			items[i].Percentage = (float64(items[i].Value) / float64(total)) * 100
@@ -919,10 +926,14 @@ func (s *AdvancedStatsService) GetStatLeaders(ctx context.Context, stat, dimensi
 
 	var filterCol string
 	switch dimension {
-	case "weapon": filterCol = "actor_weapon"
-	case "map": filterCol = "map_name"
-	case "time": filterCol = "toHour(timestamp)" // Value expected as string number
-	default: filterCol = "map_name"
+	case "weapon":
+		filterCol = "actor_weapon"
+	case "map":
+		filterCol = "map_name"
+	case "time":
+		filterCol = "toHour(timestamp)" // Value expected as string number
+	default:
+		filterCol = "map_name"
 	}
 
 	// Dynamic query construction
@@ -954,10 +965,10 @@ func (s *AdvancedStatsService) GetStatLeaders(ctx context.Context, stat, dimensi
 			continue
 		}
 		leaders = append(leaders, map[string]interface{}{
-			"rank": rank,
-			"player_id": id,
+			"rank":        rank,
+			"player_id":   id,
 			"player_name": name,
-			"value": val,
+			"value":       val,
 		})
 		rank++
 	}
