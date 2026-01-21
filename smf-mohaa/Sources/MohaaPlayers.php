@@ -18,12 +18,47 @@ if (!defined('SMF'))
 function MohaaPlayers_Actions(array &$actions): void
 {
     $actions['mohaaplayer'] = ['MohaaPlayers.php', 'MohaaPlayers_ViewPlayer'];
+    $actions['mohaaplayers'] = ['MohaaPlayers.php', 'MohaaPlayers_Main']; // Main entry with sub-actions
     $actions['mohaadashboard'] = ['MohaaPlayers.php', 'MohaaPlayers_Dashboard'];
     $actions['mohaawarroom'] = ['MohaaPlayers.php', 'MohaaPlayers_Dashboard']; // Alias for war room
     $actions['mohaacompare'] = ['MohaaPlayers.php', 'MohaaPlayers_Compare'];
     $actions['mohaaidentity'] = ['MohaaPlayers.php', 'MohaaPlayers_IdentityRedirect'];
     $actions['mohaalazyload'] = ['MohaaPlayers.php', 'MohaaPlayers_LazyLoadTab'];
     $actions['mohaadrilldown'] = ['MohaaPlayers.php', 'MohaaPlayers_DrillDown'];
+}
+
+/**
+ * Main entry point for ?action=mohaaplayers with sub-actions
+ */
+function MohaaPlayers_Main(): void
+{
+    global $user_info;
+    
+    $sa = isset($_GET['sa']) ? $_GET['sa'] : '';
+    
+    switch ($sa) {
+        case 'link':
+            // Redirect to profile identity linking page
+            if ($user_info['is_guest']) {
+                redirectexit('action=login');
+                return;
+            }
+            redirectexit('action=profile;area=mohaaidentity');
+            break;
+            
+        case 'view':
+            MohaaPlayers_ViewPlayer();
+            break;
+            
+        case 'compare':
+            MohaaPlayers_Compare();
+            break;
+            
+        default:
+            // Default: show dashboard
+            MohaaPlayers_Dashboard();
+            break;
+    }
 }
 
 /**
@@ -128,8 +163,10 @@ function MohaaPlayers_ProfileAreas(array &$profile_areas): void
 {
     global $txt, $modSettings;
     
+    /*
     if (empty($modSettings['mohaa_stats_enabled']))
         return;
+    */
     
     loadLanguage('MohaaStats');
     
@@ -725,8 +762,10 @@ function MohaaPlayers_MenuButtons(array &$buttons): void
 {
     global $txt, $scripturl, $modSettings;
 
+    /*
     if (empty($modSettings['mohaa_stats_enabled']))
         return;
+    */
 
     loadLanguage('MohaaStats');
 

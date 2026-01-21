@@ -70,104 +70,88 @@ function MohaaStats_MenuButtons(array &$buttons): void
         'show' => true,
         'sub_buttons' => [
             'warroom' => [
-                'title' => $txt['mohaa_war_room'] ?? '🏠 War Room',
+                'title' => $txt['mohaa_war_room'] ?? 'War Room',
                 'href' => $scripturl . '?action=mohaadashboard',
                 'show' => true,
-            ],
-            'separator1' => [
-                'title' => '─────────────',
-                'href' => '#',
-                'show' => true,
-                'disabled' => true,
+                'icon' => 'home',
             ],
             'leaderboard' => [
-                'title' => $txt['mohaa_leaderboard'] ?? '🏆 Leaderboards',
+                'title' => $txt['mohaa_leaderboard'] ?? 'Leaderboards',
                 'href' => $scripturl . '?action=mohaastats;sa=leaderboards',
                 'show' => true,
+                'icon' => 'trophy',
             ],
             'battles' => [
-                'title' => $txt['mohaa_battles'] ?? '⚔️ Battles/Matches',
-                'href' => $scripturl . '?action=mohaabattles',
+                'title' => $txt['mohaa_battles'] ?? 'Battles',
+                'href' => $scripturl . '?action=mohaastats;sa=battles',
                 'show' => true,
+                'icon' => 'profile',
             ],
             'livematches' => [
-                'title' => $txt['mohaa_live_matches'] ?? '📡 Live Matches',
+                'title' => $txt['mohaa_live_matches'] ?? 'Live Matches',
                 'href' => $scripturl . '?action=mohaastats;sa=live',
                 'show' => true,
-            ],
-            'separator2' => [
-                'title' => '─────────────',
-                'href' => '#',
-                'show' => true,
-                'disabled' => true,
+                'icon' => 'online',
             ],
             'servers' => [
-                'title' => $txt['mohaa_servers'] ?? '🖥️ Servers',
+                'title' => $txt['mohaa_servers'] ?? 'Servers',
                 'href' => $scripturl . '?action=mohaaservers',
                 'show' => true,
+                'icon' => 'server',
             ],
             'maps' => [
-                'title' => $txt['mohaa_maps'] ?? '🗺️ Maps',
+                'title' => $txt['mohaa_maps'] ?? 'Maps',
                 'href' => $scripturl . '?action=mohaastats;sa=maps',
                 'show' => true,
+                'icon' => 'map',
             ],
             'weapons' => [
-                'title' => $txt['mohaa_weapons'] ?? '🔫 Weapons',
+                'title' => $txt['mohaa_weapons'] ?? 'Weapons',
                 'href' => $scripturl . '?action=mohaastats;sa=weapons',
                 'show' => true,
+                'icon' => 'post',
             ],
             'gametypes' => [
-                'title' => $txt['mohaa_gametypes'] ?? '🎮 Game Types',
+                'title' => $txt['mohaa_gametypes'] ?? 'Game Types',
                 'href' => $scripturl . '?action=mohaastats;sa=gametypes',
                 'show' => true,
-            ],
-            'separator3' => [
-                'title' => '─────────────',
-                'href' => '#',
-                'show' => true,
-                'disabled' => true,
+                'icon' => 'features',
             ],
             'achievements' => [
-                'title' => $txt['mohaa_achievements'] ?? '🎖️ Achievements',
+                'title' => $txt['mohaa_achievements'] ?? 'Achievements',
                 'href' => $scripturl . '?action=mohaaachievements',
                 'show' => true,
+                'icon' => 'star',
             ],
             'tournaments' => [
-                'title' => $txt['mohaa_tournaments'] ?? '🏅 Tournaments',
+                'title' => $txt['mohaa_tournaments'] ?? 'Tournaments',
                 'href' => $scripturl . '?action=mohaatournaments',
                 'show' => true,
+                'icon' => 'package',
             ],
             'teams' => [
-                'title' => $txt['mohaa_teams'] ?? '👥 Teams/Clans',
+                'title' => $txt['mohaa_teams'] ?? 'Teams',
                 'href' => $scripturl . '?action=mohaateams',
                 'show' => true,
-            ],
-            'separator4' => [
-                'title' => '─────────────',
-                'href' => '#',
-                'show' => true,
-                'disabled' => true,
+                'icon' => 'members',
             ],
             'comparison' => [
-                'title' => $txt['mohaa_comparison'] ?? '⚖️ Player Comparison',
-                'href' => $scripturl . '?action=mohaacomparison',
+                'title' => $txt['mohaa_comparison'] ?? 'Player Comparison',
+                'href' => $scripturl . '?action=mohaastats;sa=comparison',
                 'show' => true,
+                'icon' => 'search',
             ],
             'predictions' => [
-                'title' => $txt['mohaa_predictions'] ?? '🔮 AI Predictions',
-                'href' => $scripturl . '?action=mohaapredictions',
+                'title' => $txt['mohaa_predictions'] ?? 'AI Predictions',
+                'href' => $scripturl . '?action=mohaastats;sa=predictions',
                 'show' => true,
-            ],
-            'separator5' => [
-                'title' => '─────────────',
-                'href' => '#',
-                'show' => true,
-                'disabled' => true,
+                'icon' => 'reports',
             ],
             'identity' => [
-                'title' => $txt['mohaa_identity'] ?? '🎮 Link Game Account',
-                'href' => $scripturl . '?action=mohaaidentity',
+                'title' => $txt['mohaa_identity'] ?? 'Link Account',
+                'href' => $scripturl . '?action=mohaaplayers;sa=link',
                 'show' => true,
+                'icon' => 'profile',
             ],
         ],
     ];
@@ -230,6 +214,8 @@ function MohaaStats_Main(): void
         'main' => 'MohaaStats',
         'leaderboards' => 'MohaaStatsLeaderboard',
         'leaderboard' => 'MohaaStatsLeaderboard',
+        'battles' => 'MohaaBattlesList',
+        'battle' => 'MohaaBattleDetail',
         'weapons' => 'MohaaStatsLeaderboard',
         'weapon' => 'MohaaStatsLeaderboard',
         'player' => 'MohaaStatsPlayer',
@@ -239,7 +225,9 @@ function MohaaStats_Main(): void
         'map' => 'MohaaStatsLeaderboard',
         'gametypes' => 'MohaaStatsLeaderboard',
         'gametype' => 'MohaaStatsLeaderboard',
-        'servers' => 'MohaaServerStats', // New template
+        'servers' => 'MohaaServerStats',
+        'predictions' => 'MohaaPredictions',
+        'comparison' => 'MohaaPlayerComparison',
         'live' => 'MohaaStats',
         'link' => 'MohaaStatsPlayer',
         'token' => 'MohaaStatsPlayer',
@@ -251,6 +239,8 @@ function MohaaStats_Main(): void
         'main' => 'MohaaStats_MainPage',
         'leaderboards' => 'MohaaStats_Leaderboards',
         'leaderboard' => 'MohaaStats_Leaderboards',
+        'battles' => 'MohaaStats_BattlesList',
+        'battle' => 'MohaaStats_BattleDetail',
         'weapons' => 'MohaaStats_Weapons',
         'weapon' => 'MohaaStats_WeaponDetail',
         'player' => 'MohaaStats_Player',
@@ -260,7 +250,9 @@ function MohaaStats_Main(): void
         'map' => 'MohaaStats_MapDetail',
         'gametypes' => 'MohaaStats_GameTypes',
         'gametype' => 'MohaaStats_GameTypeDetail',
-        'servers' => 'MohaaStats_ServerDashboard', // New function
+        'servers' => 'MohaaStats_ServerDashboard',
+        'predictions' => 'MohaaStats_Predictions',
+        'comparison' => 'MohaaStats_Comparison',
         'live' => 'MohaaStats_Live',
         'link' => 'MohaaStats_LinkIdentity',
         'token' => 'MohaaStats_GenerateToken',
@@ -928,3 +920,340 @@ function MohaaStats_ServerDashboard(): void
     ];
 }
 
+/**
+ * Battles list page
+ * TODO: Implement when API endpoints are ready
+ */
+function MohaaStats_BattlesList(): void
+{
+    global $context, $txt;
+    
+    $context['page_title'] = $txt['mohaa_battles'] ?? 'Battles & Matches';
+    $context['sub_template'] = 'mohaa_battles_list';
+    
+    // Placeholder until API endpoints are ready
+    $context['mohaa_battles'] = [
+        'list' => [],
+        'total' => 0,
+        'map_filter' => '',
+        'gametype_filter' => '',
+    ];
+    
+    $context['page_index'] = '';
+}
+
+/**
+ * Battle detail page
+ * TODO: Implement when API endpoints are ready
+ */
+function MohaaStats_BattleDetail(): void
+{
+    global $context, $txt;
+    
+    $battleId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    
+    $context['page_title'] = $txt['mohaa_battle_title'] ?? 'Battle Details';
+    $context['sub_template'] = 'mohaa_battle_detail';
+    
+    // Placeholder until API endpoints are ready
+    $context['battle'] = null;
+    $context['rounds'] = [];
+    $context['players'] = [];
+    $context['current_round'] = null;
+    $context['momentum'] = [];
+    $context['weapons'] = [];
+    $context['heatmap'] = [];
+    $context['timeline'] = [];
+}
+
+/**
+ * AI Predictions page
+ */
+function MohaaStats_Predictions(): void
+{
+    global $context, $txt, $user_info, $smcFunc;
+    
+    require_once(__DIR__ . '/MohaaPlayerPredictor.php');
+    require_once(__DIR__ . '/MohaaStatsAPI.php');
+    
+    $context['page_title'] = $txt['mohaa_predictions'] ?? 'AI Predictions';
+    $context['sub_template'] = 'mohaa_predictions';
+    
+    // Get player ID from URL or current user
+    $playerId = isset($_GET['player']) ? (int)$_GET['player'] : $user_info['id'];
+    
+    if (empty($playerId)) {
+        $context['prediction_error'] = 'No player specified';
+        return;
+    }
+    
+    // Get player GUID from SMF database
+    $request = $smcFunc['db_query']('', '
+        SELECT player_guid
+        FROM {db_prefix}mohaa_identities
+        WHERE id_member = {int:member_id}
+        LIMIT 1',
+        ['member_id' => $playerId]
+    );
+    
+    $row = $smcFunc['db_fetch_assoc']($request);
+    $guid = $row['player_guid'] ?? '';
+    $smcFunc['db_free_result']($request);
+    
+    if (empty($guid)) {
+        $context['prediction_error'] = 'This player has not linked their game account yet. Visit <a href="' . $scripturl . '?action=mohaaplayers;sa=link">Link Account</a> to connect.';
+        return;
+    }
+    
+    // Generate predictions
+    try {
+        $predictor = new MohaaPlayerPredictor();
+        $predictions = $predictor->predictNextMatch($guid);
+        
+        if (isset($predictions['error'])) {
+            $context['prediction_error'] = $predictions['error'];
+            return;
+        }
+        
+        // Map prediction data to template variables
+        $context['next_match'] = [
+            'player_name' => $predictions['player_name'] ?? 'Unknown',
+            'kd_prediction' => $predictions['predictions']['kd_ratio'] ?? ['value' => 1.0, 'range' => ['min' => 0.8, 'max' => 1.2], 'confidence' => 50],
+            'accuracy_prediction' => $predictions['predictions']['accuracy'] ?? ['value' => 20, 'range' => ['min' => 18, 'max' => 22], 'confidence' => 50],
+            'kpm_prediction' => $predictions['predictions']['kills_per_minute'] ?? ['value' => 1.0, 'range' => ['min' => 0.85, 'max' => 1.15], 'confidence' => 50],
+            'factors' => $predictions['factors'] ?? [],
+            'recommendations' => $predictions['recommendations'] ?? []
+        ];
+        
+        // Performance forecast (7-day trend)
+        $context['forecast'] = [
+            'dates' => [],
+            'predicted_kd' => [],
+            'confidence_bands' => []
+        ];
+        
+        // Generate 7-day forecast
+        $baseKD = $predictions['predictions']['kd_ratio']['value'] ?? 1.0;
+        $trend = $predictions['factors']['recent_trend']['impact'] ?? 0;
+        
+        for ($i = 0; $i < 7; $i++) {
+            $date = date('M j', strtotime("+$i days"));
+            $context['forecast']['dates'][] = $date;
+            
+            // Simple linear trend projection
+            $projectedKD = $baseKD + ($trend / 100) * $i * 0.1;
+            $context['forecast']['predicted_kd'][] = round($projectedKD, 2);
+            $context['forecast']['confidence_bands'][] = [
+                'min' => round($projectedKD * 0.85, 2),
+                'max' => round($projectedKD * 1.15, 2)
+            ];
+        }
+        
+        // Optimal playtime recommendations
+        $context['optimal_time'] = [
+            'best_hours' => ['20:00', '21:00', '22:00'], // Mock data
+            'worst_hours' => ['06:00', '07:00', '08:00'],
+            'current_performance_index' => 75,
+            'peak_performance_index' => 100
+        ];
+        
+        $context['player_guid'] = $guid;
+        $context['player_id'] = $playerId;
+        
+    } catch (Exception $e) {
+        $context['prediction_error'] = 'Error generating predictions: ' . $e->getMessage();
+    }
+}
+
+/**
+ * Player Comparison page
+ */
+function MohaaStats_Comparison(): void
+{
+    global $context, $txt, $smcFunc;
+    
+    require_once(__DIR__ . '/MohaaPlayerComparison.php');
+    require_once(__DIR__ . '/MohaaStatsAPI.php');
+    
+    $context['page_title'] = $txt['mohaa_comparison'] ?? 'Player Comparison';
+    $context['sub_template'] = 'mohaa_player_comparison';
+    
+    // Get player GUIDs from URL
+    $player1 = isset($_GET['player1']) ? $_GET['player1'] : '';
+    $player2 = isset($_GET['player2']) ? $_GET['player2'] : '';
+    
+    $context['player1_guid'] = $player1;
+    $context['player2_guid'] = $player2;
+    
+    // If both players provided, do comparison
+    if (!empty($player1) && !empty($player2)) {
+        try {
+            $comparison = new MohaaPlayerComparison();
+            $result = $comparison->comparePlayers($player1, $player2);
+            
+            // Transform data for template
+            $p1 = $result['player1'];
+            $p2 = $result['player2'];
+            
+            $context['compared_players'] = [$p1, $p2];
+            
+            // Build charts data
+            $context['comparison_charts'] = [
+                'radar' => [
+                    'categories' => ['Combat', 'Accuracy', 'Survival', 'Aggression', 'Experience', 'Efficiency'],
+                    'series' => [
+                        [
+                            'name' => $p1['name'] ?? 'Player 1',
+                            'data' => [
+                                min(100, ($p1['kills'] ?? 0) / 10),
+                                $p1['accuracy'] ?? 0,
+                                min(100, ($p1['win_rate'] ?? 0)),
+                                min(100, ($p1['kd_ratio'] ?? 0) * 20),
+                                min(100, (($p1['playtime_minutes'] ?? 0) / 60)),
+                                min(100, ($p1['kills_per_minute'] ?? 0) * 10)
+                            ]
+                        ],
+                        [
+                            'name' => $p2['name'] ?? 'Player 2',
+                            'data' => [
+                                min(100, ($p2['kills'] ?? 0) / 10),
+                                $p2['accuracy'] ?? 0,
+                                min(100, ($p2['win_rate'] ?? 0)),
+                                min(100, ($p2['kd_ratio'] ?? 0) * 20),
+                                min(100, (($p2['playtime_minutes'] ?? 0) / 60)),
+                                min(100, ($p2['kills_per_minute'] ?? 0) * 10)
+                            ]
+                        ]
+                    ]
+                ],
+                'bars' => [
+                    'categories' => [$p1['name'] ?? 'Player 1', $p2['name'] ?? 'Player 2'],
+                    'series' => [
+                        ['name' => 'Kills', 'data' => [$p1['kills'] ?? 0, $p2['kills'] ?? 0]],
+                        ['name' => 'Deaths', 'data' => [$p1['deaths'] ?? 0, $p2['deaths'] ?? 0]],
+                        ['name' => 'K/D', 'data' => [($p1['kd_ratio'] ?? 0) * 100, ($p2['kd_ratio'] ?? 0) * 100]],
+                        ['name' => 'Headshots', 'data' => [$p1['headshots'] ?? 0, $p2['headshots'] ?? 0]],
+                        ['name' => 'Accuracy', 'data' => [$p1['accuracy'] ?? 0, $p2['accuracy'] ?? 0]],
+                        ['name' => 'Win Rate', 'data' => [$p1['win_rate'] ?? 0, $p2['win_rate'] ?? 0]]
+                    ]
+                ]
+            ];
+            
+            // Winner analysis
+            $p1Score = 0;
+            $p2Score = 0;
+            $metrics = ['kills', 'kd_ratio', 'accuracy', 'headshots', 'win_rate'];
+            foreach ($metrics as $metric) {
+                $v1 = $p1[$metric] ?? 0;
+                $v2 = $p2[$metric] ?? 0;
+                if ($v1 > $v2) $p1Score++;
+                else if ($v2 > $v1) $p2Score++;
+            }
+            
+            $totalScore1 = round(($p1['kills'] ?? 0) / 100 + ($p1['kd_ratio'] ?? 0) * 10 + ($p1['accuracy'] ?? 0) / 2 + ($p1['win_rate'] ?? 0) / 2, 2);
+            $totalScore2 = round(($p2['kills'] ?? 0) / 100 + ($p2['kd_ratio'] ?? 0) * 10 + ($p2['accuracy'] ?? 0) / 2 + ($p2['win_rate'] ?? 0) / 2, 2);
+            
+            $context['winner_analysis'] = [
+                'winner' => [
+                    'player' => $totalScore1 > $totalScore2 ? ($p1['name'] ?? 'Player 1') : ($p2['name'] ?? 'Player 2'),
+                    'total_score' => max($totalScore1, $totalScore2)
+                ],
+                'rankings' => [
+                    [
+                        'player' => $p1['name'] ?? 'Player 1',
+                        'total_score' => $totalScore1,
+                        'guid' => $player1
+                    ],
+                    [
+                        'player' => $p2['name'] ?? 'Player 2',
+                        'total_score' => $totalScore2,
+                        'guid' => $player2
+                    ]
+                ]
+            ];
+            
+            // Sort rankings
+            usort($context['winner_analysis']['rankings'], function($a, $b) {
+                return $b['total_score'] <=> $a['total_score'];
+            });
+            
+            // Differential stats (comparing against player 1 as baseline)
+            $context['differential_stats'] = [
+                $p2['name'] ?? 'Player 2' => [
+                    'kills' => [
+                        'base' => $p1['kills'] ?? 0,
+                        'compare' => $p2['kills'] ?? 0,
+                        'absolute_diff' => ($p2['kills'] ?? 0) - ($p1['kills'] ?? 0),
+                        'percent_diff' => ($p1['kills'] ?? 0) > 0 ? ((($p2['kills'] ?? 0) - ($p1['kills'] ?? 0)) / ($p1['kills'] ?? 0)) * 100 : 0,
+                        'better' => ($p2['kills'] ?? 0) > ($p1['kills'] ?? 0)
+                    ],
+                    'deaths' => [
+                        'base' => $p1['deaths'] ?? 0,
+                        'compare' => $p2['deaths'] ?? 0,
+                        'absolute_diff' => ($p2['deaths'] ?? 0) - ($p1['deaths'] ?? 0),
+                        'percent_diff' => ($p1['deaths'] ?? 0) > 0 ? ((($p2['deaths'] ?? 0) - ($p1['deaths'] ?? 0)) / ($p1['deaths'] ?? 0)) * 100 : 0,
+                        'better' => ($p2['deaths'] ?? 0) < ($p1['deaths'] ?? 0)
+                    ],
+                    'kd_ratio' => [
+                        'base' => $p1['kd_ratio'] ?? 0,
+                        'compare' => $p2['kd_ratio'] ?? 0,
+                        'absolute_diff' => ($p2['kd_ratio'] ?? 0) - ($p1['kd_ratio'] ?? 0),
+                        'percent_diff' => ($p1['kd_ratio'] ?? 0) > 0 ? ((($p2['kd_ratio'] ?? 0) - ($p1['kd_ratio'] ?? 0)) / ($p1['kd_ratio'] ?? 0)) * 100 : 0,
+                        'better' => ($p2['kd_ratio'] ?? 0) > ($p1['kd_ratio'] ?? 0)
+                    ],
+                    'accuracy' => [
+                        'base' => $p1['accuracy'] ?? 0,
+                        'compare' => $p2['accuracy'] ?? 0,
+                        'absolute_diff' => ($p2['accuracy'] ?? 0) - ($p1['accuracy'] ?? 0),
+                        'percent_diff' => ($p1['accuracy'] ?? 0) > 0 ? ((($p2['accuracy'] ?? 0) - ($p1['accuracy'] ?? 0)) / ($p1['accuracy'] ?? 0)) * 100 : 0,
+                        'better' => ($p2['accuracy'] ?? 0) > ($p1['accuracy'] ?? 0)
+                    ],
+                    'headshots' => [
+                        'base' => $p1['headshots'] ?? 0,
+                        'compare' => $p2['headshots'] ?? 0,
+                        'absolute_diff' => ($p2['headshots'] ?? 0) - ($p1['headshots'] ?? 0),
+                        'percent_diff' => ($p1['headshots'] ?? 0) > 0 ? ((($p2['headshots'] ?? 0) - ($p1['headshots'] ?? 0)) / ($p1['headshots'] ?? 0)) * 100 : 0,
+                        'better' => ($p2['headshots'] ?? 0) > ($p1['headshots'] ?? 0)
+                    ],
+                    'win_rate' => [
+                        'base' => $p1['win_rate'] ?? 0,
+                        'compare' => $p2['win_rate'] ?? 0,
+                        'absolute_diff' => ($p2['win_rate'] ?? 0) - ($p1['win_rate'] ?? 0),
+                        'percent_diff' => ($p1['win_rate'] ?? 0) > 0 ? ((($p2['win_rate'] ?? 0) - ($p1['win_rate'] ?? 0)) / ($p1['win_rate'] ?? 0)) * 100 : 0,
+                        'better' => ($p2['win_rate'] ?? 0) > ($p1['win_rate'] ?? 0)
+                    ]
+                ]
+            ];
+            
+            $context['comparison_error'] = null;
+            
+        } catch (Exception $e) {
+            $context['compared_players'] = [];
+            $context['comparison_error'] = $e->getMessage();
+        }
+    } else {
+        // Show player selection form
+        $context['compared_players'] = [];
+        $context['comparison_error'] = 'Please select two players to compare.';
+    }
+    
+    // Get list of linked players from SMF
+    $context['available_players'] = [];
+    $request = $smcFunc['db_query']('', '
+        SELECT mi.player_guid, m.member_name, m.id_member
+        FROM {db_prefix}mohaa_identities AS mi
+        LEFT JOIN {db_prefix}members AS m ON mi.id_member = m.id_member
+        ORDER BY m.member_name ASC
+        LIMIT 100',
+        []
+    );
+    
+    while ($row = $smcFunc['db_fetch_assoc']($request)) {
+        $context['available_players'][] = [
+            'guid' => $row['player_guid'],
+            'name' => $row['member_name'],
+            'member_id' => $row['id_member'],
+        ];
+    }
+    $smcFunc['db_free_result']($request);
+}

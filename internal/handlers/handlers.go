@@ -629,7 +629,7 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		HAVING kills > 0 OR deaths > 0 OR wins > 0
 		ORDER BY %s DESC
 		LIMIT ? OFFSET ?
-	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
+	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
 
 	rows, err := h.ch.Query(ctx, query, limit, offset)
 	if err != nil {
@@ -831,41 +831,42 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 	stats.PlayerID = guid
 
 	// Get aggregated stats from ClickHouse
+	// Optimized query: strict WHERE filtering reduces parameter count and improves safety
 	row := h.ch.QueryRow(ctx, `
 		SELECT
-			toInt64(countIf(event_type = 'kill' AND actor_id = ?)) as kills,
-			toInt64(countIf(event_type = 'death' AND actor_id = ?)) as deaths,
-			toInt64(countIf(event_type = 'headshot' AND actor_id = ?)) as headshots,
-			toInt64(countIf(event_type = 'weapon_fire' AND actor_id = ?)) as shots_fired,
-			toInt64(countIf(event_type = 'weapon_hit' AND actor_id = ?)) as shots_hit,
-			toInt64(sumIf(damage, actor_id = ?)) as total_damage,
+			toInt64(countIf(event_type = 'kill')) as kills,
+			toInt64(countIf(event_type = 'death')) as deaths,
+			toInt64(countIf(event_type = 'headshot')) as headshots,
+			toInt64(countIf(event_type = 'weapon_fire')) as shots_fired,
+			toInt64(countIf(event_type = 'weapon_hit')) as shots_hit,
+			toInt64(sumIf(damage, event_type = 'damage')) as total_damage,
 			toInt64(uniq(match_id)) as matches_played,
-			toInt64(countIf(event_type = 'match_outcome' AND actor_id = ? AND damage = 1)) as matches_won,
-			max(timestamp) as last_active,
-			any(actor_name) as name,
+			toInt64(countIf(event_type = 'match_outcome' AND damage = 1)) as matches_won,
+			ifNull(max(timestamp), toDateTime(0)) as last_active,
+			ifNull(any(actor_name), '') as name,
 			
 			-- Granular Combat Metrics
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND distance > 100)) as long_range_kills,
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND distance < 5)) as close_range_kills,
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%wallbang%')) as wallbang_kills,
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%collateral%')) as collateral_kills,
+			toInt64(countIf(event_type = 'kill' AND distance > 100)) as long_range_kills,
+			toInt64(countIf(event_type = 'kill' AND distance < 5)) as close_range_kills,
+			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%wallbang%')) as wallbang_kills,
+			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%collateral%')) as collateral_kills,
 
-			-- Stance Metrics (parsed from event extra data when available)
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%prone%')) as kills_while_prone,
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%crouch%')) as kills_while_crouching,
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND raw_json LIKE '%stand%')) as kills_while_standing,
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND (abs(actor_pos_x - actor_pos_x) > 1 OR abs(actor_pos_y - actor_pos_y) > 1))) as kills_while_moving,
-			toInt64(countIf(event_type = 'kill' AND actor_id = ? AND (abs(actor_pos_x - actor_pos_x) <= 1 AND abs(actor_pos_y - actor_pos_y) <= 1))) as kills_while_stationary,
+			-- Stance Metrics (approximate based on raw_json tags)
+			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%prone%')) as kills_while_prone,
+			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%crouch%')) as kills_while_crouching,
+			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%stand%')) as kills_while_standing,
+			toInt64(0) as kills_while_moving,    -- Placeholder: requires velocity tracking
+			toInt64(0) as kills_while_stationary, -- Placeholder
 
 			-- Movement Metrics
-			sumIf(distance, event_type = 'distance' AND actor_id = ?) / 1000.0 as total_distance_km, -- assuming distance is in meters or units
-			sumIf(distance, event_type = 'distance' AND actor_id = ? AND raw_json LIKE '%sprint%') / 1000.0 as sprint_distance_km,
-			toInt64(countIf(event_type = 'jump' AND actor_id = ?)) as jump_count,
-			toInt64(sumIf(0, event_type = 'crouch' AND actor_id = ?)) as crouch_time_seconds,
-			toInt64(sumIf(0, event_type = 'prone' AND actor_id = ?)) as prone_time_seconds
+			sumIf(distance, event_type = 'distance') / 1000.0 as total_distance_km,
+			sumIf(distance, event_type = 'distance' AND raw_json LIKE '%sprint%') / 1000.0 as sprint_distance_km,
+			toInt64(countIf(event_type = 'jump')) as jump_count,
+			toFloat64(0) as crouch_time_seconds,
+			toFloat64(0) as prone_time_seconds
 		FROM raw_events
 		WHERE actor_id = ?
-	`, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid)
+	`, guid)
 
 	err := row.Scan(
 		&stats.TotalKills,

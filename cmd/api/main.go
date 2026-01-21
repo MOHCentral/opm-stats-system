@@ -94,7 +94,7 @@ func main() {
 	)
 
 	// Initialize achievement worker for real-time achievement unlocks
-	achievementWorker := worker.NewAchievementWorker(pgPool.Acquire())
+	achievementWorker := worker.NewAchievementWorker(pgPool)
 	achievementWorker.Start()
 	sugar.Info("Achievement worker started")
 	defer achievementWorker.Stop()

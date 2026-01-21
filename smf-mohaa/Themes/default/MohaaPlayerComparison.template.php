@@ -18,16 +18,63 @@ function template_mohaa_player_comparison()
         </h3>
     </div>';
     
+    // Player Selection Form
+    if (!empty($context['available_players']) && count($context['available_players']) > 0) {
+        echo '
+    <div class="windowbg" style="padding: 20px; margin-bottom: 20px;">
+        <form action="', $scripturl, '" method="get" style="display: flex; gap: 15px; align-items: end; flex-wrap: wrap;">
+            <input type="hidden" name="action" value="mohaastats">
+            <input type="hidden" name="sa" value="comparison">
+            
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Player 1:</label>
+                <select name="player1" class="input_select" required>
+                    <option value="">-- Select Player --</option>';
+        
+        foreach ($context['available_players'] as $player) {
+            $selected = !empty($context['player1_guid']) && $context['player1_guid'] === $player['guid'] ? ' selected' : '';
+            echo '
+                    <option value="', $player['guid'], '"', $selected, '>', htmlspecialchars($player['name']), '</option>';
+        }
+        
+        echo '
+                </select>
+            </div>
+            
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Player 2:</label>
+                <select name="player2" class="input_select" required>
+                    <option value="">-- Select Player --</option>';
+        
+        foreach ($context['available_players'] as $player) {
+            $selected = !empty($context['player2_guid']) && $context['player2_guid'] === $player['guid'] ? ' selected' : '';
+            echo '
+                    <option value="', $player['guid'], '"', $selected, '>', htmlspecialchars($player['name']), '</option>';
+        }
+        
+        echo '
+                </select>
+            </div>
+            
+            <div>
+                <button type="submit" class="button" style="padding: 8px 20px;">
+                    Compare Players
+                </button>
+            </div>
+        </form>
+    </div>';
+    } else {
+        echo '
+    <div class="windowbg centertext" style="padding: 40px;">
+        <p style="color: #888; font-size: 16px;">No players available for comparison. Players must link their accounts first.</p>
+    </div>';
+    }
+    
     if (!empty($context['comparison_error'])) {
         echo '
-        <div class="windowbg centertext" style="padding: 40px;">
-            <p style="color: #e74c3c; font-size: 16px;">', $context['comparison_error'], '</p>
-            <p style="margin-top: 20px;">
-                <a href="', $scripturl, '?action=mohaastats" class="button">
-                    ', $txt['mohaa_back_to_stats'] ?? 'Back to Stats', '
-                </a>
-            </p>
-        </div>';
+    <div class="windowbg centertext" style="padding: 40px;">
+        <p style="color: #e74c3c; font-size: 16px;">', $context['comparison_error'], '</p>
+    </div>';
         return;
     }
     

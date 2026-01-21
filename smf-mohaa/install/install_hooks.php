@@ -26,6 +26,8 @@ $hooks = [
         'MohaaAchievements.php|MohaaAchievements_Actions',
         'MohaaTournaments.php|MohaaTournaments_Actions',
         'MohaaTeams.php|MohaaTeams_Actions',
+        'MohaaPredictions.php|MohaaPredictions_Actions',
+        'MohaaComparison.php|MohaaComparison_Actions',
     ],
     'integrate_menu_buttons' => 'MohaaPlayers.php|MohaaPlayers_MenuButtons',
     'integrate_profile_areas' => [

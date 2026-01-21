@@ -97,25 +97,39 @@ function MohaaAchievements_List(): void
     $context['achievements_page'] = $page;
     $context['achievements_per_page'] = $perPage;
     
-    // Fetch from database instead of static definitions
+    // Fetch achievements from API
     require_once(dirname(__FILE__) . '/MohaaStats/MohaaStatsAPI.php');
-    $apiClient = new MohaaStatsAPI();
+    $apiClient = new MohaaStatsAPIClient();
     
-    // Get achievements from Postgres
-    $dbResult = $apiClient->query('SELECT achievement_id, achievement_code, achievement_name, description, category, tier, points, icon_url FROM mohaa_achievements ORDER BY category, tier, achievement_name');
-    
+    // Get all achievements
     $allAchievements = [];
-    if ($dbResult && $dbResult['success']) {
-        $allAchievements = $dbResult['data'] ?? [];
+    $achievementsData = $apiClient->getAchievements();
+    if ($achievementsData && isset($achievementsData['achievements'])) {
+        $allAchievements = $achievementsData['achievements'];
     }
     
     // Get player progress if logged in
     $playerProgress = [];
     if (!empty($user_info['id'])) {
-        $progressResult = $apiClient->getPlayerAchievementProgress($user_info['id']);
-        if ($progressResult && isset($progressResult['achievements'])) {
-            foreach ($progressResult['achievements'] as $ach) {
-                $playerProgress[$ach['achievement_code']] = $ach;
+        // Get player GUID from SMF database
+        $request = $smcFunc['db_query']('', '
+            SELECT player_guid
+            FROM {db_prefix}mohaa_identities
+            WHERE id_member = {int:member_id}
+            LIMIT 1',
+            ['member_id' => $user_info['id']]
+        );
+        
+        $row = $smcFunc['db_fetch_assoc']($request);
+        $guid = $row['player_guid'] ?? '';
+        $smcFunc['db_free_result']($request);
+        
+        if (!empty($guid)) {
+            $progressResult = $apiClient->getPlayerAchievements($guid);
+            if ($progressResult && isset($progressResult['achievements'])) {
+                foreach ($progressResult['achievements'] as $ach) {
+                    $playerProgress[$ach['achievement_code'] ?? $ach['code']] = $ach;
+                }
             }
         }
     }

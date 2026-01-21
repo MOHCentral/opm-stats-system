@@ -421,3 +421,8 @@ Servers (MohaaStats_ServerDashboard)
 Achievements (MohaaAchievements.php)
 Teams (MohaaTeams.php)
 Tournaments (MohaaTournaments.php)
+
+** FRONT END OR API **
+NEVER REUTRN OR USE FAKE OR MOCK DATA. Absolately no fake data
+no use of mock or fake data
+All data must be seeded
