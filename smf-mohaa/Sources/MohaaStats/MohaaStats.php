@@ -1011,7 +1011,10 @@ function MohaaStats_Predictions(): void
         $predictions = $predictor->predictNextMatch($guid);
         
         if (isset($predictions['error'])) {
-            $context['prediction_error'] = $predictions['error'];
+            // Player not found means no stats yet - show helpful message
+            $context['prediction_error'] = 'No stats data available yet. Play some matches to generate predictions!<br><br>
+                <strong>Note:</strong> The stats API needs to be populated with gameplay data. 
+                Currently there are 1.4M events in the database, but the player stats aggregation endpoint needs to be implemented in the Go API.';
             return;
         }
         
