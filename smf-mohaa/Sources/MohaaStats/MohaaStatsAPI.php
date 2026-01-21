@@ -438,8 +438,6 @@ class MohaaStatsAPIClient
         $second = ord($countryCode[1]) - ord('A') + 0x1F1E6;
         return mb_chr($first) . mb_chr($second);
     }
-    
-    public function getAchievementLeaderboard(): ?array { return $this->get('/achievements/leaderboard'); }
 
     public function getActivePlayers(int $hours): ?array { return []; }
     public function getPlayerRank(string $guid): ?int { return null; }
@@ -487,11 +485,11 @@ class MohaaStatsAPIClient
     public function getLeaderboardCards(): ?array { return $this->get('/stats/leaderboard/cards'); }
 
     // Achievement methods
-    public function getPlayerAchievementProgress(int $memberId): ?array { return $this->get('/api/v1/achievements/player/' . $memberId . '/progress'); }
-    public function getPlayerAchievementStats(int $memberId): ?array { return $this->get('/api/v1/achievements/player/' . $memberId . '/stats'); }
-    public function getRecentAchievementUnlocks(int $limit = 20): ?array { return $this->get('/api/v1/achievements/recent', ['limit' => $limit]); }
-    public function getAchievementLeaderboard(string $sortBy = 'points', int $limit = 100): ?array { return $this->get('/api/v1/achievements/leaderboard', ['sort' => $sortBy, 'limit' => $limit]); }
-    public function getRarestAchievements(int $limit = 10): ?array { return $this->get('/api/v1/achievements/rarest', ['limit' => $limit]); }
+    public function getPlayerAchievementProgress(int $memberId): ?array { return $this->get('/achievements/player/' . $memberId . '/progress'); }
+    public function getPlayerAchievementStats(int $memberId): ?array { return $this->get('/achievements/player/' . $memberId . '/stats'); }
+    public function getRecentAchievementUnlocks(int $limit = 20): ?array { return $this->get('/achievements/recent', ['limit' => $limit]); }
+    public function getAchievementLeaderboard(string $sortBy = 'points', int $limit = 100): ?array { return $this->get('/achievements/leaderboard', ['sort' => $sortBy, 'limit' => $limit]); }
+    public function getRarestAchievements(int $limit = 10): ?array { return $this->get('/achievements/rarest', ['limit' => $limit]); }
 
     // Auth/Identity methods
     public function getLoginHistory(int $memberId): ?array { return $this->get('/auth/login-history/' . $memberId); }
