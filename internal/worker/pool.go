@@ -174,12 +174,15 @@ func (p *Pool) QueueDepth() int {
 func (p *Pool) worker(id int) {
 	defer p.wg.Done()
 
+	p.logger.Infow("Worker started", "worker", id)
+
 	batch := make([]Job, 0, p.config.BatchSize)
 	ticker := time.NewTicker(p.config.FlushInterval)
 	defer ticker.Stop()
 
 	flush := func() {
 		if len(batch) == 0 {
+			p.logger.Debugw("Flush called with empty batch", "worker", id)
 			return
 		}
 
@@ -207,19 +210,24 @@ func (p *Pool) worker(id int) {
 		case job, ok := <-p.jobQueue:
 			if !ok {
 				// Channel closed, flush remaining
+				p.logger.Infow("Job queue closed, flushing remaining batch", "worker", id)
 				flush()
 				return
 			}
 
+			p.logger.Debugw("Received job", "worker", id, "eventType", job.Event.Type)
 			batch = append(batch, job)
 			if len(batch) >= p.config.BatchSize {
+				p.logger.Infow("Batch size reached, flushing", "worker", id, "batchSize", len(batch))
 				flush()
 			}
 
 		case <-ticker.C:
+			p.logger.Debugw("Ticker fired", "worker", id, "batchSize", len(batch))
 			flush()
 
 		case <-p.ctx.Done():
+			p.logger.Infow("Context done, flushing final batch", "worker", id)
 			flush()
 			return
 		}

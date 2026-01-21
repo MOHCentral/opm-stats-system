@@ -741,10 +741,21 @@ function template_mohaa_war_room()
             
             fetch(url)
                 .then(function(response) {
-                    if (!response.ok) throw new Error("Network error");
-                    return response.json();
+                    if (!response.ok) {
+                        console.error("Fetch failed status:", response.status, response.statusText);
+                        throw new Error("Network error: " + response.status);
+                    }
+                    return response.text().then(function(text) {
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            console.error("JSON Parse Error:", e, "Response text:", text);
+                            throw new Error("Invalid JSON");
+                        }
+                    });
                 })
                 .then(function(data) {
+                    console.log("Tab data loaded:", tabName, data);
                     loadedTabs[tabName] = "loaded";
                     renderLazyTab(tabName, data, tabEl);
                 })

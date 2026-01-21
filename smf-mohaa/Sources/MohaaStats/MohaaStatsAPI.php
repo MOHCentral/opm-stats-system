@@ -69,7 +69,7 @@ class MohaaStatsAPIClient
         return $results;
     }
     
-    private function get(string $endpoint, array $params = []): ?array
+    public function get(string $endpoint, array $params = []): ?array
     {
         $url = $this->baseUrl . '/api/v1' . $endpoint;
         if (!empty($params)) $url .= '?' . http_build_query($params);
@@ -92,7 +92,7 @@ class MohaaStatsAPIClient
         return $data;
     }
     
-    private function post(string $endpoint, array $data = []): ?array
+    public function post(string $endpoint, array $data = []): ?array
     {
         $url = $this->baseUrl . '/api/v1' . $endpoint;
         $ch = curl_init();
