@@ -559,18 +559,6 @@ on_team_join local.old_team local.new_team:
     // HTTP TRANSPORT LAYER
     // ============================================================================
 
-send_to_api local.payload local.callback:
-        local.url = level.api_base_url + level.api_events_endpoint
-    
-        local.full_payload = local.payload + "&server_token=" + level.server_token
-        local.full_payload = local.full_payload + "&server_id=" + level.server_id
-    
-        if (level.tracker_debug) {
-            println ("API POST: " + local.url)
-        }
-    
-        curl_post local.url local.full_payload local.callback
-    end
 
 on_http_callback local.success local.response local.http_code:
         if (level.tracker_debug) {
