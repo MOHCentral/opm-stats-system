@@ -273,6 +273,23 @@ func main() {
 		}
 		setupUsers(numUsers)
 	case "seed":
+		// Check for specific user seeding (non-numeric first argument)
+		if len(os.Args) > 2 {
+			if _, err := strconv.Atoi(os.Args[2]); err != nil {
+				// Arg 2 is NOT a number -> treat as username/token
+				arg2 := ""
+				if len(os.Args) >= 4 {
+					arg2 = os.Args[3]
+				}
+				arg3 := 0
+				if len(os.Args) >= 5 {
+					fmt.Sscanf(os.Args[4], "%d", &arg3)
+				}
+				seedPlayer(os.Args[2], arg2, arg3)
+				return
+			}
+		}
+
 		numMatches := 500
 		if len(os.Args) > 2 {
 			fmt.Sscanf(os.Args[2], "%d", &numMatches)
@@ -303,17 +320,17 @@ func main() {
 			fmt.Println("Usage: opm seed-player <username|token> [token|matches] [matches]")
 			return
 		}
-		
+
 		arg2 := ""
 		if len(os.Args) >= 4 {
 			arg2 = os.Args[3]
 		}
-		
+
 		arg3 := 0
 		if len(os.Args) >= 5 {
 			fmt.Sscanf(os.Args[4], "%d", &arg3)
 		}
-		
+
 		seedPlayer(os.Args[2], arg2, arg3)
 	case "view":
 		if len(os.Args) < 3 {
@@ -338,7 +355,7 @@ func printUsage() {
 Usage:
   opm setup [users]                 Create SMF users (default: 1000)
   opm seed [matches] [workers]      Seed events with existing players
-  opm seed-player <u...>            Seed events for specific user & token
+  opm seed <user> [matches]         Seed events for specific user
   opm seed-tournaments              Seed Teams and Tournaments
   opm full [users] [matches] [wrk]  Full setup: create users + seed events
   opm view <user>                   View stats for a specific user
@@ -348,7 +365,7 @@ Usage:
 Examples:
   opm setup 500
   opm seed 1000 10                  (Run 1000 matches with 10 concurrent workers)
-  opm seed-player elgan MOH-123 10
+  opm seed elgan 50                 (Run 50 matches for user 'elgan')
   opm view PlayerOne`)
 }
 
@@ -386,7 +403,7 @@ func viewUser(identifier string) {
 		if idVal, errAtoi := strconv.Atoi(identifier); errAtoi == nil {
 			err = mysql.QueryRow("SELECT id_member, member_name, email_address FROM smf_members WHERE id_member = ?", idVal).Scan(&memberID, &name, &email)
 		}
-		
+
 		// If still not found, try by GUID
 		if err != nil {
 			err = mysql.QueryRow("SELECT m.id_member, m.member_name, m.email_address FROM smf_members m JOIN smf_mohaa_identities i ON m.id_member = i.id_member WHERE i.player_guid = ?", identifier).Scan(&memberID, &name, &email)
@@ -831,7 +848,7 @@ func seedPlayer(identifier string, tokenOrMatches string, matchesInput int) {
 
 	// Case A: Identifier is likely a Token/GUID (UUID or starts with MOH-)
 	isTokenLike := strings.Contains(identifier, "-") || strings.HasPrefix(identifier, "MOH")
-	
+
 	found := false
 	if isTokenLike {
 		// Try to find user by Token in Postgres FIRST
@@ -888,14 +905,13 @@ func seedPlayer(identifier string, tokenOrMatches string, matchesInput int) {
 		}
 	}
 	target.Token = token
-	
+
 	// Ensure token is saved/updated
 	pg.Exec(`
 		INSERT INTO player_tokens (smf_user_id, player_guid, token, expires_at)
 		VALUES ($1, $2, $3, NOW() + INTERVAL '1 year')
 		ON CONFLICT (token) DO UPDATE SET expires_at = NOW() + INTERVAL '1 year'
 	`, target.SMFUserID, target.GUID, target.Token)
-
 
 	// Set Defaults
 	target.Team = "allies"
@@ -907,7 +923,7 @@ func seedPlayer(identifier string, tokenOrMatches string, matchesInput int) {
 	if target.GUID == "GUID_ELGAN" || !strings.Contains(target.GUID, "-") {
 		newGUID := uuid.New().String()
 		fmt.Printf("⚠ Found invalid GUID '%s' for user '%s'. Updating to '%s'...\n", target.GUID, target.Name, newGUID)
-		
+
 		_, err := mysql.Exec("UPDATE smf_mohaa_identities SET player_guid = ? WHERE id_member = ?", newGUID, target.SMFUserID)
 		if err != nil {
 			fmt.Printf("Error updating GUID in MySQL: %v\n", err)
@@ -927,7 +943,7 @@ func seedPlayer(identifier string, tokenOrMatches string, matchesInput int) {
 		WHERE m.id_member != ? 
 		LIMIT 9
 	`, memberID)
-	
+
 	var opponents []Player
 	if err == nil {
 		for rows.Next() {
@@ -935,16 +951,16 @@ func seedPlayer(identifier string, tokenOrMatches string, matchesInput int) {
 			var uid int
 			rows.Scan(&uid, &p.Name, &p.GUID)
 			p.SMFUserID = uid
-			
+
 			// Fetch their token too
 			pg.QueryRow("SELECT token FROM player_tokens WHERE smf_user_id = $1 ORDER BY expires_at DESC LIMIT 1", uid).Scan(&p.Token)
-			
+
 			// Random attributes
 			p.Team = []string{"allies", "axis"}[rand.Intn(2)]
 			p.Skill = 0.5
 			p.Style = "defensive"
 			p.Favorite = weapons[rand.Intn(len(weapons))]
-			
+
 			opponents = append(opponents, p)
 		}
 		rows.Close()
@@ -1038,7 +1054,6 @@ func clearData() {
 		mysql.Exec("DROP TABLE IF EXISTS smf_mohaa_team_members")
 		mysql.Exec("DROP TABLE IF EXISTS smf_mohaa_teams")
 
-
 		mysql.Close()
 		fmt.Println("✓ SMF test users & tournaments cleared")
 	}
@@ -1100,15 +1115,27 @@ func NewMatchSimulator(client *http.Client, stats *Stats, allPlayers []Player) *
 	server := servers[rand.Intn(len(servers))]
 	mapName := maps[rand.Intn(len(maps))]
 
-	numPlayers := 8 + rand.Intn(9)
-	if numPlayers > len(allPlayers) {
-		numPlayers = len(allPlayers)
-	}
+	// Determine match size (8-16 players)
+	matchSize := 8 + rand.Intn(9)
 
-	shuffled := make([]Player, len(allPlayers))
-	copy(shuffled, allPlayers)
-	rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
-	matchPlayers := shuffled[:numPlayers]
+	// If we have a small pool (e.g., targeted seed with 10 players), use everyone.
+	// This ensures the target player is always included.
+	var matchPlayers []Player
+	if len(allPlayers) <= 16 {
+		matchPlayers = make([]Player, len(allPlayers))
+		copy(matchPlayers, allPlayers)
+		// We still shuffle them for team assignment, but we don't drop anyone
+		rand.Shuffle(len(matchPlayers), func(i, j int) { matchPlayers[i], matchPlayers[j] = matchPlayers[j], matchPlayers[i] })
+	} else {
+		// Large pool: Pick random subset
+		if matchSize > len(allPlayers) {
+			matchSize = len(allPlayers)
+		}
+		shuffled := make([]Player, len(allPlayers))
+		copy(shuffled, allPlayers)
+		rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+		matchPlayers = shuffled[:matchSize]
+	}
 
 	for i := range matchPlayers {
 		if i%2 == 0 {
@@ -1244,7 +1271,7 @@ func (m *MatchSimulator) simulateRound(roundNum int) {
 		} else if r < 0.65 {
 			m.simulateInteraction(actor)
 		} else if r < 0.75 {
-			m.simulateWeaponHandling(actor) 
+			m.simulateWeaponHandling(actor)
 		} else if r < 0.80 {
 			if rand.Float32() < 0.5 {
 				m.simulateTurret(actor)
@@ -1295,7 +1322,7 @@ func (m *MatchSimulator) simulateVehicle(p *Player) {
 
 	// Drive
 	m.baseTS += 2.5
-	
+
 	// Exit or Die
 	if rand.Float32() < 0.2 {
 		m.sendEvent(map[string]interface{}{
@@ -1323,7 +1350,9 @@ func (m *MatchSimulator) simulateCombat(attacker *Player) {
 	attempts := 0
 	for {
 		attempts++
-		if attempts > 10 { return } // No target found
+		if attempts > 10 {
+			return
+		} // No target found
 		vIdx := rand.Intn(len(m.players))
 		victim = &m.players[vIdx]
 		if victim.GUID != attacker.GUID && victim.Alive {
@@ -1332,8 +1361,10 @@ func (m *MatchSimulator) simulateCombat(attacker *Player) {
 	}
 
 	weapon := attacker.Weapon
-	if weapon == "" { weapon = "Thompson" }
-	
+	if weapon == "" {
+		weapon = "Thompson"
+	}
+
 	hitloc := m.selectHitloc(attacker.Skill)
 	aX, aY, aZ := m.generatePosition()
 	vX, vY, vZ := m.generatePosition()
@@ -1378,7 +1409,7 @@ func (m *MatchSimulator) simulateCombat(attacker *Player) {
 			"damage": damage, "hitloc": hitloc,
 		})
 		victim.HP -= damage
-		
+
 		eventsDmg := map[string]interface{}{
 			"type": EventDamage, "match_id": m.matchID, "timestamp": m.baseTS + 0.1,
 			"attacker_name": attacker.Name, "attacker_guid": attacker.GUID, "attacker_team": attacker.Team,
@@ -1391,7 +1422,7 @@ func (m *MatchSimulator) simulateCombat(attacker *Player) {
 		if victim.HP <= 0 {
 			killType := EventKill
 			weaponName := weapon
-			
+
 			// Special Kills
 			specialRoll := rand.Float32()
 			if specialRoll < 0.05 {
@@ -1416,8 +1447,8 @@ func (m *MatchSimulator) simulateCombat(attacker *Player) {
 				"match_id":      m.matchID,
 				"timestamp":     m.baseTS + 0.16,
 				"attacker_name": attacker.Name, "attacker_guid": attacker.GUID, "attacker_team": attacker.Team,
-				"victim_name":   victim.Name, "victim_guid": victim.GUID, "victim_team": victim.Team,
-				"weapon":        weaponName, "hitloc": hitloc,
+				"victim_name": victim.Name, "victim_guid": victim.GUID, "victim_team": victim.Team,
+				"weapon": weaponName, "hitloc": hitloc,
 				"attacker_x": aX, "attacker_y": aY, "attacker_z": aZ,
 				"victim_x": vX, "victim_y": vY, "victim_z": vZ,
 			})
@@ -1428,7 +1459,7 @@ func (m *MatchSimulator) simulateCombat(attacker *Player) {
 				"attacker_name": attacker.Name, "attacker_guid": attacker.GUID,
 				"weapon": weaponName, "pos_x": vX, "pos_y": vY, "pos_z": vZ,
 			})
-			
+
 			victim.Alive = false
 		}
 	}
@@ -1437,9 +1468,13 @@ func (m *MatchSimulator) simulateCombat(attacker *Player) {
 func (m *MatchSimulator) simulateMovement(actor *Player) {
 	x, y, z := m.generatePosition()
 	eventType := []string{EventJump, EventCrouch, EventProne, EventLand, EventDistance}[rand.Intn(5)]
-	
-	if eventType == EventCrouch { actor.Stance = "crouch" }
-	if eventType == EventProne { actor.Stance = "prone" }
+
+	if eventType == EventCrouch {
+		actor.Stance = "crouch"
+	}
+	if eventType == EventProne {
+		actor.Stance = "prone"
+	}
 
 	event := map[string]interface{}{
 		"type": eventType, "match_id": m.matchID, "timestamp": m.baseTS,
@@ -1483,7 +1518,7 @@ func (m *MatchSimulator) simulateWeaponHandling(actor *Player) {
 		"player_guid": actor.GUID, "weapon": actor.Weapon,
 	})
 	m.baseTS += 0.5
-	
+
 	// Change
 	newWep := weapons[rand.Intn(len(weapons))]
 	m.sendEvent(map[string]interface{}{
