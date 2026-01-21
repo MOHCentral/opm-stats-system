@@ -8,13 +8,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/openmohaa/stats-api/internal/models"
 )
 
 // AchievementWorker processes events and unlocks achievements
 type AchievementWorker struct {
-	db              *pgxpool.Pool
+	db              *pgxpool.Pool        // Postgres for achievement defs and unlocks
+	ch              driver.Conn          // ClickHouse for stats queries
 	achievementDefs map[string]*AchievementDefinition
 	mu              sync.RWMutex
 	ctx             context.Context
@@ -32,11 +34,12 @@ type AchievementDefinition struct {
 }
 
 // NewAchievementWorker creates a new achievement processing worker
-func NewAchievementWorker(db *pgxpool.Pool) *AchievementWorker {
+func NewAchievementWorker(db *pgxpool.Pool, ch driver.Conn) *AchievementWorker {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	worker := &AchievementWorker{
 		db:              db,
+		ch:              ch,
 		achievementDefs: make(map[string]*AchievementDefinition),
 		ctx:             ctx,
 		cancel:          cancel,
@@ -64,7 +67,7 @@ func (w *AchievementWorker) Stop() {
 // loadAchievementDefinitions loads all achievements from database
 func (w *AchievementWorker) loadAchievementDefinitions() error {
 	query := `
-		SELECT achievement_code, category, tier, points, requirement_value::text, description
+		SELECT achievement_code, category, tier, points, requirement_value::text, achievement_name
 		FROM mohaa_achievements
 	`
 
@@ -105,6 +108,8 @@ func (w *AchievementWorker) loadAchievementDefinitions() error {
 func (w *AchievementWorker) ProcessEvent(event *models.RawEvent) {
 	// Determine Actor ID based on event type
 	actorSMFID := w.getActorSMFID(event)
+	log.Printf("Processing event type=%s, actorSMFID=%d", event.Type, actorSMFID)
+	
 	if actorSMFID == 0 {
 		return // Only process for authenticated players
 	}
@@ -112,6 +117,7 @@ func (w *AchievementWorker) ProcessEvent(event *models.RawEvent) {
 	// Check different event types
 	switch event.Type {
 	case models.EventKill:
+		log.Printf("Checking combat achievements for SMF ID %d", actorSMFID)
 		w.checkCombatAchievements(actorSMFID, event)
 	case models.EventHeadshot:
 		w.checkHeadshotAchievements(actorSMFID, event)
@@ -142,6 +148,7 @@ func (w *AchievementWorker) getActorSMFID(event *models.RawEvent) int64 {
 func (w *AchievementWorker) checkCombatAchievements(smfID int64, event *models.RawEvent) {
 	// Get player's total kills
 	totalKills := w.getPlayerStat(int(smfID), "total_kills")
+	log.Printf("Player SMF ID %d has %d total kills", smfID, totalKills)
 
 	serverID := 0
 	// Try parsing ServerID if needed, or default to 0
@@ -163,6 +170,7 @@ func (w *AchievementWorker) checkCombatAchievements(smfID int64, event *models.R
 
 	for slug, threshold := range milestones {
 		if totalKills == threshold {
+			log.Printf("Achievement unlocked! %s (threshold: %d)", slug, threshold)
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
 		}
 	}
@@ -337,21 +345,37 @@ func (w *AchievementWorker) checkHeadshotStreakAchievement(smfID int, event *mod
 	// For now, simplified
 }
 
-// getPlayerStat retrieves a player stat from database
+// getPlayerStat retrieves a player stat from ClickHouse
 func (w *AchievementWorker) getPlayerStat(smfID int, statName string) int {
-	query := fmt.Sprintf(`
-		SELECT COALESCE(SUM(%s), 0)
-		FROM player_stats
-		WHERE smf_member_id = $1
-	`, statName)
-
-	var value int
-	err := w.db.QueryRow(w.ctx, query, smfID).Scan(&value)
-	if err != nil {
+	// Map stat names to ClickHouse queries
+	var query string
+	switch statName {
+	case "total_kills":
+		query = `SELECT count() FROM mohaa_stats.raw_events WHERE actor_smf_id = ? AND event_type = 'kill'`
+	case "total_headshots":
+		query = `SELECT count() FROM mohaa_stats.raw_events WHERE actor_smf_id = ? AND event_type = 'kill' AND hitloc = 'head'`
+	case "total_distance":
+		query = `SELECT SUM(walked + sprinted + swam + driven) FROM mohaa_stats.raw_events WHERE player_smf_id = ? AND event_type = 'distance'`
+	case "vehicle_kills":
+		query = `SELECT count() FROM mohaa_stats.raw_events WHERE actor_smf_id = ? AND event_type = 'kill' AND inflictor LIKE '%vehicle%'`
+	case "health_pickups":
+		query = `SELECT count() FROM mohaa_stats.raw_events WHERE player_smf_id = ? AND event_type = 'item_pickup' AND item LIKE '%health%'`
+	case "objectives_completed":
+		query = `SELECT count() FROM mohaa_stats.raw_events WHERE player_smf_id = ? AND event_type = 'objective_update' AND objective_status = 'completed'`
+	case "total_wins":
+		query = `SELECT count() FROM mohaa_stats.raw_events WHERE player_smf_id = ? AND event_type = 'team_win'`
+	default:
 		return 0
 	}
 
-	return value
+	var value uint64
+	err := w.ch.QueryRow(w.ctx, query, smfID).Scan(&value)
+	if err != nil {
+		log.Printf("Error querying ClickHouse for %s: %v", statName, err)
+		return 0
+	}
+
+	return int(value)
 }
 
 // getWeaponKills gets kills for specific weapon
@@ -376,15 +400,26 @@ func (w *AchievementWorker) getWeaponKills(smfID int, weapon string) int {
 
 // unlockAchievement records an achievement unlock
 func (w *AchievementWorker) unlockAchievement(smfID int, slug string, serverID int, timestamp time.Time) {
+	// Get achievement ID from code
+	var achievementID int
+	getIDQuery := `
+		SELECT achievement_id FROM mohaa_achievements WHERE achievement_code = $1
+	`
+	err := w.db.QueryRow(w.ctx, getIDQuery, slug).Scan(&achievementID)
+	if err != nil {
+		log.Printf("Achievement code not found: %s", slug)
+		return
+	}
+	
 	// Check if already unlocked
 	var exists bool
 	checkQuery := `
 		SELECT EXISTS(
-			SELECT 1 FROM player_achievements
-			WHERE smf_member_id = $1 AND achievement_slug = $2
+			SELECT 1 FROM mohaa_player_achievements
+			WHERE smf_member_id = $1 AND achievement_id = $2 AND unlocked = true
 		)
 	`
-	err := w.db.QueryRow(w.ctx, checkQuery, smfID, slug).Scan(&exists)
+	err = w.db.QueryRow(w.ctx, checkQuery, smfID, achievementID).Scan(&exists)
 	if err != nil || exists {
 		return // Already unlocked or error
 	}
@@ -399,30 +434,23 @@ func (w *AchievementWorker) unlockAchievement(smfID int, slug string, serverID i
 		return
 	}
 
-	// Insert unlock record
+	// Update or insert player achievement record
 	insertQuery := `
-		INSERT INTO player_achievements
-		(smf_member_id, achievement_slug, unlocked_at, server_id)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO mohaa_player_achievements
+		(smf_member_id, achievement_id, target, unlocked, unlocked_at, progress)
+		VALUES ($1, $2, $3, true, $4, $3)
+		ON CONFLICT (smf_member_id, achievement_id) 
+		DO UPDATE SET unlocked = true, unlocked_at = $4, progress = EXCLUDED.target
 	`
 
-	_, err = w.db.Exec(w.ctx, insertQuery, smfID, slug, timestamp, serverID)
+	_, err = w.db.Exec(w.ctx, insertQuery, smfID, achievementID, 100, timestamp)
 	if err != nil {
 		log.Printf("Failed to unlock achievement %s for player %d: %v", slug, smfID, err)
 		return
 	}
 
-	// Update player's total points
-	updateQuery := `
-		UPDATE mohaa_player_meta
-		SET achievement_points = achievement_points + $1
-		WHERE smf_member_id = $2
-	`
-
-	_, err = w.db.Exec(w.ctx, updateQuery, def.Points, smfID)
-	if err != nil {
-		log.Printf("Failed to update achievement points: %v", err)
-	}
+	// Note: Player achievement points can be calculated via SUM query
+	// No need to maintain separate counter
 
 	log.Printf("🏆 Achievement unlocked: %s for player %d (+%d points)", slug, smfID, def.Points)
 

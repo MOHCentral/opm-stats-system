@@ -19,7 +19,7 @@ func (h *Handler) getDashboardStats(ctx context.Context) (*DashboardStats, error
 			countIf(event_type = 'kill') as kills,
 			uniq(actor_id) as players,
 			uniq(match_id) as matches
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 	`)
 	if err := row.Scan(&stats.TotalKills, &stats.ActivePlayers, &stats.MatchesPlayed); err != nil {
 		h.logger.Errorw("Failed to get dashboard stats", "error", err)
@@ -49,7 +49,7 @@ func (h *Handler) getPlayerProfile(ctx context.Context, guid string) (*PlayerPro
 	var name string
 	var lastActive time.Time
 	err := h.ch.QueryRow(ctx, `
-		SELECT any(actor_name), max(timestamp) FROM raw_events WHERE actor_id = ?
+		SELECT any(actor_name), max(timestamp) FROM mohaa_stats.raw_events WHERE actor_id = ?
 	`, guid).Scan(&name, &lastActive)
 
 	if err != nil || name == "" {
@@ -79,7 +79,7 @@ func (h *Handler) getPlayerStats(ctx context.Context, guid string) (*PlayerStats
 			countIf(event_type = 'weapon_fire' AND actor_id = ?) as shots,
 			countIf(event_type = 'weapon_hit' AND actor_id = ?) as hits,
 			uniq(match_id) as matches
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE actor_id = ?
 	`, guid, guid, guid, guid, guid, guid)
 
@@ -111,7 +111,7 @@ func (h *Handler) getPlayerTopWeapons(ctx context.Context, guid string, limit in
 			extract(extra, 'weapon_([a-zA-Z0-9_]+)') as weapon,
 			countIf(event_type = 'kill') as kills,
 			countIf(event_type = 'headshot') as headshots
-		FROM raw_events 
+		FROM mohaa_stats.raw_events 
 		WHERE actor_id = ? AND event_type IN ('kill', 'headshot')
 		GROUP BY weapon
 		ORDER BY kills DESC
@@ -152,7 +152,7 @@ func (h *Handler) getMatchDetails(ctx context.Context, matchID string) (*MatchDe
 			any(map_name),
 			min(timestamp),
 			max(timestamp)
-		FROM raw_events 
+		FROM mohaa_stats.raw_events 
 		WHERE match_id = ?
 	`, matchID).Scan(&mapName, &startTime, &endTime)
 
@@ -174,7 +174,7 @@ func (h *Handler) getGlobalRecords(ctx context.Context) (*GlobalRecords, error) 
 		SELECT any(actor_name), max(kills) 
 		FROM (
 			SELECT match_id, actor_name, count() as kills 
-			FROM raw_events WHERE event_type='kill' 
+			FROM mohaa_stats.raw_events WHERE event_type='kill' 
 			GROUP BY match_id, actor_name
 		)
 	`).Scan(&records.MostKillsMatch.PlayerName, &records.MostKillsMatch.Value)
@@ -182,7 +182,7 @@ func (h *Handler) getGlobalRecords(ctx context.Context) (*GlobalRecords, error) 
 	// Longest Shot
 	h.ch.QueryRow(ctx, `
 		SELECT any(actor_name), max(distance)
-		FROM raw_events WHERE event_type='kill' AND distance < 10000 -- Sanity check
+		FROM mohaa_stats.raw_events WHERE event_type='kill' AND distance < 10000 -- Sanity check
 	`).Scan(&records.LongestShot.PlayerName, &records.LongestShot.Value)
 
 	return records, nil
@@ -194,7 +194,7 @@ func (h *Handler) getMapsList(ctx context.Context) ([]MapInfo, error) {
 			map_name,
 			countIf(event_type = 'match_start') as matches,
 			countIf(event_type = 'kill') as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE map_name != ''
 		GROUP BY map_name
 		ORDER BY matches DESC
@@ -233,7 +233,7 @@ func (h *Handler) getMapDetails(ctx context.Context, mapID string) (*MapInfo, er
 		SELECT 
 			countIf(event_type = 'match_start') as matches,
 			countIf(event_type = 'kill') as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE map_name = ?
 	`, mapID).Scan(&matches, &kills)
 
@@ -273,7 +273,7 @@ func (h *Handler) getTopPlayers(ctx context.Context, limit int) ([]interface{}, 
 			countIf(event_type = 'death') as deaths,
 			countIf(event_type = 'headshot') as headshots,
 			uniq(match_id) as matches
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE actor_id != ''
 		GROUP BY actor_id
 		ORDER BY kills DESC

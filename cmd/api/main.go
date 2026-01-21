@@ -93,11 +93,7 @@ func main() {
 		"queueSize", cfg.QueueSize,
 	)
 
-	// Initialize achievement worker for real-time achievement unlocks
-	achievementWorker := worker.NewAchievementWorker(pgPool)
-	achievementWorker.Start()
-	sugar.Info("Achievement worker started")
-	defer achievementWorker.Stop()
+	// Achievement worker is now integrated into worker pool (no separate instance needed)
 
 	// Initialize handlers
 	h := handlers.New(handlers.Config{

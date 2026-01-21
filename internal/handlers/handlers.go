@@ -321,23 +321,23 @@ func (h *Handler) GetGlobalStats(w http.ResponseWriter, r *http.Request) {
 	var totalKills, totalMatches, activePlayers uint64
 
 	// Total Kills from aggregated daily stats
-	if err := h.ch.QueryRow(ctx, "SELECT sum(kills) FROM player_stats_daily_mv").Scan(&totalKills); err != nil {
+	if err := h.ch.QueryRow(ctx, "SELECT sum(kills) FROM mohaa_stats.player_stats_daily_mv").Scan(&totalKills); err != nil {
 		h.logger.Errorw("Failed to get total kills", "error", err)
 	}
 
 	// Total Matches from match summary
-	if err := h.ch.QueryRow(ctx, "SELECT count() FROM match_summary_mv").Scan(&totalMatches); err != nil {
+	if err := h.ch.QueryRow(ctx, "SELECT count() FROM mohaa_stats.match_summary_mv").Scan(&totalMatches); err != nil {
 		h.logger.Errorw("Failed to get total matches", "error", err)
 	}
 
 	// Active Players (last 24h) - need raw_events for time filter
-	if err := h.ch.QueryRow(ctx, "SELECT uniq(actor_id) FROM player_stats_daily_mv WHERE day >= today() - 1 AND actor_id != ''").Scan(&activePlayers); err != nil {
+	if err := h.ch.QueryRow(ctx, "SELECT uniq(actor_id) FROM mohaa_stats.player_stats_daily_mv WHERE day >= today() - 1 AND actor_id != ''").Scan(&activePlayers); err != nil {
 		h.logger.Errorw("Failed to get active players", "error", err)
 	}
 
 	// Count distinct servers from server activity MV
 	var serverCount int64
-	h.ch.QueryRow(ctx, `SELECT uniq(server_id) FROM server_activity_mv WHERE server_id != ''`).Scan(&serverCount)
+	h.ch.QueryRow(ctx, `SELECT uniq(server_id) FROM mohaa_stats.server_activity_mv WHERE server_id != ''`).Scan(&serverCount)
 
 	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"total_kills":        totalKills,
@@ -373,7 +373,7 @@ func (h *Handler) GetMatches(w http.ResponseWriter, r *http.Request) {
 			dateDiff('second', min(timestamp), max(timestamp)) as duration,
 			uniq(actor_id) as player_count,
 			countIf(event_type = 'kill') as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		GROUP BY match_id, map_name
 		ORDER BY start_time DESC
 		LIMIT ? OFFSET ?
@@ -413,12 +413,12 @@ func (h *Handler) GetGlobalWeaponStats(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.ch.Query(ctx, `
 		SELECT 
-			extract(extra, 'weapon') as weapon,
+			actor_weapon as weapon,
 			countIf(event_type = 'kill') as kills,
 			countIf(event_type = 'headshot') as headshots
-		FROM raw_events
-		WHERE weapon != '' 
-		GROUP BY weapon
+		FROM mohaa_stats.raw_events
+		WHERE actor_weapon != '' 
+		GROUP BY actor_weapon
 		ORDER BY kills DESC
 		LIMIT 10
 	`)
@@ -483,7 +483,7 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			sum(total_damage),
 			sum(matches_played),
 			max(last_active)
-		FROM player_stats_daily_mv
+		FROM mohaa_stats.player_stats_daily_mv
 		WHERE actor_id != ''
 		GROUP BY actor_id
 		HAVING sum(kills) > 0
@@ -537,7 +537,7 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 
 	// Get actual total count
 	var totalCount int64
-	h.ch.QueryRow(ctx, `SELECT uniq(actor_id) FROM raw_events WHERE actor_id != ''`).Scan(&totalCount)
+	h.ch.QueryRow(ctx, `SELECT uniq(actor_id) FROM mohaa_stats.raw_events WHERE actor_id != ''`).Scan(&totalCount)
 
 	response := map[string]interface{}{
 		"players": entries,
@@ -557,7 +557,7 @@ func (h *Handler) GetWeeklyLeaderboard(w http.ResponseWriter, r *http.Request) {
 			actor_id,
 			actor_name,
 			count() as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'kill' 
 		  AND actor_id != 'world'
 		  AND timestamp >= now() - INTERVAL 7 DAY
@@ -598,7 +598,7 @@ func (h *Handler) GetWeaponLeaderboard(w http.ResponseWriter, r *http.Request) {
 			actor_id,
 			actor_name,
 			count() as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'kill' 
 		  AND actor_weapon = ?
 		  AND actor_id != 'world'
@@ -642,7 +642,7 @@ func (h *Handler) GetMapLeaderboard(w http.ResponseWriter, r *http.Request) {
 			actor_id,
 			actor_name,
 			count() as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'kill' 
 		  AND map_name = ?
 		  AND actor_id != 'world'
@@ -688,37 +688,37 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 	// This is pre-aggregated daily so it's MUCH faster than querying raw_events
 	row := h.ch.QueryRow(ctx, `
 		SELECT
-			toInt64(sum(kills)) as kills,
-			toInt64(sum(deaths)) as deaths,
-			toInt64(sum(headshots)) as headshots,
-			toInt64(sum(shots_fired)) as shots_fired,
-			toInt64(sum(shots_hit)) as shots_hit,
-			toInt64(sum(total_damage)) as total_damage,
-			toInt64(sum(matches_played)) as matches_played,
-			toInt64(0) as matches_won,  -- TODO: Add to MV
+			toUInt64(sum(kills)) as kills,
+			toUInt64(sum(deaths)) as deaths,
+			toUInt64(sum(headshots)) as headshots,
+			toUInt64(sum(shots_fired)) as shots_fired,
+			toUInt64(sum(shots_hit)) as shots_hit,
+			toUInt64(sum(total_damage)) as total_damage,
+			toUInt64(sum(matches_played)) as matches_played,
+			toUInt64(0) as matches_won,  -- TODO: Add to MV
 			ifNull(max(last_active), toDateTime(0)) as last_active,
 			ifNull(any(actor_name), '') as name,
 			
 			-- Granular Combat Metrics (TODO: Add to MV for better performance)
-			toInt64(0) as long_range_kills,
-			toInt64(0) as close_range_kills,
-			toInt64(0) as wallbang_kills,
-			toInt64(0) as collateral_kills,
+			toUInt64(0) as long_range_kills,
+			toUInt64(0) as close_range_kills,
+			toUInt64(0) as wallbang_kills,
+			toUInt64(0) as collateral_kills,
 
 			-- Stance Metrics (TODO: Add to MV)
-			toInt64(0) as kills_while_prone,
-			toInt64(0) as kills_while_crouching,
-			toInt64(0) as kills_while_standing,
-			toInt64(0) as kills_while_moving,
-			toInt64(0) as kills_while_stationary,
+			toUInt64(0) as kills_while_prone,
+			toUInt64(0) as kills_while_crouching,
+			toUInt64(0) as kills_while_standing,
+			toUInt64(0) as kills_while_moving,
+			toUInt64(0) as kills_while_stationary,
 
 			-- Movement Metrics (TODO: Add to MV)
 			toFloat64(0) as total_distance_km,
 			toFloat64(0) as sprint_distance_km,
-			toInt64(0) as jump_count,
+			toUInt64(0) as jump_count,
 			toFloat64(0) as crouch_time_seconds,
 			toFloat64(0) as prone_time_seconds
-		FROM player_stats_daily_mv
+		FROM mohaa_stats.player_stats_daily_mv
 		WHERE actor_id = ?
 		GROUP BY actor_id
 	`, guid)
@@ -756,7 +756,7 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 		h.logger.Errorw("Failed to query player stats", "error", err, "guid", guid)
 		// Try to return empty stats instead of 500 if it's just no data
 		if err.Error() == "sql: no rows in result set" { // Check driver specific error if possible
-             // For now just log it.
+			// For now just log it.
 		}
 		h.errorResponse(w, http.StatusInternalServerError, "Query failed: "+err.Error())
 		return
@@ -846,9 +846,9 @@ func (h *Handler) GetPlayerMatches(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'death' AND actor_id = ?) as deaths,
 			min(timestamp) as started,
 			max(timestamp) as ended
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE match_id IN (
-			SELECT DISTINCT match_id FROM raw_events WHERE actor_id = ?
+			SELECT DISTINCT match_id FROM mohaa_stats.raw_events WHERE actor_id = ?
 		)
 		GROUP BY match_id, map_name
 		ORDER BY started DESC
@@ -961,30 +961,35 @@ func (h *Handler) GetPlayerWeaponStats(w http.ResponseWriter, r *http.Request) {
 	guid := chi.URLParam(r, "guid")
 	ctx := r.Context()
 
+	h.logger.Infow("GetPlayerWeaponStats", "guid", guid)
+
 	rows, err := h.ch.Query(ctx, `
 		SELECT 
 			actor_weapon,
 			count() as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'kill' AND actor_id = ? AND actor_weapon != ''
 		GROUP BY actor_weapon
 		ORDER BY kills DESC
 	`, guid)
 	if err != nil {
-		h.errorResponse(w, http.StatusInternalServerError, "Query failed")
+		h.logger.Errorw("Failed to query weapon stats", "error", err, "guid", guid)
+		h.errorResponse(w, http.StatusInternalServerError, "Query failed: "+err.Error())
 		return
 	}
 	defer rows.Close()
 
-	var weapons []models.WeaponStats
+	weapons := []models.WeaponStats{} // Initialize as empty slice, not nil
 	for rows.Next() {
 		var w models.WeaponStats
 		if err := rows.Scan(&w.Weapon, &w.Kills); err != nil {
+			h.logger.Errorw("Failed to scan weapon row", "error", err)
 			continue
 		}
 		weapons = append(weapons, w)
 	}
 
+	h.logger.Infow("GetPlayerWeaponStats result", "guid", guid, "count", len(weapons))
 	h.jsonResponse(w, http.StatusOK, weapons)
 }
 
@@ -999,7 +1004,7 @@ func (h *Handler) GetPlayerHeatmap(w http.ResponseWriter, r *http.Request) {
 			actor_pos_x,
 			actor_pos_y,
 			count() as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'kill' 
 		  AND actor_id = ? 
 		  AND map_name = ?
@@ -1040,7 +1045,7 @@ func (h *Handler) GetPlayerDeathHeatmap(w http.ResponseWriter, r *http.Request) 
 			target_pos_x,
 			target_pos_y,
 			count() as deaths
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'kill' 
 		  AND target_id = ? 
 		  AND map_name = ?
@@ -1083,9 +1088,9 @@ func (h *Handler) GetPlayerPerformanceHistory(w http.ResponseWriter, r *http.Req
 			countIf(event_type = 'kill' AND actor_id = ?) as kills,
 			countIf(event_type = 'death' AND actor_id = ?) as deaths,
 			min(timestamp) as played_at
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE match_id IN (
-			SELECT DISTINCT match_id FROM raw_events 
+			SELECT DISTINCT match_id FROM mohaa_stats.raw_events 
 			WHERE actor_id = ? 
 			ORDER BY timestamp DESC 
 			LIMIT 20
@@ -1138,7 +1143,7 @@ func (h *Handler) GetPlayerBodyHeatmap(w http.ResponseWriter, r *http.Request) {
 				'^$', 'torso'
 			) as body_part,
 			count() as hits
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'weapon_hit' AND target_id = ?
 		GROUP BY body_part
 	`, guid)
@@ -1175,7 +1180,7 @@ func (h *Handler) GetMatchDetails(w http.ResponseWriter, r *http.Request) {
 			max(timestamp) as ended,
 			countIf(event_type = 'kill') as total_kills,
 			uniq(actor_id) as unique_players
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE match_id = ?
 	`, matchID)
 
@@ -1200,7 +1205,7 @@ func (h *Handler) GetMatchDetails(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'kill') as kills,
 			countIf(event_type = 'death') as deaths,
 			countIf(event_type = 'headshot') as headshots
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE match_id = ? AND actor_id != '' AND actor_id != 'world'
 		GROUP BY actor_id, actor_name
 		ORDER BY kills DESC
@@ -1249,7 +1254,7 @@ func (h *Handler) GetMatchHeatmap(w http.ResponseWriter, r *http.Request) {
 			actor_pos_y,
 			target_pos_x,
 			target_pos_y
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE match_id = ? 
 		  AND event_type = 'kill'
 		  AND actor_pos_x != 0 AND target_pos_x != 0
@@ -1317,7 +1322,7 @@ func (h *Handler) GetMatchTimeline(w http.ResponseWriter, r *http.Request) {
 			target_name,
 			actor_weapon,
 			hitloc
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE match_id = ? AND event_type IN ('kill', 'round_start', 'round_end')
 		ORDER BY timestamp
 		LIMIT 1000
@@ -1365,9 +1370,9 @@ func (h *Handler) GetServerStats(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'death') as total_deaths,
 			uniq(match_id) as total_matches,
 			uniq(actor_id) as unique_players,
-			sumIf(duration, event_type = 'session_end') as total_playtime,
+			toFloat64(0) as total_playtime,
 			max(timestamp) as last_activity
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE server_id = ?
 	`, serverID)
 
@@ -1387,7 +1392,7 @@ func (h *Handler) GetServerStats(w http.ResponseWriter, r *http.Request) {
 	// 2. Top Killers Leaderboard
 	rows, err := h.ch.Query(ctx, `
 		SELECT actor_id, any(actor_name), count() as val
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE server_id = ? AND event_type = 'kill' AND actor_id != ''
 		GROUP BY actor_id
 		ORDER BY val DESC
@@ -1408,7 +1413,7 @@ func (h *Handler) GetServerStats(w http.ResponseWriter, r *http.Request) {
 	// 3. Map Stats
 	rows, err = h.ch.Query(ctx, `
 		SELECT map_name, count() as times_played
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE server_id = ? AND event_type = 'match_start'
 		GROUP BY map_name
 		ORDER BY times_played DESC
@@ -1750,7 +1755,7 @@ func (h *Handler) GetMapDetail(w http.ResponseWriter, r *http.Request) {
 			any(player_name) as name,
 			countIf(event_type = 'kill' AND raw_json->>'attacker_guid' = player_guid) as kills,
 			countIf(event_type = 'kill' AND raw_json->>'victim_guid' = player_guid) as deaths
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE map_name = ?
 		GROUP BY player_guid
 		ORDER BY kills DESC
@@ -1822,7 +1827,7 @@ func (h *Handler) getMapHeatmapData(ctx context.Context, mapID, heatmapType stri
 			toFloat64OrZero(raw_json->>'pos_x') as x,
 			toFloat64OrZero(raw_json->>'pos_y') as y,
 			count() as intensity
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE map_name = ? AND event_type = ?
 			AND raw_json->>'pos_x' != '' AND raw_json->>'pos_y' != ''
 		GROUP BY x, y
@@ -1875,7 +1880,7 @@ func (h *Handler) GetGameTypeStats(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'death') as total_deaths,
 			count(DISTINCT actor_id) as unique_players,
 			count(DISTINCT map_name) as map_count
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE map_name != ''
 		GROUP BY game_type
 		ORDER BY total_matches DESC
@@ -1925,7 +1930,7 @@ func (h *Handler) GetGameTypesList(w http.ResponseWriter, r *http.Request) {
 				startsWith(lower(map_name), 'ffa'), 'ffa',
 				'other'
 			) as game_type
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE map_name != ''
 		ORDER BY game_type
 	`)
@@ -1973,7 +1978,7 @@ func (h *Handler) GetGameTypeDetail(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'death') as total_deaths,
 			count(DISTINCT actor_id) as unique_players,
 			count(DISTINCT map_name) as map_count
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE lower(map_name) LIKE ?
 	`, mapPattern)
 	row.Scan(&totalMatches, &totalKills, &totalDeaths, &uniquePlayers, &mapCount)
@@ -1984,7 +1989,7 @@ func (h *Handler) GetGameTypeDetail(w http.ResponseWriter, r *http.Request) {
 			map_name,
 			count(DISTINCT match_id) as matches,
 			countIf(event_type = 'kill') as kills
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE lower(map_name) LIKE ?
 		GROUP BY map_name
 		ORDER BY matches DESC
@@ -2041,7 +2046,7 @@ func (h *Handler) GetGameTypeLeaderboard(w http.ResponseWriter, r *http.Request)
 			any(actor_name) as name,
 			countIf(event_type = 'kill') as kills,
 			countIf(event_type = 'death') as deaths
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE lower(map_name) LIKE ? AND actor_id != ''
 		GROUP BY actor_id
 		ORDER BY kills DESC
@@ -2142,7 +2147,7 @@ func (h *Handler) GetWeaponsList(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.ch.Query(ctx, `
 		SELECT DISTINCT actor_weapon 
-		FROM raw_events 
+		FROM mohaa_stats.raw_events 
 		WHERE actor_weapon != '' AND event_type IN ('kill', 'weapon_fire')
 		ORDER BY actor_weapon
 	`)
@@ -2191,7 +2196,7 @@ func (h *Handler) GetWeaponDetail(w http.ResponseWriter, r *http.Request) {
 			uniq(actor_id) as unique_users,
 			max(timestamp) as last_used,
 			avgIf(distance, event_type='kill') as avg_kill_distance
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE actor_weapon = ?
 	`, weapon)
 
@@ -2236,7 +2241,7 @@ func (h *Handler) GetWeaponDetail(w http.ResponseWriter, r *http.Request) {
 			count() as kills,
 			countIf(event_type = 'headshot') as headshots,
 			if(count() > 0, toFloat64(countIf(event_type='headshot'))/count()*100, 0) as hs_ratio
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'kill' AND actor_weapon = ? AND actor_id != ''
 		GROUP BY actor_id
 		ORDER BY kills DESC

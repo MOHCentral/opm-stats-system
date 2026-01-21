@@ -22,15 +22,15 @@ type Achievement struct {
 	Condition string `json:"condition,omitempty" db:"condition"`
 
 	// Rarity
-	UnlockCount int     `json:"unlock_count" db:"unlock_count"`
+	UnlockCount uint64  `json:"unlock_count" db:"unlock_count"`
 	UnlockRate  float64 `json:"unlock_rate" db:"unlock_rate"`
 
 	IsHidden  bool      `json:"is_hidden" db:"is_hidden"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 
 	// Computed/Transient
-	Progress int64 `json:"progress,omitempty" db:"-"`
-	Target   int64 `json:"target,omitempty" db:"-"`
+	Progress uint64 `json:"progress,omitempty" db:"-"`
+	Target   uint64 `json:"target,omitempty" db:"-"`
 }
 
 // AchievementCategory groups achievements
@@ -62,7 +62,7 @@ type AchievementDefinition struct {
 	Description string
 	Tier        int
 	Category    AchievementCategory
-	Target      int64  // Value needed to unlock (e.g., 100 kills)
+	Target      uint64 // Value needed to unlock (e.g., 100 kills)
 	Metric      string // The metric name to check against (e.g., "kills", "headshots")
 }
 

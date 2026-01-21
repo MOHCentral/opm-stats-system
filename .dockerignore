@@ -1,0 +1,30 @@
+# Git
+.git/
+.gitignore
+
+# Local temporary files
+tmp/
+.DS_Store
+
+# IDE settings
+.idea/
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Local binaries and archives
+*.exe
+*.zip
+*.tar.gz
+
+# Node.js
+node_modules/
+
+# Go
+bin/
+pkg/
+opm-stats-system
+api_pid.txt
+*.out

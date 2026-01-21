@@ -16,9 +16,9 @@ func NewGamificationService(ch driver.Conn) *GamificationService {
 }
 
 type PlaystyleBadge struct {
-	Style       string  `json:"style"`        // "Rusher", "Sniper", "Camper", "Versatile"
-	Confidence  float64 `json:"confidence"`   // 0-100%
-	Icon        string  `json:"icon"`         // Icon name for frontend
+	Style       string  `json:"style"`      // "Rusher", "Sniper", "Camper", "Versatile"
+	Confidence  float64 `json:"confidence"` // 0-100%
+	Icon        string  `json:"icon"`       // Icon name for frontend
 	Description string  `json:"description"`
 }
 
@@ -27,13 +27,13 @@ func (s *GamificationService) GetPlaystyle(ctx context.Context, playerID string)
 	// Query aggregates needed for classification
 	var avgDist float64
 	var topWeapon string
-	var totalKills int64
+	var totalKills uint64
 
 	// 1. Get Average Kill Distance and Dominant Weapon
 	query := `
 		SELECT 
-			avg(toFloat64OrZero(extract(extra, 'distance'))) as avg_dist,
-			(SELECT extract(extra, 'weapon') FROM raw_events WHERE event_type='kill' AND actor_id = ? GROUP BY extract(extra, 'weapon') ORDER BY count() DESC LIMIT 1) as top_wep,
+			avg(distance) as avg_dist,
+			(SELECT actor_weapon FROM raw_events WHERE event_type='kill' AND actor_id = ? GROUP BY actor_weapon ORDER BY count() DESC LIMIT 1) as top_wep,
 			count() as kills
 		FROM raw_events 
 		WHERE event_type = 'kill' AND actor_id = ?
@@ -62,11 +62,11 @@ func (s *GamificationService) GetPlaystyle(ctx context.Context, playerID string)
 	isCQBWep := strings.Contains(wepLower, "thompson") || strings.Contains(wepLower, "mp40") || strings.Contains(wepLower, "shotgun") || strings.Contains(wepLower, "sten") || strings.Contains(wepLower, "bar")
 
 	if avgDist > 5000 || isSniperWep { // 5000 units? Need to calibrate units to meters. Assuming 1 game unit ~ 1 inch -> 5000 ~ 120m?
-		// Let's assume standard Quake units: 1 unit = 0.75 inch? 
-		// Actually let's just assume the values from seeder (0-50m usually). 
+		// Let's assume standard Quake units: 1 unit = 0.75 inch?
+		// Actually let's just assume the values from seeder (0-50m usually).
 		// If seeder uses meters directly in 'distance' param, then > 40 is good.
 		// If seeder logic calculates dist(x,y,z), it returns float.
-		
+
 		// Refined check:
 		if avgDist > 50 || isSniperWep { // Assuming meters
 			style = "Sniper"

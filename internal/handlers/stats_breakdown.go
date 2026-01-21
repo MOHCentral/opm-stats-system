@@ -20,7 +20,7 @@ func (h *Handler) GetPlayerStatsByGametype(w http.ResponseWriter, r *http.Reques
 			count() as matches_played,
 			countIf(damage = 1) as matches_won,
 			countIf(damage = 0) as matches_lost
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE event_type = 'match_outcome' 
 		  AND actor_id = ?
 		  AND gametype != ''
@@ -65,7 +65,7 @@ func (h *Handler) GetPlayerStatsByMap(w http.ResponseWriter, r *http.Request) {
 			countIf(event_type = 'death' AND target_id = ?) as deaths,
 			uniq(match_id) as matches_played,
 			countIf(event_type = 'match_outcome' AND actor_id = ? AND damage = 1) as matches_won
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE (actor_id = ? OR target_id = ?) 
 		  AND map_name != ''
 		GROUP BY map_name

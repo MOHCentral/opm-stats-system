@@ -79,12 +79,13 @@ type PoolConfig struct {
 
 // Pool manages a pool of workers for async event processing
 type Pool struct {
-	config   PoolConfig
-	jobQueue chan Job
-	wg       sync.WaitGroup
-	ctx      context.Context
-	cancel   context.CancelFunc
-	logger   *zap.SugaredLogger
+	config            PoolConfig
+	jobQueue          chan Job
+	wg                sync.WaitGroup
+	ctx               context.Context
+	cancel            context.CancelFunc
+	logger            *zap.SugaredLogger
+	achievementWorker *AchievementWorker
 }
 
 // NewPool creates a new worker pool
@@ -102,11 +103,17 @@ func NewPool(cfg PoolConfig) *Pool {
 		cfg.FlushInterval = time.Second
 	}
 
-	return &Pool{
+	pool := &Pool{
 		config:   cfg,
 		jobQueue: make(chan Job, cfg.QueueSize),
 		logger:   cfg.Logger.Sugar(),
 	}
+
+	// Initialize Achievement Worker with both Postgres and ClickHouse
+	pool.achievementWorker = NewAchievementWorker(cfg.Postgres, cfg.ClickHouse)
+	pool.achievementWorker.Start()
+
+	return pool
 }
 
 // Start launches the worker goroutines
@@ -131,6 +138,12 @@ func (p *Pool) Start(ctx context.Context) {
 // Stop gracefully shuts down the worker pool
 func (p *Pool) Stop() {
 	p.logger.Info("Stopping worker pool...")
+	
+	// Stop achievement worker
+	if p.achievementWorker != nil {
+		p.achievementWorker.Stop()
+	}
+	
 	p.cancel()
 	close(p.jobQueue)
 	p.wg.Wait()
@@ -298,27 +311,23 @@ func (p *Pool) processBatch(batch []Job) error {
 
 		// Process side effects (Redis state updates, achievement checks)
 		go p.processEventSideEffects(ctx, event)
+		
+		// Process achievement triggers
+		if p.achievementWorker != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					p.logger.Errorw("Achievement worker panic", "error", r, "event_type", event.Type)
+				}
+			}()
+			p.achievementWorker.ProcessEvent(event)
+		}()
 	}
 
 	err = chBatch.Send()
 	if err != nil {
 		p.logger.Errorw("Failed to send batch to ClickHouse", "error", err, "batchSize", len(batch))
 	}
-	return err
-}
-
-// convertToClickHouseEvent normalizes a raw event for ClickHouse
-func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) *models.ClickHouseEvent {
-	// Parse match_id as UUID or generate one
-	matchID := parseOrGenerateUUID(event.MatchID)
-
-	// Normalize event data
-	ch := &models.ClickHouseEvent{
-		Timestamp: time.Unix(int64(event.Timestamp), int64((event.Timestamp-float64(int64(event.Timestamp)))*1e9)),
-		MatchID:   matchID,
-		ServerID:  event.ServerID,
-		MapName:   event.MapName,
-		EventType: string(event.Type),
 		RawJSON:   rawJSON,
 	}
 

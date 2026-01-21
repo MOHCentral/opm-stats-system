@@ -6,11 +6,11 @@ import "time"
 type ServerStatsResponse struct {
 	ServerID      string    `json:"server_id"`
 	ServerName    string    `json:"server_name,omitempty"`
-	TotalMatches  int64     `json:"total_matches"`
-	TotalKills    int64     `json:"total_kills"`
-	TotalDeaths   int64     `json:"total_deaths"`
+	TotalMatches  uint64    `json:"total_matches"`
+	TotalKills    uint64    `json:"total_kills"`
+	TotalDeaths   uint64    `json:"total_deaths"`
 	TotalPlaytime float64   `json:"total_playtime_seconds"`
-	UniquePlayers int64     `json:"unique_players"`
+	UniquePlayers uint64    `json:"unique_players"`
 	LastActivity  time.Time `json:"last_activity"`
 
 	// Leaders
@@ -33,10 +33,10 @@ type ServerLeaderboardEntry struct {
 }
 
 type ServerMapStat struct {
-	MapName      string  `json:"map_name"`
-	TimesPlayed  int64   `json:"times_played"`
-	TotalKills   int64   `json:"total_kills"`
-	AvgDuration  float64 `json:"avg_duration_seconds"`
+	MapName     string  `json:"map_name"`
+	TimesPlayed uint64  `json:"times_played"`
+	TotalKills  uint64  `json:"total_kills"`
+	AvgDuration float64 `json:"avg_duration_seconds"`
 }
 
 type ActivityPoint struct {

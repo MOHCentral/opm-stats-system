@@ -86,7 +86,7 @@ func (h *Handler) GetLeaderboardCards(w http.ResponseWriter, r *http.Request) {
             countIf(event_type = 'ladder_mount') as ladder_mounts,
             countIf(event_type = 'crouch') as manual_crouches
 
-		FROM raw_events
+		FROM mohaa_stats.raw_events
 		WHERE actor_id != 'world' AND actor_id != ''
 		GROUP BY actor_id
 		HAVING kills > 0 OR deaths > 0 OR shots_fired > 0

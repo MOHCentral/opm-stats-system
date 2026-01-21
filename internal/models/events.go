@@ -353,14 +353,14 @@ type PlayerStats struct {
 	PlayerID       string    `json:"player_id"`
 	PlayerName     string    `json:"player_name"`
 	Name           string    `json:"name"` // Alias for PHP
-	TotalKills     int64     `json:"total_kills"`
-	TotalDeaths    int64     `json:"total_deaths"`
-	TotalDamage    int64     `json:"total_damage"`
-	TotalHeadshots int64     `json:"total_headshots"`
-	ShotsFired     int64     `json:"shots_fired"`
-	ShotsHit       int64     `json:"shots_hit"`
-	MatchesPlayed  int64     `json:"matches_played"`
-	MatchesWon     int64     `json:"matches_won"`
+	TotalKills     uint64    `json:"total_kills"`
+	TotalDeaths    uint64    `json:"total_deaths"`
+	TotalDamage    uint64    `json:"total_damage"`
+	TotalHeadshots uint64    `json:"total_headshots"`
+	ShotsFired     uint64    `json:"shots_fired"`
+	ShotsHit       uint64    `json:"shots_hit"`
+	MatchesPlayed  uint64    `json:"matches_played"`
+	MatchesWon     uint64    `json:"matches_won"`
 	PlayTime       float64   `json:"play_time_seconds"`
 	LastActive     time.Time `json:"last_active"`
 
@@ -372,22 +372,22 @@ type PlayerStats struct {
 	KillsPerMinute float64 `json:"kills_per_minute"`
 
 	// Granular Combat Metrics
-	LongRangeKills  int64 `json:"long_range_kills"`  // >100m
-	CloseRangeKills int64 `json:"close_range_kills"` // <5m
-	WallbangKills   int64 `json:"wallbang_kills"`
-	CollateralKills int64 `json:"collateral_kills"`
+	LongRangeKills  uint64 `json:"long_range_kills"`  // >100m
+	CloseRangeKills uint64 `json:"close_range_kills"` // <5m
+	WallbangKills   uint64 `json:"wallbang_kills"`
+	CollateralKills uint64 `json:"collateral_kills"`
 
 	// Stance Metrics
-	KillsWhileProne      int64 `json:"kills_while_prone"`
-	KillsWhileCrouching  int64 `json:"kills_while_crouching"`
-	KillsWhileStanding   int64 `json:"kills_while_standing"`
-	KillsWhileMoving     int64 `json:"kills_while_moving"`
-	KillsWhileStationary int64 `json:"kills_while_stationary"`
+	KillsWhileProne      uint64 `json:"kills_while_prone"`
+	KillsWhileCrouching  uint64 `json:"kills_while_crouching"`
+	KillsWhileStanding   uint64 `json:"kills_while_standing"`
+	KillsWhileMoving     uint64 `json:"kills_while_moving"`
+	KillsWhileStationary uint64 `json:"kills_while_stationary"`
 
 	// Movement Metrics
 	TotalDistance  float64 `json:"total_distance_km"`
 	SprintDistance float64 `json:"sprint_distance_km"`
-	JumpCount      int64   `json:"jump_count"`
+	JumpCount      uint64  `json:"jump_count"`
 	CrouchTime     float64 `json:"crouch_time_seconds"`
 	ProneTime      float64 `json:"prone_time_seconds"`
 }
@@ -395,31 +395,31 @@ type PlayerStats struct {
 // WeaponStats per-weapon statistics
 type WeaponStats struct {
 	Weapon     string  `json:"weapon"`
-	Kills      int64   `json:"kills"`
-	Deaths     int64   `json:"deaths"`
-	Damage     int64   `json:"damage"`
-	Headshots  int64   `json:"headshots"`
-	ShotsFired int64   `json:"shots_fired"`
-	ShotsHit   int64   `json:"shots_hit"`
+	Kills      uint64  `json:"kills"`
+	Deaths     uint64  `json:"deaths"`
+	Damage     uint64  `json:"damage"`
+	Headshots  uint64  `json:"headshots"`
+	ShotsFired uint64  `json:"shots_fired"`
+	ShotsHit   uint64  `json:"shots_hit"`
 	Accuracy   float64 `json:"accuracy"`
 }
 
 // MapStats per-map statistics
 type MapStats struct {
 	MapName       string  `json:"map_name"`
-	Kills         int64   `json:"kills"`
-	Deaths        int64   `json:"deaths"`
-	MatchesPlayed int64   `json:"matches_played"`
-	MatchesWon    int64   `json:"matches_won"`
+	Kills         uint64  `json:"kills"`
+	Deaths        uint64  `json:"deaths"`
+	MatchesPlayed uint64  `json:"matches_played"`
+	MatchesWon    uint64  `json:"matches_won"`
 	WinRate       float64 `json:"win_rate"`
 }
 
 // GametypeStats per-gametype statistics
 type GametypeStats struct {
 	Gametype      string  `json:"gametype"`
-	MatchesPlayed int64   `json:"matches_played"`
-	MatchesWon    int64   `json:"matches_won"`
-	MatchesLost   int64   `json:"matches_lost"`
+	MatchesPlayed uint64  `json:"matches_played"`
+	MatchesWon    uint64  `json:"matches_won"`
+	MatchesLost   uint64  `json:"matches_lost"`
 	WinRate       float64 `json:"win_rate"`
 }
 
