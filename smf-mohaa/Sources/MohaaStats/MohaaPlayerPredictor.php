@@ -17,12 +17,52 @@ if (!defined('SMF'))
 
 class MohaaPlayerPredictor
 {
-    private $api;
+    private $guid;
     
-    public function __construct()
+    public function __construct(string $guid = '')
     {
+        $this->guid = $guid;
         require_once(dirname(__FILE__) . '/MohaaStatsAPI.php');
         $this->api = new MohaaStatsAPIClient();
+    }
+    
+    /**
+     * Get player GUID from member ID
+     */
+    public static function getGuidFromMemberId(int $memberId): string
+    {
+        global $smcFunc;
+        
+        $request = $smcFunc['db_query']('', '
+            SELECT player_guid
+            FROM {db_prefix}mohaa_identities
+            WHERE id_member = {int:member_id}
+            LIMIT 1',
+            ['member_id' => $memberId]
+        );
+        
+        $row = $smcFunc['db_fetch_assoc']($request);
+        $guid = $row['player_guid'] ?? '';
+        $smcFunc['db_free_result']($request);
+        
+        return $guid;
+    }
+    
+    /**
+     * Generate all available predictions
+     */
+    public function generateAllPredictions(): array
+    {
+        if (empty($this->guid)) {
+            return ['error' => 'No GUID set'];
+        }
+        
+        return [
+            'next_match' => $this->predictNextMatch($this->guid),
+            'optimal_time' => $this->getOptimalPlaytime($this->guid),
+            'forecast' => $this->forecastTrend($this->guid),
+            'win_probability' => $this->calculateWinProbability($this->guid, [], []), // Default empty teammates/opponents
+        ];
     }
     
     /**

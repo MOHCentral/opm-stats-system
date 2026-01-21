@@ -182,7 +182,7 @@ func (p *Pool) worker(id int) {
 
 	flush := func() {
 		if len(batch) == 0 {
-			p.logger.Debugw("Flush called with empty batch", "worker", id)
+			p.logger.Infow("Flush called with empty batch", "worker", id)
 			return
 		}
 
@@ -215,7 +215,7 @@ func (p *Pool) worker(id int) {
 				return
 			}
 
-			p.logger.Debugw("Received job", "worker", id, "eventType", job.Event.Type)
+			p.logger.Infow("Received job", "worker", id, "eventType", job.Event.Type)
 			batch = append(batch, job)
 			if len(batch) >= p.config.BatchSize {
 				p.logger.Infow("Batch size reached, flushing", "worker", id, "batchSize", len(batch))
@@ -223,7 +223,7 @@ func (p *Pool) worker(id int) {
 			}
 
 		case <-ticker.C:
-			p.logger.Debugw("Ticker fired", "worker", id, "batchSize", len(batch))
+			p.logger.Infow("Ticker fired", "worker", id, "batchSize", len(batch))
 			flush()
 
 		case <-p.ctx.Done():

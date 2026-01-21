@@ -8,6 +8,40 @@ function template_mohaa_player_full()
 
     $player = $context['mohaa_player'];
     $deep = $player['deep_stats'] ?? [];
+    $stats = $player['stats'] ?? [];
+    
+    // Fallback: If deep stats failed, use basic stats with nested structure
+    if (empty($deep) && !empty($stats)) {
+        $deep = [
+            'combat' => [
+                'kills' => $stats['total_kills'] ?? 0,
+                'deaths' => $stats['total_deaths'] ?? 0,
+                'headshots' => $stats['total_headshots'] ?? 0,
+                'headshot_percent' => $stats['headshot_percent'] ?? 0,
+                'damage' => $stats['total_damage'] ?? 0,
+                'kd_ratio' => $stats['kd_ratio'] ?? 0,
+                'melee_kills' => $stats['melee_kills'] ?? 0,
+                'suicides' => $stats['suicides'] ?? 0,
+                'highest_streak' => $stats['highest_streak'] ?? 0,
+            ],
+            'accuracy' => [
+                'shots_fired' => $stats['shots_fired'] ?? 0,
+                'shots_hit' => $stats['shots_hit'] ?? 0,
+                'accuracy' => $stats['accuracy'] ?? 0,
+            ],
+            'movement' => [
+                'total_distance_km' => $stats['total_distance_km'] ?? 0,
+                'sprint_distance_km' => $stats['sprint_distance_km'] ?? 0,
+                'jump_count' => $stats['jump_count'] ?? 0,
+            ],
+            'session' => [
+                'matches_played' => $stats['matches_played'] ?? 0,
+                'matches_won' => $stats['matches_won'] ?? 0,
+                'win_rate' => $stats['win_rate'] ?? 0,
+                'play_time_seconds' => $stats['play_time_seconds'] ?? 0,
+            ],
+        ];
+    }
     
     // Aesthetic: Dark "Command & Control" variables
     $color_bg = '#1a1a1a';

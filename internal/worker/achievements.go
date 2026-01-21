@@ -34,19 +34,19 @@ type AchievementDefinition struct {
 // NewAchievementWorker creates a new achievement processing worker
 func NewAchievementWorker(db *pgxpool.Pool) *AchievementWorker {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	worker := &AchievementWorker{
 		db:              db,
 		achievementDefs: make(map[string]*AchievementDefinition),
 		ctx:             ctx,
 		cancel:          cancel,
 	}
-	
+
 	// Load achievement definitions from database
 	if err := worker.loadAchievementDefinitions(); err != nil {
 		log.Printf("Failed to load achievement definitions: %v", err)
 	}
-	
+
 	return worker
 }
 
@@ -64,20 +64,19 @@ func (w *AchievementWorker) Stop() {
 // loadAchievementDefinitions loads all achievements from database
 func (w *AchievementWorker) loadAchievementDefinitions() error {
 	query := `
-		SELECT slug, category, tier, points, criteria, description
+		SELECT achievement_code, category, tier, points, requirement_value::text, description
 		FROM mohaa_achievements
-		WHERE active = true
 	`
-	
+
 	rows, err := w.db.Query(w.ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to query achievements: %w", err)
 	}
 	defer rows.Close()
-	
+
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	
+
 	count := 0
 	for rows.Next() {
 		def := &AchievementDefinition{}
@@ -93,11 +92,11 @@ func (w *AchievementWorker) loadAchievementDefinitions() error {
 			log.Printf("Failed to scan achievement: %v", err)
 			continue
 		}
-		
+
 		w.achievementDefs[def.Slug] = def
 		count++
 	}
-	
+
 	log.Printf("Loaded %d achievement definitions", count)
 	return nil
 }
@@ -143,36 +142,36 @@ func (w *AchievementWorker) getActorSMFID(event *models.RawEvent) int64 {
 func (w *AchievementWorker) checkCombatAchievements(smfID int64, event *models.RawEvent) {
 	// Get player's total kills
 	totalKills := w.getPlayerStat(int(smfID), "total_kills")
-	
+
 	serverID := 0
 	// Try parsing ServerID if needed, or default to 0
-	
+
 	ts := time.Unix(int64(event.Timestamp), 0)
 
 	// Check milestone achievements
 	milestones := map[string]int{
-		"first-blood":        1,
-		"killer-bronze":      10,
-		"killer-silver":      50,
-		"killer-gold":        100,
-		"killer-platinum":    500,
-		"killer-diamond":     1000,
-		"killing-spree":      5,   // In single match
-		"unstoppable":        10,  // In single match
-		"legendary":          20,  // In single match
+		"first-blood":     1,
+		"killer-bronze":   10,
+		"killer-silver":   50,
+		"killer-gold":     100,
+		"killer-platinum": 500,
+		"killer-diamond":  1000,
+		"killing-spree":   5,  // In single match
+		"unstoppable":     10, // In single match
+		"legendary":       20, // In single match
 	}
-	
+
 	for slug, threshold := range milestones {
 		if totalKills == threshold {
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
 		}
 	}
-	
+
 	// Check weapon-specific achievements
 	if event.Weapon != "" {
 		w.checkWeaponMasteryAchievement(int(smfID), event.Weapon, serverID, ts)
 	}
-	
+
 	// Check multikill achievements
 	w.checkMultikillAchievement(int(smfID), event)
 }
@@ -180,7 +179,7 @@ func (w *AchievementWorker) checkCombatAchievements(smfID int64, event *models.R
 // checkHeadshotAchievements checks headshot-based achievements
 func (w *AchievementWorker) checkHeadshotAchievements(smfID int64, event *models.RawEvent) {
 	totalHeadshots := w.getPlayerStat(int(smfID), "total_headshots")
-	
+
 	serverID := 0
 	ts := time.Unix(int64(event.Timestamp), 0)
 
@@ -191,13 +190,13 @@ func (w *AchievementWorker) checkHeadshotAchievements(smfID int64, event *models
 		"sharpshooter-platinum": 250,
 		"sharpshooter-diamond":  500,
 	}
-	
+
 	for slug, threshold := range milestones {
 		if totalHeadshots == threshold {
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
 		}
 	}
-	
+
 	// Check headshot streak
 	w.checkHeadshotStreakAchievement(int(smfID), event)
 }
@@ -205,10 +204,10 @@ func (w *AchievementWorker) checkHeadshotAchievements(smfID int64, event *models
 // checkMovementAchievements checks distance and movement achievements
 func (w *AchievementWorker) checkMovementAchievements(smfID int64, event *models.RawEvent) {
 	totalDistance := w.getPlayerStat(int(smfID), "total_distance")
-	
+
 	// Convert to kilometers
 	distanceKM := float64(totalDistance) / 1000.0
-	
+
 	serverID := 0
 	ts := time.Unix(int64(event.Timestamp), 0)
 
@@ -219,7 +218,7 @@ func (w *AchievementWorker) checkMovementAchievements(smfID int64, event *models
 		"marathoner-platinum": 250,
 		"marathoner-diamond":  500,
 	}
-	
+
 	for slug, threshold := range milestones {
 		if distanceKM >= threshold && distanceKM < threshold+0.1 {
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
@@ -230,7 +229,7 @@ func (w *AchievementWorker) checkMovementAchievements(smfID int64, event *models
 // checkVehicleAchievements checks vehicle-related achievements
 func (w *AchievementWorker) checkVehicleAchievements(smfID int64, event *models.RawEvent) {
 	vehicleKills := w.getPlayerStat(int(smfID), "vehicle_kills")
-	
+
 	serverID := 0
 	ts := time.Unix(int64(event.Timestamp), 0)
 
@@ -241,7 +240,7 @@ func (w *AchievementWorker) checkVehicleAchievements(smfID int64, event *models.
 		"tanker-platinum": 100,
 		"tanker-diamond":  250,
 	}
-	
+
 	for slug, threshold := range milestones {
 		if vehicleKills == threshold {
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
@@ -253,10 +252,10 @@ func (w *AchievementWorker) checkVehicleAchievements(smfID int64, event *models.
 func (w *AchievementWorker) checkSurvivalAchievements(smfID int64, event *models.RawEvent) {
 	serverID := 0
 	ts := time.Unix(int64(event.Timestamp), 0)
-	
+
 	if event.Type == models.EventHealthPickup {
 		healthPickups := w.getPlayerStat(int(smfID), "health_pickups")
-		
+
 		milestones := map[string]int{
 			"medic-bronze":   10,
 			"medic-silver":   50,
@@ -264,7 +263,7 @@ func (w *AchievementWorker) checkSurvivalAchievements(smfID int64, event *models
 			"medic-platinum": 250,
 			"medic-diamond":  500,
 		}
-		
+
 		for slug, threshold := range milestones {
 			if healthPickups == threshold {
 				w.unlockAchievement(int(smfID), slug, serverID, ts)
@@ -276,7 +275,7 @@ func (w *AchievementWorker) checkSurvivalAchievements(smfID int64, event *models
 // checkObjectiveAchievements checks objective-based achievements
 func (w *AchievementWorker) checkObjectiveAchievements(smfID int64, event *models.RawEvent) {
 	totalObjectives := w.getPlayerStat(int(smfID), "objectives_completed")
-	
+
 	serverID := 0
 	ts := time.Unix(int64(event.Timestamp), 0)
 
@@ -287,7 +286,7 @@ func (w *AchievementWorker) checkObjectiveAchievements(smfID int64, event *model
 		"objective-platinum": 100,
 		"objective-diamond":  250,
 	}
-	
+
 	for slug, threshold := range milestones {
 		if totalObjectives == threshold {
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
@@ -298,7 +297,7 @@ func (w *AchievementWorker) checkObjectiveAchievements(smfID int64, event *model
 // checkTeamplayAchievements checks team-based achievements
 func (w *AchievementWorker) checkTeamplayAchievements(smfID int64, event *models.RawEvent) {
 	totalWins := w.getPlayerStat(int(smfID), "total_wins")
-	
+
 	serverID := 0
 	ts := time.Unix(int64(event.Timestamp), 0)
 
@@ -309,7 +308,7 @@ func (w *AchievementWorker) checkTeamplayAchievements(smfID int64, event *models
 		"winner-platinum": 100,
 		"winner-diamond":  250,
 	}
-	
+
 	for slug, threshold := range milestones {
 		if totalWins == threshold {
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
@@ -321,7 +320,7 @@ func (w *AchievementWorker) checkTeamplayAchievements(smfID int64, event *models
 
 func (w *AchievementWorker) checkWeaponMasteryAchievement(smfID int, weapon string, serverID int, ts time.Time) {
 	weaponKills := w.getWeaponKills(smfID, weapon)
-	
+
 	// Example: 100 kills with Kar98k unlocks "Sniper Master"
 	if weapon == "kar98k" && weaponKills == 100 {
 		w.unlockAchievement(smfID, "sniper-master", serverID, ts)
@@ -345,13 +344,13 @@ func (w *AchievementWorker) getPlayerStat(smfID int, statName string) int {
 		FROM player_stats
 		WHERE smf_member_id = $1
 	`, statName)
-	
+
 	var value int
 	err := w.db.QueryRow(w.ctx, query, smfID).Scan(&value)
 	if err != nil {
 		return 0
 	}
-	
+
 	return value
 }
 
@@ -365,13 +364,13 @@ func (w *AchievementWorker) getWeaponKills(smfID int, weapon string) int {
 	// 	  AND event_type = 'player_kill'
 	// 	  AND extra->>'weapon' = $2
 	// `
-	
+
 	// var count int
 	// err := w.db.QueryRow(w.ctx, query, smfID, weapon).Scan(&count)
 	// if err != nil {
 	// 	return 0
 	// }
-	
+
 	return 0
 }
 
@@ -389,44 +388,44 @@ func (w *AchievementWorker) unlockAchievement(smfID int, slug string, serverID i
 	if err != nil || exists {
 		return // Already unlocked or error
 	}
-	
+
 	// Get achievement details
 	w.mu.RLock()
 	def, exists := w.achievementDefs[slug]
 	w.mu.RUnlock()
-	
+
 	if !exists {
 		log.Printf("Achievement definition not found: %s", slug)
 		return
 	}
-	
+
 	// Insert unlock record
 	insertQuery := `
 		INSERT INTO player_achievements
 		(smf_member_id, achievement_slug, unlocked_at, server_id)
 		VALUES ($1, $2, $3, $4)
 	`
-	
+
 	_, err = w.db.Exec(w.ctx, insertQuery, smfID, slug, timestamp, serverID)
 	if err != nil {
 		log.Printf("Failed to unlock achievement %s for player %d: %v", slug, smfID, err)
 		return
 	}
-	
+
 	// Update player's total points
 	updateQuery := `
 		UPDATE mohaa_player_meta
 		SET achievement_points = achievement_points + $1
 		WHERE smf_member_id = $2
 	`
-	
+
 	_, err = w.db.Exec(w.ctx, updateQuery, def.Points, smfID)
 	if err != nil {
 		log.Printf("Failed to update achievement points: %v", err)
 	}
-	
+
 	log.Printf("🏆 Achievement unlocked: %s for player %d (+%d points)", slug, smfID, def.Points)
-	
+
 	// TODO: Send notification to player
 	w.notifyPlayer(smfID, slug, def)
 }
@@ -443,10 +442,10 @@ func (w *AchievementWorker) notifyPlayer(smfID int, slug string, def *Achievemen
 		"points":      def.Points,
 		"unlocked_at": time.Now(),
 	}
-	
+
 	jsonData, _ := json.Marshal(notification)
 	log.Printf("Notification: %s", string(jsonData))
-	
+
 	// In production, would use Redis pub/sub or WebSocket
 }
 

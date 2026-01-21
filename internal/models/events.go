@@ -352,6 +352,7 @@ type MatchResult struct {
 type PlayerStats struct {
 	PlayerID       string    `json:"player_id"`
 	PlayerName     string    `json:"player_name"`
+	Name           string    `json:"name"` // Alias for PHP
 	TotalKills     int64     `json:"total_kills"`
 	TotalDeaths    int64     `json:"total_deaths"`
 	TotalDamage    int64     `json:"total_damage"`
@@ -364,10 +365,11 @@ type PlayerStats struct {
 	LastActive     time.Time `json:"last_active"`
 
 	// Computed
-	KDRatio   float64 `json:"kd_ratio"`
-	Accuracy  float64 `json:"accuracy"`
-	HSPercent float64 `json:"headshot_percent"`
-	WinRate   float64 `json:"win_rate"`
+	KDRatio        float64 `json:"kd_ratio"`
+	Accuracy       float64 `json:"accuracy"`
+	HSPercent      float64 `json:"headshot_percent"`
+	WinRate        float64 `json:"win_rate"`
+	KillsPerMinute float64 `json:"kills_per_minute"`
 
 	// Granular Combat Metrics
 	LongRangeKills  int64 `json:"long_range_kills"`  // >100m

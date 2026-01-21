@@ -132,34 +132,45 @@ func (h *Handler) IngestEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
+	h.logger.Infow("IngestEvents called", "bodyLength", len(body), "preview", string(body[:min(len(body), 200)]))
+
 	lines := strings.Split(string(body), "\n")
+	h.logger.Infow("Split body into lines", "lineCount", len(lines))
 	processed := 0
-	for _, line := range lines {
+	for i, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
+			h.logger.Debugw("Skipping empty line", "lineNum", i)
 			continue
 		}
 
+		h.logger.Infow("Processing line", "lineNum", i, "preview", line[:min(len(line), 100)])
 		var event models.RawEvent
 		// Support both JSON (if line starts with {) and URL-encoded
 		if strings.HasPrefix(line, "{") {
+			h.logger.Infow("Parsing as JSON", "lineNum", i)
 			if err := json.Unmarshal([]byte(line), &event); err != nil {
 				h.logger.Warnw("Failed to unmarshal JSON event in batch", "error", err, "line", line)
 				continue
 			}
+			h.logger.Infow("JSON parsed successfully", "eventType", event.Type)
 		} else {
+			h.logger.Infow("Parsing as URL-encoded", "lineNum", i)
 			values, err := url.ParseQuery(line)
 			if err != nil {
 				h.logger.Warnw("Failed to parse URL-encoded event in batch", "error", err, "line", line)
 				continue
 			}
 			event = h.parseFormToEvent(values)
+			h.logger.Infow("URL-encoded parsed", "eventType", event.Type)
 		}
 
 		if event.Type == "" {
+			h.logger.Warnw("Event has empty type, skipping", "lineNum", i, "line", line[:min(len(line), 100)])
 			continue
 		}
 
+		h.logger.Infow("Enqueueing event", "type", event.Type, "match_id", event.MatchID)
 		if !h.pool.Enqueue(&event) {
 			h.logger.Warn("Worker pool queue full, dropping remaining events in batch")
 			break
@@ -441,8 +452,8 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Parameters
-	period := r.URL.Query().Get("period")  // For future use
-	_ = period  // Silence unused warning
+	period := r.URL.Query().Get("period") // For future use
+	_ = period                            // Silence unused warning
 	limit := 25
 	page := 1
 
@@ -493,7 +504,7 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var entry models.LeaderboardEntry
 		var lastActive time.Time
-		var matchesPlayed uint64  // Not stored in LeaderboardEntry, just for scanning
+		var matchesPlayed uint64 // Not stored in LeaderboardEntry, just for scanning
 
 		if err := rows.Scan(
 			&entry.PlayerID,
@@ -510,15 +521,15 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			h.logger.Warnw("Failed to scan leaderboard row", "error", err)
 			continue
 		}
-		
+
 		// Calculate derived stats
 		if entry.Deaths > 0 {
-			entry.Accuracy = float64(entry.Kills) / float64(entry.Deaths)  // This is K/D, not accuracy
+			entry.Accuracy = float64(entry.Kills) / float64(entry.Deaths) // This is K/D, not accuracy
 		}
 		if entry.ShotsFired > 0 {
 			entry.Accuracy = (float64(entry.ShotsHit) / float64(entry.ShotsFired)) * 100.0
 		}
-		
+
 		entry.Rank = rank
 		entries = append(entries, entry)
 		rank++
@@ -712,6 +723,8 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 		GROUP BY actor_id
 	`, guid)
 
+	h.logger.Infow("GetPlayerStats request", "guid", guid)
+
 	err := row.Scan(
 		&stats.TotalKills,
 		&stats.TotalDeaths,
@@ -740,8 +753,12 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 		&stats.ProneTime,
 	)
 	if err != nil {
-		h.logger.Errorw("Failed to query player stats", "error", err)
-		h.errorResponse(w, http.StatusInternalServerError, "Query failed")
+		h.logger.Errorw("Failed to query player stats", "error", err, "guid", guid)
+		// Try to return empty stats instead of 500 if it's just no data
+		if err.Error() == "sql: no rows in result set" { // Check driver specific error if possible
+             // For now just log it.
+		}
+		h.errorResponse(w, http.StatusInternalServerError, "Query failed: "+err.Error())
 		return
 	}
 
@@ -759,7 +776,17 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 		stats.WinRate = float64(stats.MatchesWon) / float64(stats.MatchesPlayed) * 100
 	}
 
-	h.jsonResponse(w, http.StatusOK, stats)
+	stats.Name = stats.PlayerName
+
+	if stats.PlayTime > 0 {
+		stats.KillsPerMinute = float64(stats.TotalKills) / (stats.PlayTime / 60.0)
+	}
+
+	h.logger.Infow("GetPlayerStats success", "guid", guid, "kills", stats.TotalKills, "name", stats.Name, "kpm", stats.KillsPerMinute)
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"player": stats,
+	})
 }
 
 // GetPlayerAchievements returns player achievements
@@ -2242,7 +2269,6 @@ func (h *Handler) GetWeaponDetail(w http.ResponseWriter, r *http.Request) {
 
 	h.jsonResponse(w, http.StatusOK, response)
 }
-
 
 // GetPlayerStatsByName resolves a name to a GUID and returns its stats
 func (h *Handler) GetPlayerStatsByName(w http.ResponseWriter, r *http.Request) {

@@ -225,7 +225,10 @@ function MohaaPlayers_ViewPlayer(): void
     }
     
     // Fetch player data
-    $player = $api->getPlayerStats($guid);
+    $playerResponse = $api->getPlayerStats($guid);
+    
+    // Unwrap the 'player' key from API response
+    $player = $playerResponse['player'] ?? [];
     
     if (empty($player)) {
         fatal_lang_error('mohaa_player_not_found', false);
@@ -246,10 +249,14 @@ function MohaaPlayers_ViewPlayer(): void
         'name' => $player['name'],
     ];
     
+    // Fetch deep stats for the profile page
+    $deepStats = $api->getPlayerDeepStats($guid);
+    
     $context['mohaa_player'] = [
         'guid' => $guid,
         'name' => $player['name'],
         'stats' => $player,
+        'deep_stats' => $deepStats,
         'linked_member' => $linkedMember,
         'weapons' => $api->getPlayerWeapons($guid),
         'matches' => $api->getPlayerMatches($guid, 20),
@@ -343,7 +350,9 @@ function MohaaPlayers_Dashboard(): void
         $context['mohaa_has_identity'] = true;
         
         // Build the War Room dashboard format
-        $playerStats = $playerResults['player'] ?? [];
+        // Unwrap the 'player' key from API response
+        $playerData = $playerResults['player'] ?? [];
+        $playerStats = $playerData['player'] ?? [];
         
         // Map API response keys to template-expected keys
         if (!empty($playerStats)) {
@@ -448,8 +457,11 @@ function MohaaPlayers_Compare(): void
     require_once(__DIR__ . '/MohaaStats/MohaaStatsAPI.php');
     $api = new MohaaStatsAPIClient();
     
-    $player1 = $api->getPlayerStats($guid1);
-    $player2 = $api->getPlayerStats($guid2);
+    $player1Response = $api->getPlayerStats($guid1);
+    $player2Response = $api->getPlayerStats($guid2);
+    
+    $player1 = $player1Response['player'] ?? [];
+    $player2 = $player2Response['player'] ?? [];
     
     if (empty($player1) || empty($player2)) {
         fatal_lang_error('mohaa_player_not_found', false);
