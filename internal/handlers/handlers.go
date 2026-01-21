@@ -2398,6 +2398,27 @@ func (h *Handler) GetWeaponDetail(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, http.StatusOK, response)
 }
 
+
+// GetPlayerStatsByName resolves a name to a GUID and returns its stats
+func (h *Handler) GetPlayerStatsByName(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		h.errorResponse(w, http.StatusBadRequest, "Missing player name")
+		return
+	}
+
+	guid, err := h.playerStats.ResolvePlayerGUID(r.Context(), name)
+	if err != nil {
+		h.errorResponse(w, http.StatusNotFound, "Player not found: "+err.Error())
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]string{
+		"guid": guid,
+		"name": name,
+	})
+}
+
 func (h *Handler) jsonResponse(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

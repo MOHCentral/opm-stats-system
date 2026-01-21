@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS player_guid_registry (
     -- The stable identifier
     player_guid VARCHAR(64) NOT NULL UNIQUE,
     
-    -- SMF forum identity
+    -- SMF forum identity (references smf_members.id_member in SMF database)
     smf_member_id INT NOT NULL,
     
     -- Last known player name (for display when SMF lookup fails)
@@ -46,11 +46,9 @@ CREATE TABLE IF NOT EXISTS player_guid_registry (
     confidence INT DEFAULT 100,
     
     -- Is this the PRIMARY GUID for this SMF user?
-    is_primary BOOLEAN DEFAULT TRUE,
+    is_primary BOOLEAN DEFAULT TRUE
     
-    -- Indexes for lookups
-    CONSTRAINT fk_smf_member FOREIGN KEY (smf_member_id) 
-        REFERENCES smf_members(id_member) ON DELETE CASCADE
+    -- Note: No FK to smf_members as it's in a different database (SMF forum)
 );
 
 CREATE INDEX IF NOT EXISTS idx_guid_registry_smf ON player_guid_registry(smf_member_id);
@@ -110,12 +108,11 @@ CREATE TABLE IF NOT EXISTS unverified_players (
     -- Server where most often seen
     primary_server_id VARCHAR(64),
     
-    -- Claimed by SMF user (pending verification)
+    -- Claimed by SMF user (pending verification) - references smf_members in SMF database
     claimed_by_member_id INT NULL,
-    claimed_at TIMESTAMP NULL,
+    claimed_at TIMESTAMP NULL
     
-    CONSTRAINT fk_claimed_member FOREIGN KEY (claimed_by_member_id) 
-        REFERENCES smf_members(id_member) ON DELETE SET NULL
+    -- Note: No FK to smf_members as it's in a different database (SMF forum)
 );
 
 CREATE INDEX IF NOT EXISTS idx_unverified_name ON unverified_players(primary_name);

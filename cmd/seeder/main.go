@@ -16,10 +16,10 @@ import (
 
 // Flags
 var (
-	apiURL      = flag.String("api", "http://localhost:8080/api/v1", "API base URL")
-	numMatches  = flag.Int("matches", 10, "Number of matches to generate")
-	concurrency = flag.Int("workers", 5, "Number of concurrent workers")
-	verbose     = flag.Bool("v", false, "Verbose output")
+	apiURL       = flag.String("api", "http://localhost:8080/api/v1", "API base URL")
+	numMatches   = flag.Int("matches", 10, "Number of matches to generate")
+	concurrency  = flag.Int("workers", 5, "Number of concurrent workers")
+	verbose      = flag.Bool("v", false, "Verbose output")
 	authenticate = flag.Bool("auth", true, "Authenticate players via SMF")
 )
 
@@ -160,44 +160,49 @@ const (
 )
 
 type Player struct {
-	Name       string
-	GUID       string
-	Team       string
-	UserID     int // SMF User ID
-	MemberID   int // Confirmed Member ID after login
-	Weapon     string
-	Ammo       int
-	HP         int
-	PosX       float64
-	PosY       float64
-	PosZ       float64
-	Pitch      float64
-	Yaw        float64
-	InVehicle  bool
-	OnTurret   bool
-	Stance     string // prone, crouch, stand
-	Alive      bool
-	Kills      int
-	Deaths     int
-	LastAction time.Time
+	Name         string
+	GUID         string
+	Team         string
+	UserID       int // SMF User ID (for device auth)
+	MemberID     int // Confirmed SMF Member ID after login (0 if not authenticated)
+	IsAuth       bool // Whether player is currently authenticated
+	Weapon       string
+	Ammo         int
+	HP           int
+	PosX         float64
+	PosY         float64
+	PosZ         float64
+	Pitch        float64
+	Yaw          float64
+	InVehicle    bool
+	OnTurret     bool
+	Stance       string // prone, crouch, stand
+	Alive        bool
+	Kills        int
+	Deaths       int
+	LastAction   time.Time
+	NameHistory  []string // Previous names used by this player
 }
 
 var players = []Player{
-	{Name: "Sgt.Physics", GUID: "111111", Team: "allies", UserID: 1, MemberID: 0},
-	{Name: "Cpt.Logic", GUID: "222222", Team: "axis", UserID: 2, MemberID: 0},
-	{Name: "Pvt.Panic", GUID: "333333", Team: "allies", UserID: 3, MemberID: 0},
-	{Name: "Major.Lag", GUID: "444444", Team: "axis", UserID: 4, MemberID: 0},
-	{Name: "Sniper.Wolf", GUID: "555555", Team: "allies", UserID: 5, MemberID: 0},
-	{Name: "Running.Man", GUID: "666666", Team: "axis", UserID: 6, MemberID: 0},
-	{Name: "Camper.Joe", GUID: "777777", Team: "allies", UserID: 7, MemberID: 0},
-	{Name: "Rusher.B", GUID: "888888", Team: "axis", UserID: 8, MemberID: 0},
-	{Name: "Noob.Slayer", GUID: "999999", Team: "allies", UserID: 9, MemberID: 0},
-	{Name: "Bot.Alice", GUID: "000000", Team: "axis", UserID: 10, MemberID: 0},
-	{Name: "Tank.Driver", GUID: "AAAA01", Team: "allies", UserID: 11, MemberID: 0},
-	{Name: "Medic.Mike", GUID: "BBBB02", Team: "axis", UserID: 12, MemberID: 0},
-	{Name: "Scout.Sam", GUID: "CCCC03", Team: "allies", UserID: 13, MemberID: 0},
-	{Name: "Heavy.Hank", GUID: "DDDD04", Team: "axis", UserID: 14, MemberID: 0},
-	{Name: "Silent.Steve", GUID: "EEEE05", Team: "allies", UserID: 15, MemberID: 0},
+	// Authenticated players (these have SMF accounts and will be linked)
+	{Name: "Sgt.Physics", GUID: "111111", Team: "allies", UserID: 1, MemberID: 0, NameHistory: []string{"Physics", "Pvt.Physics"}},
+	{Name: "Cpt.Logic", GUID: "222222", Team: "axis", UserID: 2, MemberID: 0, NameHistory: []string{"Logic_Master"}},
+	{Name: "Pvt.Panic", GUID: "333333", Team: "allies", UserID: 3, MemberID: 0, NameHistory: []string{}},
+	{Name: "Major.Lag", GUID: "444444", Team: "axis", UserID: 4, MemberID: 0, NameHistory: []string{"Lag_Monster", "Mr.Lag"}},
+	{Name: "Sniper.Wolf", GUID: "555555", Team: "allies", UserID: 5, MemberID: 0, NameHistory: []string{}},
+	{Name: "Running.Man", GUID: "666666", Team: "axis", UserID: 6, MemberID: 0, NameHistory: []string{"Sprinter"}},
+	{Name: "Camper.Joe", GUID: "777777", Team: "allies", UserID: 7, MemberID: 0, NameHistory: []string{}},
+	{Name: "Rusher.B", GUID: "888888", Team: "axis", UserID: 8, MemberID: 0, NameHistory: []string{"RusherB", "B_Rusher"}},
+	
+	// Unauthenticated players (no SMF account - simulate real-world scenario)
+	{Name: "Noob.Slayer", GUID: "999999", Team: "allies", UserID: 0, MemberID: 0, NameHistory: []string{}},
+	{Name: "Bot.Alice", GUID: "000000", Team: "axis", UserID: 0, MemberID: 0, NameHistory: []string{}},
+	{Name: "Tank.Driver", GUID: "AAAA01", Team: "allies", UserID: 0, MemberID: 0, NameHistory: []string{"TankMan"}},
+	{Name: "Medic.Mike", GUID: "BBBB02", Team: "axis", UserID: 0, MemberID: 0, NameHistory: []string{}},
+	{Name: "Scout.Sam", GUID: "CCCC03", Team: "allies", UserID: 0, MemberID: 0, NameHistory: []string{}},
+	{Name: "Heavy.Hank", GUID: "DDDD04", Team: "axis", UserID: 0, MemberID: 0, NameHistory: []string{}},
+	{Name: "Silent.Steve", GUID: "EEEE05", Team: "allies", UserID: 0, MemberID: 0, NameHistory: []string{}},
 }
 
 var weapons = []string{
@@ -291,6 +296,12 @@ func initializePlayers() {
 }
 
 func authenticatePlayer(client *http.Client, p *Player) {
+	// Only authenticate players with a UserID (SMF account)
+	if p.UserID == 0 {
+		fmt.Printf("Skipping auth for %s (no SMF account)\n", p.Name)
+		return
+	}
+
 	// 1. Get Token (POST /auth/device)
 	tokenReq := map[string]interface{}{
 		"forum_user_id": p.UserID,
@@ -299,7 +310,7 @@ func authenticatePlayer(client *http.Client, p *Player) {
 	jsonData, _ := json.Marshal(tokenReq)
 	req, _ := http.NewRequest("POST", *apiURL+"/auth/device", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	resp, err := client.Do(req)
 	if err != nil || resp.StatusCode != 200 {
 		fmt.Printf("Failed to get token for %s: %v\n", p.Name, err)
@@ -312,7 +323,7 @@ func authenticatePlayer(client *http.Client, p *Player) {
 	}
 	json.NewDecoder(resp.Body).Decode(&tokenResp)
 	token := tokenResp.UserCode
-	
+
 	// 2. Verified Token (POST /auth/smf-verify) - Simulating tracker.scr
 	form := url.Values{}
 	form.Set("token", token)
@@ -333,9 +344,10 @@ func authenticatePlayer(client *http.Client, p *Player) {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&authResp); err == nil && authResp.Success {
 		p.MemberID = authResp.MemberID
-		fmt.Printf("Logged in %s as Member ID %d\n", p.Name, p.MemberID)
+		p.IsAuth = true
+		fmt.Printf("✓ Logged in %s as Member ID %d\n", p.Name, p.MemberID)
 	} else {
-		fmt.Printf("Failed to verify token for %s\n", p.Name)
+		fmt.Printf("✗ Failed to verify token for %s\n", p.Name)
 	}
 }
 
@@ -374,7 +386,7 @@ func worker(wg *sync.WaitGroup, count int, s *Stats, client *http.Client) {
 
 	for i := 0; i < count; i++ {
 		events := generateMatch(i + 1)
-		
+
 		// Send all events for this match
 		for _, event := range events {
 			sendEvent(client, s, event)
@@ -397,7 +409,7 @@ func generateMatch(matchNum int) []map[string]interface{} {
 	sessionID := uuid.New().String()
 	mapName := randomMap()
 	gametype := randomGametype()
-	
+
 	events := []map[string]interface{}{}
 	baseTime := float64(time.Now().Unix())
 	currentTime := baseTime
@@ -476,13 +488,14 @@ func generateMatch(matchNum int) []map[string]interface{} {
 	// PLAYERS CONNECT AND SPAWN
 	for i := range players {
 		p := &players[i]
-		
+
 		// Connect
 		connectData := map[string]interface{}{
-			"match_id":    matchID,
-			"client_num":  i,
-			"player_name": p.Name,
-			"player_guid": p.GUID,
+			"match_id":      matchID,
+			"client_num":    i,
+			"player_name":   p.Name,
+			"player_guid":   p.GUID,
+			"player_smf_id": p.MemberID,
 		}
 		events = append(events, makeEvent(EventClientConnect, currentTime, connectData))
 		currentTime += 0.2
@@ -493,10 +506,11 @@ func generateMatch(matchNum int) []map[string]interface{} {
 
 		// Team join
 		joinData := map[string]interface{}{
-			"match_id":    matchID,
-			"player_name": p.Name,
-			"player_guid": p.GUID,
-			"player_team": p.Team,
+			"match_id":      matchID,
+			"player_name":   p.Name,
+			"player_guid":   p.GUID,
+			"player_smf_id": p.MemberID,
+			"player_team":   p.Team,
 		}
 		events = append(events, makeEvent(EventTeamJoin, currentTime, joinData))
 		currentTime += 0.1
@@ -505,18 +519,19 @@ func generateMatch(matchNum int) []map[string]interface{} {
 		p.PosX = randomFloat(-1000, 1000)
 		p.PosY = randomFloat(-1000, 1000)
 		p.PosZ = randomFloat(0, 200)
-		
+
 		spawnData := map[string]interface{}{
-			"match_id":    matchID,
-			"player_name": p.Name,
-			"player_guid": p.GUID,
-			"player_team": p.Team,
-			"pos_x":       p.PosX,
-			"pos_y":       p.PosY,
-			"pos_z":       p.PosZ,
+			"match_id":      matchID,
+			"player_name":   p.Name,
+			"player_guid":   p.GUID,
+			"player_smf_id": p.MemberID,
+			"player_team":   p.Team,
+			"pos_x":         p.PosX,
+			"pos_y":         p.PosY,
+			"pos_z":         p.PosZ,
 		}
 		events = append(events, makeEvent(EventPlayerSpawn, currentTime, spawnData))
-		
+
 		p.Alive = true
 		p.HP = 100
 		currentTime += 0.3
@@ -541,14 +556,14 @@ func generateMatch(matchNum int) []map[string]interface{} {
 		gameplayEvents := generateGameplaySequence(matchID, &currentTime)
 		events = append(events, gameplayEvents...)
 		eventCount += len(gameplayEvents)
-		
+
 		// Heartbeat every 30s
 		if int(currentTime)%30 == 0 {
 			events = append(events, makeEvent(EventHeartbeat, currentTime, map[string]interface{}{
 				"player_count": countAlivePlayers(),
 			}))
 		}
-		
+
 		currentTime += randomFloat(1.0, 5.0)
 	}
 
@@ -602,14 +617,14 @@ func generateMatch(matchNum int) []map[string]interface{} {
 	// PLAYERS DISCONNECT
 	for i := range players {
 		p := &players[i]
-		
+
 		disconnectData := map[string]interface{}{
 			"match_id":    matchID,
 			"player_name": p.Name,
 			"player_guid": p.GUID,
 		}
 		events = append(events, makeEvent(EventClientDisconnect, currentTime, disconnectData))
-		
+
 		p.Alive = false
 		currentTime += 0.2
 	}
@@ -620,55 +635,73 @@ func generateMatch(matchNum int) []map[string]interface{} {
 // generateGameplaySequence creates a realistic combat/gameplay sequence
 func generateGameplaySequence(matchID string, currentTime *float64) []map[string]interface{} {
 	events := []map[string]interface{}{}
-	
+
 	// Roll for event type
 	roll := rand.Float32()
-	
+
 	switch {
-	case roll < 0.35: // 35% - Combat
+	case roll < 0.30: // 30% - Combat
 		combatEvents := generateCombatSequence(matchID, currentTime)
 		events = append(events, combatEvents...)
-		
-	case roll < 0.50: // 15% - Movement
+
+	case roll < 0.40: // 10% - Movement
 		moveEvents := generateMovementSequence(matchID, currentTime)
 		events = append(events, moveEvents...)
-		
-	case roll < 0.60: // 10% - Item pickup
+
+	case roll < 0.48: // 8% - Item pickup
 		itemEvents := generateItemSequence(matchID, currentTime)
 		events = append(events, itemEvents...)
-		
-	case roll < 0.70: // 10% - Vehicle
+
+	case roll < 0.55: // 7% - Vehicle
 		vehicleEvents := generateVehicleSequence(matchID, currentTime)
 		events = append(events, vehicleEvents...)
-		
-	case roll < 0.75: // 5% - Chat
+
+	case roll < 0.60: // 5% - Chat
 		chatEvent := generateChatEvent(matchID, *currentTime)
 		if chatEvent != nil {
 			events = append(events, chatEvent)
 		}
 		*currentTime += randomFloat(0.5, 2.0)
-		
-	case roll < 0.80: // 5% - Objective
+
+	case roll < 0.65: // 5% - Objective
 		objEvents := generateObjectiveSequence(matchID, currentTime)
 		events = append(events, objEvents...)
-		
-	case roll < 0.85: // 5% - World interaction
+
+	case roll < 0.70: // 5% - World interaction
 		worldEvents := generateWorldSequence(matchID, currentTime)
 		events = append(events, worldEvents...)
-		
-	case roll < 0.90: // 5% - Bot interaction
+
+	case roll < 0.75: // 5% - Bot interaction
 		botEvents := generateBotSequence(matchID, currentTime)
 		events = append(events, botEvents...)
-		
-	case roll < 0.95: // 5% - Grenade
+
+	case roll < 0.80: // 5% - Grenade
 		grenadeEvents := generateGrenadeSequence(matchID, currentTime)
 		events = append(events, grenadeEvents...)
-		
-	default: // 5% - Special/Vote
+
+	case roll < 0.85: // 5% - Vote
 		voteEvents := generateVoteSequence(matchID, currentTime)
 		events = append(events, voteEvents...)
+
+	case roll < 0.90: // 5% - Weapon Handling (New)
+		weaponEvents := generateWeaponHandlingSequence(matchID, currentTime)
+		events = append(events, weaponEvents...)
+
+	case roll < 0.95: // 5% - Ladder/Turret (New)
+		// 50/50 split between ladder and turret
+		if rand.Float32() < 0.5 {
+			ladderEvents := generateLadderSequence(matchID, currentTime)
+			events = append(events, ladderEvents...)
+		} else {
+			turretEvents := generateTurretSequence(matchID, currentTime)
+			events = append(events, turretEvents...)
+		}
+
+	default: // 5% - Misc/Admin (New)
+		miscEvents := generateMiscSequence(matchID, currentTime)
+		events = append(events, miscEvents...)
 	}
-	
+
 	return events
 }
 
@@ -729,11 +762,11 @@ func makeEvent(eventType string, timestamp float64, extraData map[string]interfa
 		"type":      eventType,
 		"timestamp": timestamp,
 	}
-	
+
 	for k, v := range extraData {
 		event[k] = v
 	}
-	
+
 	return event
 }
 
@@ -754,13 +787,14 @@ func generateCombatSequence(matchID string, currentTime *float64) []map[string]i
 	// Weapon fire sequence (3-8 shots)
 	shotsToKill := rand.Intn(6) + 3
 	hitCount := 0
-	
+
 	for i := 0; i < shotsToKill; i++ {
 		// Fire event
 		fireData := map[string]interface{}{
 			"match_id":       matchID,
 			"player_name":    attacker.Name,
 			"player_guid":    attacker.GUID,
+			"player_smf_id":  attacker.MemberID,
 			"weapon":         attacker.Weapon,
 			"ammo_remaining": attacker.Ammo - i - 1,
 		}
@@ -777,28 +811,32 @@ func generateCombatSequence(matchID string, currentTime *float64) []map[string]i
 
 			// Hit event
 			hitData := map[string]interface{}{
-				"match_id":    matchID,
-				"player_name": attacker.Name,
-				"player_guid": attacker.GUID,
-				"target_name": victim.Name,
-				"target_guid": victim.GUID,
-				"weapon":      attacker.Weapon,
-				"hitloc":      hitloc,
+				"match_id":       matchID,
+				"player_name":    attacker.Name,
+				"player_guid":    attacker.GUID,
+				"player_smf_id":  attacker.MemberID,
+				"target_name":    victim.Name,
+				"target_guid":    victim.GUID,
+				"target_smf_id":  victim.MemberID,
+				"weapon":         attacker.Weapon,
+				"hitloc":         hitloc,
 			}
 			events = append(events, makeEvent(EventWeaponHit, *currentTime, hitData))
 
 			// Pain event for victim
 			painData := map[string]interface{}{
-				"match_id":      matchID,
-				"player_name":   victim.Name,
-				"player_guid":   victim.GUID,
-				"attacker_name": attacker.Name,
-				"attacker_guid": attacker.GUID,
-				"damage":        damage,
-				"hitloc":        hitloc,
-				"pos_x":         victim.PosX,
-				"pos_y":         victim.PosY,
-				"pos_z":         victim.PosZ,
+				"match_id":        matchID,
+				"player_name":     victim.Name,
+				"player_guid":     victim.GUID,
+				"player_smf_id":   victim.MemberID,
+				"attacker_name":   attacker.Name,
+				"attacker_guid":   attacker.GUID,
+				"attacker_smf_id": attacker.MemberID,
+				"damage":          damage,
+				"hitloc":          hitloc,
+				"pos_x":           victim.PosX,
+				"pos_y":           victim.PosY,
+				"pos_z":           victim.PosZ,
 			}
 			events = append(events, makeEvent(EventPlayerPain, *currentTime, painData))
 
@@ -828,45 +866,50 @@ func generateCombatSequence(matchID string, currentTime *float64) []map[string]i
 	// Headshot event (if applicable)
 	if isHeadshot {
 		hsData := map[string]interface{}{
-			"match_id":      matchID,
-			"attacker_name": attacker.Name,
-			"attacker_guid": attacker.GUID,
-			"victim_name":   victim.Name,
-			"victim_guid":   victim.GUID,
-			"weapon":        attacker.Weapon,
+			"match_id":        matchID,
+			"attacker_name":   attacker.Name,
+			"attacker_guid":   attacker.GUID,
+			"attacker_smf_id": attacker.MemberID,
+			"victim_name":     victim.Name,
+			"victim_guid":     victim.GUID,
+			"victim_smf_id":   victim.MemberID,
+			"weapon":          attacker.Weapon,
 		}
 		events = append(events, makeEvent(EventHeadshot, *currentTime, hsData))
 	}
 
 	// Kill event
 	killData := map[string]interface{}{
-		"match_id":      matchID,
-		"attacker_name": attacker.Name,
-		"attacker_guid": attacker.GUID,
-		"attacker_team": attacker.Team,
-		"victim_name":   victim.Name,
-		"victim_guid":   victim.GUID,
-		"victim_team":   victim.Team,
-		"weapon":        attacker.Weapon,
-		"hitloc":        randomHitLocation(),
-		"attacker_x":    attacker.PosX,
-		"attacker_y":    attacker.PosY,
-		"attacker_z":    attacker.PosZ,
-		"victim_x":      victim.PosX,
-		"victim_y":      victim.PosY,
-		"victim_z":      victim.PosZ,
+		"match_id":        matchID,
+		"attacker_name":   attacker.Name,
+		"attacker_guid":   attacker.GUID,
+		"attacker_team":   attacker.Team,
+		"attacker_smf_id": attacker.MemberID, // 0 if not authenticated
+		"victim_name":     victim.Name,
+		"victim_guid":     victim.GUID,
+		"victim_team":     victim.Team,
+		"victim_smf_id":   victim.MemberID, // 0 if not authenticated
+		"weapon":          attacker.Weapon,
+		"hitloc":          randomHitLocation(),
+		"attacker_x":      attacker.PosX,
+		"attacker_y":      attacker.PosY,
+		"attacker_z":      attacker.PosZ,
+		"victim_x":        victim.PosX,
+		"victim_y":        victim.PosY,
+		"victim_z":        victim.PosZ,
 	}
 	events = append(events, makeEvent(killEventType, *currentTime, killData))
 
 	// Death event
 	deathData := map[string]interface{}{
-		"match_id":    matchID,
-		"player_name": victim.Name,
-		"player_guid": victim.GUID,
-		"player_team": victim.Team,
-		"pos_x":       victim.PosX,
-		"pos_y":       victim.PosY,
-		"pos_z":       victim.PosZ,
+		"match_id":       matchID,
+		"player_name":    victim.Name,
+		"player_guid":    victim.GUID,
+		"player_team":    victim.Team,
+		"player_smf_id":  victim.MemberID,
+		"pos_x":          victim.PosX,
+		"pos_y":          victim.PosY,
+		"pos_z":          victim.PosZ,
 	}
 	events = append(events, makeEvent(EventDeath, *currentTime, deathData))
 
@@ -880,15 +923,16 @@ func generateCombatSequence(matchID string, currentTime *float64) []map[string]i
 	victim.PosX = randomFloat(-1000, 1000)
 	victim.PosY = randomFloat(-1000, 1000)
 	victim.PosZ = randomFloat(0, 200)
-	
+
 	respawnData := map[string]interface{}{
-		"match_id":    matchID,
-		"player_name": victim.Name,
-		"player_guid": victim.GUID,
-		"player_team": victim.Team,
-		"pos_x":       victim.PosX,
-		"pos_y":       victim.PosY,
-		"pos_z":       victim.PosZ,
+		"match_id":      matchID,
+		"player_name":   victim.Name,
+		"player_guid":   victim.GUID,
+		"player_smf_id": victim.MemberID,
+		"player_team":   victim.Team,
+		"pos_x":         victim.PosX,
+		"pos_y":         victim.PosY,
+		"pos_z":         victim.PosZ,
 	}
 	events = append(events, makeEvent(EventPlayerRespawn, *currentTime, respawnData))
 	victim.Alive = true
@@ -908,7 +952,7 @@ func generateCombatSequence(matchID string, currentTime *float64) []map[string]i
 
 		*currentTime += 2.5 // Reload time
 		events = append(events, makeEvent(EventWeaponReloadDone, *currentTime, reloadData))
-		
+
 		attacker.Ammo = 30
 	}
 
@@ -924,32 +968,32 @@ func generateMovementSequence(matchID string, currentTime *float64) []map[string
 	}
 
 	player := alivePlayers[rand.Intn(len(alivePlayers))]
-	
+
 	moveType := rand.Intn(5)
 	playerData := map[string]interface{}{
 		"match_id":    matchID,
 		"player_name": player.Name,
 		"player_guid": player.GUID,
 	}
-	
+
 	switch moveType {
 	case 0: // Jump + Land
 		events = append(events, makeEvent(EventJump, *currentTime, playerData))
 		*currentTime += 0.8
 		events = append(events, makeEvent(EventLand, *currentTime, playerData))
-		
+
 	case 1: // Crouch
 		events = append(events, makeEvent(EventCrouch, *currentTime, playerData))
 		player.Stance = "crouch"
-		
+
 	case 2: // Prone
 		events = append(events, makeEvent(EventProne, *currentTime, playerData))
 		player.Stance = "prone"
-		
+
 	case 3: // Stand
 		events = append(events, makeEvent(EventPlayerStand, *currentTime, playerData))
 		player.Stance = "stand"
-		
+
 	case 4: // Distance movement
 		distData := map[string]interface{}{
 			"match_id":    matchID,
@@ -959,11 +1003,11 @@ func generateMovementSequence(matchID string, currentTime *float64) []map[string
 			"sprinted":    randomFloat(5, 30),
 		}
 		events = append(events, makeEvent(EventDistance, *currentTime, distData))
-		
+
 		player.PosX += randomFloat(-50, 50)
 		player.PosY += randomFloat(-50, 50)
 	}
-	
+
 	*currentTime += randomFloat(1.0, 3.0)
 	return events
 }
@@ -977,7 +1021,7 @@ func generateItemSequence(matchID string, currentTime *float64) []map[string]int
 	}
 
 	player := alivePlayers[rand.Intn(len(alivePlayers))]
-	
+
 	itemType := rand.Intn(3)
 	switch itemType {
 	case 0: // Health pickup
@@ -989,7 +1033,7 @@ func generateItemSequence(matchID string, currentTime *float64) []map[string]int
 		}
 		events = append(events, makeEvent(EventHealthPickup, *currentTime, healthData))
 		player.HP = min(100, player.HP+25)
-		
+
 	case 1: // Ammo pickup
 		ammoData := map[string]interface{}{
 			"match_id":    matchID,
@@ -1000,7 +1044,7 @@ func generateItemSequence(matchID string, currentTime *float64) []map[string]int
 		}
 		events = append(events, makeEvent(EventAmmoPickup, *currentTime, ammoData))
 		player.Ammo += 30
-		
+
 	case 2: // Generic item
 		item := items[rand.Intn(len(items))]
 		itemData := map[string]interface{}{
@@ -1012,7 +1056,7 @@ func generateItemSequence(matchID string, currentTime *float64) []map[string]int
 		}
 		events = append(events, makeEvent(EventItemPickup, *currentTime, itemData))
 	}
-	
+
 	*currentTime += randomFloat(2.0, 5.0)
 	return events
 }
@@ -1107,7 +1151,7 @@ func generateGrenadeSequence(matchID string, currentTime *float64) []map[string]
 		"projectile":  "grenade",
 	}
 	events = append(events, makeEvent(EventGrenadeExplode, *currentTime, explodeData))
-	
+
 	// Explosion event
 	explosionData := map[string]interface{}{
 		"match_id":      matchID,
@@ -1243,7 +1287,7 @@ func generateBotSequence(matchID string, currentTime *float64) []map[string]inte
 		}
 		events = append(events, makeEvent(EventBotKilled, *currentTime, killData))
 	}
-	
+
 	*currentTime += 2.0
 	return events
 }
@@ -1288,7 +1332,7 @@ func generateVoteSequence(matchID string, currentTime *float64) []map[string]int
 		resultData["fail_reason"] = "Not enough votes"
 		events = append(events, makeEvent(EventVoteFailed, *currentTime, resultData))
 	}
-	
+
 	*currentTime += 1.0
 	return events
 }
@@ -1340,4 +1384,154 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// Weapon handling sequence
+func generateWeaponHandlingSequence(matchID string, currentTime *float64) []map[string]interface{} {
+	events := []map[string]interface{}{}
+	alivePlayers := getAlivePlayers()
+	if len(alivePlayers) == 0 {
+		return events
+	}
+	player := &players[rand.Intn(len(alivePlayers))]
+
+	// Holster
+	baseData := map[string]interface{}{
+		"match_id":    matchID,
+		"player_name": player.Name,
+		"player_guid": player.GUID,
+		"weapon":      player.Weapon,
+	}
+	events = append(events, makeEvent(EventWeaponHolster, *currentTime, baseData))
+	*currentTime += 0.5
+
+	// Change
+	newWeapon := randomWeapon()
+	changeData := map[string]interface{}{
+		"match_id":    matchID,
+		"player_name": player.Name,
+		"player_guid": player.GUID,
+		"old_weapon":  player.Weapon,
+		"new_weapon":  newWeapon,
+	}
+	events = append(events, makeEvent(EventWeaponChange, *currentTime, changeData))
+	player.Weapon = newWeapon
+	*currentTime += 0.5
+
+	// Raise
+	newData := map[string]interface{}{
+		"match_id":    matchID,
+		"player_name": player.Name,
+		"player_guid": player.GUID,
+		"weapon":      player.Weapon,
+	}
+	events = append(events, makeEvent(EventWeaponRaise, *currentTime, newData))
+	*currentTime += 0.5
+
+	return events
+}
+
+// Ladder sequence
+func generateLadderSequence(matchID string, currentTime *float64) []map[string]interface{} {
+	events := []map[string]interface{}{}
+	alivePlayers := getAlivePlayers()
+	if len(alivePlayers) == 0 {
+		return events
+	}
+	player := &players[rand.Intn(len(alivePlayers))]
+	playerData := map[string]interface{}{
+		"match_id":    matchID,
+		"player_name": player.Name,
+		"player_guid": player.GUID,
+		"ladder_id":   "ladder_1",
+	}
+	events = append(events, makeEvent(EventLadderMount, *currentTime, playerData))
+	*currentTime += 2.0
+	events = append(events, makeEvent(EventLadderDismount, *currentTime, playerData))
+	*currentTime += 0.5
+	return events
+}
+
+// Turret sequence
+func generateTurretSequence(matchID string, currentTime *float64) []map[string]interface{} {
+	events := []map[string]interface{}{}
+	alivePlayers := getAlivePlayers()
+	if len(alivePlayers) == 0 {
+		return events
+	}
+	player := &players[rand.Intn(len(alivePlayers))]
+	turretData := map[string]interface{}{
+		"match_id":    matchID,
+		"player_name": player.Name,
+		"player_guid": player.GUID,
+		"turret":      "mg42_nest",
+	}
+	events = append(events, makeEvent(EventTurretEnter, *currentTime, turretData))
+	player.OnTurret = true
+	*currentTime += 3.0
+
+	// Fire a bit
+	fireData := map[string]interface{}{
+		"match_id":    matchID,
+		"player_name": player.Name,
+		"player_guid": player.GUID,
+		"weapon":      "Turret MG42",
+	}
+	events = append(events, makeEvent(EventWeaponFire, *currentTime, fireData))
+	*currentTime += 0.1
+	events = append(events, makeEvent(EventWeaponFire, *currentTime, fireData))
+	*currentTime += 0.1
+
+	events = append(events, makeEvent(EventTurretExit, *currentTime, turretData))
+	player.OnTurret = false
+	*currentTime += 1.0
+	return events
+}
+
+// Admin/Misc sequence
+func generateMiscSequence(matchID string, currentTime *float64) []map[string]interface{} {
+	events := []map[string]interface{}{}
+	if len(players) == 0 {
+		return events
+	}
+	player := &players[rand.Intn(len(players))]
+
+	r := rand.Float32()
+	if r < 0.3 {
+		// Score change
+		events = append(events, makeEvent(EventScoreChange, *currentTime, map[string]interface{}{
+			"match_id":    matchID,
+			"player_name": player.Name,
+			"player_guid": player.GUID,
+			"score_delta": 10,
+			"reason":      "bonus",
+		}))
+	} else if r < 0.6 {
+		// Userinfo changed
+		events = append(events, makeEvent(EventClientUserinfoChanged, *currentTime, map[string]interface{}{
+			"match_id":    matchID,
+			"client_num":  0, // Simplified
+			"player_name": player.Name,
+			"player_guid": player.GUID,
+			"key":         "rate",
+			"value":       "25000",
+		}))
+	} else {
+		// Spectate toggle
+		events = append(events, makeEvent(EventPlayerSpectate, *currentTime, map[string]interface{}{
+			"match_id":     matchID,
+			"player_name":  player.Name,
+			"player_guid":  player.GUID,
+			"is_spectator": true,
+		}))
+		*currentTime += 2.0
+		events = append(events, makeEvent(EventPlayerSpectate, *currentTime, map[string]interface{}{
+			"match_id":     matchID,
+			"player_name":  player.Name,
+			"player_guid":  player.GUID,
+			"is_spectator": false,
+		}))
+	}
+	*currentTime += 1.0
+	return events
 }

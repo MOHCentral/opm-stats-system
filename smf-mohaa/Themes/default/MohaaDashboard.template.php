@@ -126,7 +126,7 @@ function template_dashboard_my_stats()
                 </div>
             </div>
             <div class="mohaa-view-all">
-                <a href="', $scripturl, '?action=mohaaplayer;guid=', urlencode($my['guid']), '">', $txt['mohaa_view_full_profile'], ' →</a>
+                <a href="', $scripturl, '?action=mohaastats;sa=player;guid=', urlencode($my['guid']), '">', $txt['mohaa_view_full_profile'], ' →</a>
             </div>
         </div>
     </div>';
@@ -272,7 +272,7 @@ function template_dashboard_my_achievements()
     echo '
             </div>
             <div class="mohaa-view-all">
-                <a href="', $scripturl, '?action=mohaaplayer;guid=', urlencode($context['mohaa_my']['guid']), '#achievements">', $txt['mohaa_view_all'], ' →</a>
+                <a href="', $scripturl, '?action=mohaastats;sa=player;guid=', urlencode($context['mohaa_my']['guid']), '#achievements">', $txt['mohaa_view_all'], ' →</a>
             </div>
         </div>
     </div>';
@@ -365,7 +365,7 @@ function template_dashboard_leaderboard()
         echo '
                     <tr>
                         <td class="rank rank-', $rank, '">', $rank, '</td>
-                        <td><a href="', $scripturl, '?action=mohaaplayer;guid=', urlencode($player['guid'] ?? $player['id'] ?? ''), '">', $player['name'], '</a></td>
+                        <td><a href="', $scripturl, '?action=mohaastats;sa=player;guid=', urlencode($player['guid'] ?? $player['id'] ?? ''), '">', $player['name'], '</a></td>
                         <td>', number_format($player['kills'] ?? 0), '</td>
                         <td>', $kd, '</td>
                     </tr>';

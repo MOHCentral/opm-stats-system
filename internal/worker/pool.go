@@ -137,7 +137,7 @@ func (p *Pool) Stop() {
 	p.logger.Info("Worker pool stopped")
 }
 
-// Enqueue adds a job to the queue. Returns false if queue is full (load shedding)
+// Enqueue adds a job to the queue. Blocks if queue is full (no load shedding).
 func (p *Pool) Enqueue(event *models.RawEvent) bool {
 	rawJSON, _ := json.Marshal(event)
 
@@ -147,16 +147,10 @@ func (p *Pool) Enqueue(event *models.RawEvent) bool {
 		Timestamp: time.Now(),
 	}
 
-	select {
-	case p.jobQueue <- job:
-		eventsIngested.Inc()
-		return true
-	default:
-		// Queue is full - load shedding
-		eventsLoadShed.Inc()
-		p.logger.Warn("Queue full, shedding load")
-		return false
-	}
+	// Blocking send - wait for space in queue
+	p.jobQueue <- job
+	eventsIngested.Inc()
+	return true
 }
 
 // QueueDepth returns current queue size
@@ -370,7 +364,7 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		ch.ActorName = sanitizeName(event.PlayerName)
 		ch.ActorSMFID = event.PlayerSMFID
 		ch.ActorTeam = event.PlayerTeam
-		// Store objective string in ActorWeapon or TargetName if needed? 
+		// Store objective string in ActorWeapon or TargetName if needed?
 		// Actually raw_json has it, but lets put it in ActorWeapon for now
 		ch.ActorWeapon = event.Objective
 

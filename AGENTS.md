@@ -150,6 +150,68 @@ end
 
 ---
 
+## 🔐 Player Identity Resolution System
+
+### The Problem
+When Player A (logged in) kills Player B (not logged in), we capture A's SMF ID but not B's.
+Later, when B logs in, how do we link their historical stats?
+
+### The Solution: GUID as Stable Key
+The game GUID is permanent and unique per player. We use it as the linking key.
+
+### Identity Flow
+```
+1. Player types /login <token> in-game
+2. tracker.scr → POST /auth/smf-verify {token, guid, name}
+3. API verifies token, stores GUID → SMF ID in player_guid_registry
+4. Player entity gets: is_authenticated=1, smf_member_id=X
+5. All events now include smf_id for this player
+6. Other players (not logged in) have smf_id=0 but GUID is captured
+7. When they log in later, we can resolve past events via GUID
+```
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `global/tracker_common.scr` | `build_player_payload` sends guid + smf_id |
+| `internal/logic/identity.go` | Go identity resolver with caching |
+| `internal/models/events.go` | RawEvent has PlayerSMFID, AttackerSMFID, VictimSMFID |
+| `smf-mohaa/Sources/MohaaStats/MohaaIdentityResolver.php` | PHP helper for profile links |
+
+### Database Tables
+| Database | Table | Purpose |
+|----------|-------|---------|
+| **Postgres** | `player_guid_registry` | Authoritative GUID → SMF ID (source of truth) |
+| **Postgres** | `player_name_aliases` | All names used by each GUID |
+| **Postgres** | `unverified_players` | GUIDs seen but not yet linked |
+| **ClickHouse** | `raw_events.actor_smf_id` | SMF ID at event time (0 if unknown) |
+| **ClickHouse** | `player_guid_registry` | Fast lookup copy for analytics |
+| **SMF MySQL** | `mohaa_identities` | Forum's view of linked accounts |
+
+### PHP Usage Example
+```php
+require_once($sourcedir . '/MohaaStats/MohaaIdentityResolver.php');
+
+// Resolve multiple GUIDs in one query
+$guids = ['abc123', 'xyz789'];
+$mapping = MohaaIdentityResolver::resolveGuids($guids);
+// Returns: ['abc123' => 42, 'xyz789' => 0]
+
+// Build profile links
+$events = $api->getRecentKills();
+$events = MohaaIdentityResolver::enrichEventsWithProfiles($events);
+// Each event now has actor_link, target_link with HTML
+```
+
+### Morpheus Script Usage
+```morpheus
+// build_player_payload automatically includes smf_id if authenticated
+local.payload = tracker_common.scr::build_player_payload local.player "attacker"
+// Result: &attacker_name=Elgan&attacker_guid=abc123&attacker_smf_id=42&attacker_team=allies
+```
+
+---
+
 ## 🔮 Future Feature Concepts (The "War Room")
 
 ### 1. Team System (Single Allegiance)
@@ -350,3 +412,12 @@ you could modify the avatar to show the rank
 
 Always add player related data to the smf database
 Always automatically run install and migration scripts for me
+
+Weapons (MohaaStats_Weapons, MohaaStats_WeaponDetail)
+Maps (MohaaStats_Maps, MohaaStats_MapDetail, MohaaStats_MapLeaderboard)
+GameTypes (MohaaStats_GameTypes, MohaaStats_GameTypeDetail)
+Players (MohaaStats_Player)
+Servers (MohaaStats_ServerDashboard)
+Achievements (MohaaAchievements.php)
+Teams (MohaaTeams.php)
+Tournaments (MohaaTournaments.php)

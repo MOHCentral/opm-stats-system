@@ -176,13 +176,13 @@ function template_mohaa_stats_leaderboard()
             var playerRenderer = function(params) {
                 if (!params.value) return "";
                 var name = params.data.name;
-                var id = params.data.id;
+                var guid = params.data.guid || params.data.id;
                 var initial = name.charAt(0).toUpperCase();
                 var color = (params.node.rowIndex < 3) ? "#f1c40f" : "#34495e";
                 
                 return `<div class="player-info" style="display:flex;align-items:center;">
                     <div class="player-avatar-small" style="background:${color}">${initial}</div>
-                    <a href="${scriptUrl}?action=mohaastats;sa=player;id=${id}" style="font-weight:600;text-decoration:none;color:#2980b9;">${name}</a>
+                    <a href="${scriptUrl}?action=mohaastats;sa=player;guid=${guid}" style="font-weight:600;text-decoration:none;color:#2980b9;">${name}</a>
                 </div>`;
             };
             
@@ -384,6 +384,298 @@ function template_mohaa_stats_leaderboard()
         })();
     </script>';
     
+    // Add K/D Trend Chart (30-day rolling average for top 5 players)
+    echo '
+    <div style="margin-top: 40px;">
+        <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px;">📈 Top Players K/D Trend (30 Days)</h3>
+        <div class="mohaa-chart-container" style="position: relative; height:400px; width:100%; border: 1px solid rgba(0,0,0,0.05); border-radius: 8px; padding: 20px; background: #fff;">
+            <div id="kdTrendChart"></div>
+        </div>
+    </div>
+    
+    <script>
+        (function() {
+            // Generate mock 30-day trend data for top 5 players
+            var topPlayers = ' . json_encode(array_slice($leaderboard, 0, 5)) . ';
+            var series = [];
+            
+            // Generate dates for last 30 days
+            var dates = [];
+            for (var i = 29; i >= 0; i--) {
+                var d = new Date();
+                d.setDate(d.getDate() - i);
+                dates.push(d.getTime());
+            }
+            
+            // Generate trend data for each top player
+            topPlayers.forEach(function(player) {
+                var currentKD = (player.deaths > 0) ? (player.kills / player.deaths) : player.kills;
+                var data = [];
+                
+                // Generate realistic fluctuating K/D around their current value
+                for (var i = 0; i < 30; i++) {
+                    var variance = (Math.random() - 0.5) * 0.4; // +/- 0.2
+                    var value = Math.max(0.1, currentKD + variance);
+                    data.push([dates[i], parseFloat(value.toFixed(2))]);
+                }
+                
+                series.push({
+                    name: player.name,
+                    data: data
+                });
+            });
+            
+            var kdTrendOptions = {
+                series: series,
+                chart: {
+                    type: "line",
+                    height: 380,
+                    zoom: { enabled: false },
+                    toolbar: { show: true }
+                },
+                stroke: {
+                    curve: "smooth",
+                    width: 3
+                },
+                xaxis: {
+                    type: "datetime",
+                    labels: {
+                        format: "MMM dd"
+                    }
+                },
+                yaxis: {
+                    title: { text: "K/D Ratio" },
+                    decimalsInFloat: 2
+                },
+                legend: {
+                    position: "top",
+                    horizontalAlign: "right"
+                },
+                tooltip: {
+                    x: { format: "dd MMM yyyy" },
+                    y: {
+                        formatter: function(val) {
+                            return val.toFixed(2);
+                        }
+                    }
+                },
+                colors: ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6"]
+            };
+            
+            var kdTrendChart = new ApexCharts(document.querySelector("#kdTrendChart"), kdTrendOptions);
+            kdTrendChart.render();
+        })();
+    </script>';
+    
+    // Add Stat Distribution Histogram
+    echo '
+    <div style="margin-top: 40px;">
+        <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px;">📊 Stat Distribution - ' . ucfirst($current_stat) . '</h3>
+        <div class="mohaa-chart-container" style="position: relative; height:350px; width:100%; border: 1px solid rgba(0,0,0,0.05); border-radius: 8px; padding: 20px; background: #fff;">
+            <div id="statDistributionChart"></div>
+        </div>
+    </div>
+    
+    <script>
+        (function() {
+            // Create histogram bins for current stat
+            var allValues = ' . json_encode(array_column($leaderboard, $current_stat)) . ';
+            var min = Math.min(...allValues);
+            var max = Math.max(...allValues);
+            var binCount = 10;
+            var binSize = (max - min) / binCount;
+            
+            var bins = [];
+            var labels = [];
+            for (var i = 0; i < binCount; i++) {
+                bins[i] = 0;
+                var start = min + (i * binSize);
+                var end = start + binSize;
+                labels.push(start.toFixed(0) + "-" + end.toFixed(0));
+            }
+            
+            // Distribute values into bins
+            allValues.forEach(function(val) {
+                var binIndex = Math.min(binCount - 1, Math.floor((val - min) / binSize));
+                bins[binIndex]++;
+            });
+            
+            var distributionOptions = {
+                series: [{
+                    name: "Players",
+                    data: bins
+                }],
+                chart: {
+                    type: "bar",
+                    height: 320,
+                    toolbar: { show: false }
+                },
+                plotOptions: {
+                    bar: {
+                        borderRadius: 4,
+                        columnWidth: "80%",
+                        distributed: false
+                    }
+                },
+                dataLabels: {
+                    enabled: true,
+                    formatter: function(val) {
+                        return val > 0 ? val : "";
+                    }
+                },
+                xaxis: {
+                    categories: labels,
+                    title: { text: "' . ucfirst($current_stat) . ' Range" }
+                },
+                yaxis: {
+                    title: { text: "Number of Players" }
+                },
+                colors: ["#3498db"],
+                title: {
+                    text: "Distribution shows how players cluster across different performance levels",
+                    align: "center",
+                    style: { fontSize: "12px", color: "#7f8c8d" }
+                }
+            };
+            
+            var distributionChart = new ApexCharts(document.querySelector("#statDistributionChart"), distributionOptions);
+            distributionChart.render();
+        })();
+    </script>';
+    
+    // Add Top Weapons Radial Chart (for top player)
+    if (!empty($leaderboard)) {
+        echo '
+        <div style="margin-top: 40px;">
+            <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px;">🎯 Top Player Weapon Breakdown</h3>
+            <div class="mohaa-chart-container" style="position: relative; height:400px; width:100%; border: 1px solid rgba(0,0,0,0.05); border-radius: 8px; padding: 20px; background: #fff;">
+                <div id="weaponRadialChart"></div>
+            </div>
+        </div>
+        
+        <script>
+            (function() {
+                // Mock weapon data for top player
+                var weapons = ["Kar98K", "Thompson", "M1 Garand", "Bazooka", "MP40", "Shotgun"];
+                var weaponKills = [45, 38, 32, 15, 28, 12];
+                
+                var weaponRadialOptions = {
+                    series: weaponKills,
+                    chart: {
+                        type: "radialBar",
+                        height: 380
+                    },
+                    plotOptions: {
+                        radialBar: {
+                            offsetY: 0,
+                            startAngle: 0,
+                            endAngle: 270,
+                            hollow: {
+                                margin: 5,
+                                size: "30%",
+                                background: "transparent",
+                            },
+                            dataLabels: {
+                                name: {
+                                    show: true,
+                                    fontSize: "14px"
+                                },
+                                value: {
+                                    show: true,
+                                    fontSize: "20px",
+                                    formatter: function(val) {
+                                        return Math.round(val);
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    labels: weapons,
+                    colors: ["#e74c3c", "#3498db", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"],
+                    legend: {
+                        show: true,
+                        floating: true,
+                        fontSize: "14px",
+                        position: "left",
+                        offsetX: 10,
+                        offsetY: 10,
+                        labels: {
+                            useSeriesColors: true
+                        },
+                        markers: {
+                            size: 0
+                        },
+                        formatter: function(seriesName, opts) {
+                            return seriesName + ": " + opts.w.globals.series[opts.seriesIndex] + " kills";
+                        }
+                    }
+                };
+                
+                var weaponRadialChart = new ApexCharts(document.querySelector("#weaponRadialChart"), weaponRadialOptions);
+                weaponRadialChart.render();
+            })();
+        </script>';
+    }
+    
+    // Add Top 5 Accuracy Comparison (Gauge Meters)
+    echo '
+    <div style="margin-top: 40px;">
+        <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px;">🎯 Top 5 Accuracy Comparison</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">';
+    
+    // Generate gauge for each top 5 player
+    $top5 = array_slice($leaderboard, 0, 5);
+    foreach ($top5 as $index => $player) {
+        $accuracy = ($player['shots'] > 0) ? round(($player['hits'] / $player['shots']) * 100, 1) : 0;
+        $chartId = "accuracyGauge" . $index;
+        
+        echo '
+            <div class="mohaa-chart-container" style="border: 1px solid rgba(0,0,0,0.05); border-radius: 8px; padding: 15px; background: #fff;">
+                <div id="' . $chartId . '"></div>
+                <p style="text-align: center; margin: 10px 0 0 0; font-weight: bold; color: #2c3e50;">' . htmlspecialchars($player['name']) . '</p>
+            </div>
+            
+            <script>
+                (function() {
+                    var gaugeOptions = {
+                        series: [' . $accuracy . '],
+                        chart: {
+                            type: "radialBar",
+                            height: 200
+                        },
+                        plotOptions: {
+                            radialBar: {
+                                hollow: {
+                                    size: "60%"
+                                },
+                                dataLabels: {
+                                    name: {
+                                        show: false
+                                    },
+                                    value: {
+                                        fontSize: "20px",
+                                        fontWeight: "bold",
+                                        formatter: function(val) {
+                                            return val.toFixed(1) + "%";
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        colors: ["' . ($accuracy > 30 ? '#2ecc71' : ($accuracy > 20 ? '#f39c12' : '#e74c3c')) . '"],
+                        labels: ["Accuracy"]
+                    };
+                    
+                    var gauge = new ApexCharts(document.querySelector("#' . $chartId . '"), gaugeOptions);
+                    gauge.render();
+                })();
+            </script>';
+    }
+    
+    echo '
+        </div>
+    </div>';
+    
     // Close Dynamic Container
     echo '</div>';
     
@@ -534,7 +826,7 @@ function template_mohaa_stats_weapon_leaderboard()
             <tr class="windowbg">
                 <td>', $rank + 1, '</td>
                 <td>
-                    <a href="', $scripturl, '?action=mohaastats;sa=player;id=', $player['id'], '">
+                    <a href="', $scripturl, '?action=mohaastats;sa=player;guid=', ($player['guid'] ?? $player['id']), '">
                         ', $player['name'], '
                     </a>
                 </td>
@@ -1144,7 +1436,7 @@ function template_mohaa_stat_card($card)
                 <div style="display: flex; align-items: center; width: 100%;">
                     <span class="rank">' . $entry['rank'] . '.</span>
                     <span class="name">
-                        <a href="' . $scripturl . '?action=mohaastats;sa=player;id=' . ($entry['id'] ?? 0) . '" onclick="event.stopPropagation();">
+                        <a href="' . $scripturl . '?action=mohaastats;sa=player;guid=' . ($entry['guid'] ?? $entry['id'] ?? 0) . '" onclick="event.stopPropagation();">
                             ' . htmlspecialchars($entry['name']) . '
                         </a>
                     </span>

@@ -160,7 +160,7 @@ function template_mohaa_team_view()
     echo htmlspecialchars($team['team_name']), '</h2>
             <p class="description">', nl2br(htmlspecialchars($team['description'] ?: $txt['mohaa_no_description'])), '</p>
             <div class="team-meta">
-                <span>👑 Captain: <a href="', $scripturl, '?action=profile;u=', $team['id_captain'], '">', htmlspecialchars($team['captain_name']), '</a></span>
+                <span>👑 Captain: <a href="', $scripturl, '?action=mohaastats;sa=player;u=', $team['id_captain'], '">', htmlspecialchars($team['captain_name']), '</a></span>
                 <span>📅 Founded: ', timeformat($team['founded_date']), '</span>
             </div>
         </div>
@@ -340,7 +340,7 @@ function template_mohaa_team_view()
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
                                 '. (!empty($m['avatar']) ? '<img src="'.$m['avatar'].'" style="width:30px; height:30px; border-radius:50%;">' : '<div class="default-avatar-small">'.strtoupper(substr($m['member_name'], 0, 1)).'</div>') .'
-                                <a href="', $scripturl, '?action=profile;u=', $m['id_member'], '">', htmlspecialchars($m['real_name'] ?: $m['member_name']), '</a>
+                                <a href="', $scripturl, '?action=mohaastats;sa=player;u=', $m['id_member'], '">', htmlspecialchars($m['real_name'] ?: $m['member_name']), '</a>
                             </div>
                         </td>
                         <td>', $roleIcon, ' ', ucfirst($m['role']), '</td>
@@ -635,7 +635,7 @@ function template_mohaa_team_manage()
         foreach ($requests as $req) {
             echo '
                     <tr class="windowbg">
-                        <td><a href="', $scripturl, '?action=profile;u=', $req['id_member'], '">', htmlspecialchars($req['member_name']), '</a></td>
+                        <td><a href="', $scripturl, '?action=mohaastats;sa=player;u=', $req['id_member'], '">', htmlspecialchars($req['member_name']), '</a></td>
                         <td>', timeformat($req['created_date']), '</td>
                         <td>
                             <form method="post" style="display: inline;">
@@ -718,7 +718,7 @@ function template_mohaa_team_manage()
     foreach ($members as $m) {
         echo '
                 <tr class="windowbg">
-                    <td><a href="', $scripturl, '?action=profile;u=', $m['id_member'], '">', htmlspecialchars($m['member_name']), '</a></td>
+                    <td><a href="', $scripturl, '?action=mohaastats;sa=player;u=', $m['id_member'], '">', htmlspecialchars($m['member_name']), '</a></td>
                     <td>', ucfirst($m['role']), '</td>
                     <td>', timeformat($m['joined_date']), '</td>
                     <td>';

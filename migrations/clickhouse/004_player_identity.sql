@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS player_sessions (
     authenticated_at DateTime64(3) DEFAULT toDateTime64(0, 3),
     
     -- Session timing
-    connected_at DateTime64(3),             -- When player connected
-    disconnected_at DateTime64(3) DEFAULT toDateTime64(0, 3),
-    last_activity DateTime64(3),            -- Last event timestamp
+    connected_at DateTime,                  -- When player connected
+    disconnected_at DateTime DEFAULT toDateTime(0),
+    last_activity DateTime,                 -- Last event timestamp
     
     -- Session state
     team String DEFAULT '',
@@ -47,11 +47,14 @@ CREATE TABLE IF NOT EXISTS player_sessions (
     -- Metadata
     client_ip String DEFAULT '',            -- Player's IP (for security)
     
+    -- Partition key
+    _partition_date Date DEFAULT toDate(connected_at),
+    
     PRIMARY KEY (server_id, player_guid, connected_at)
 ) ENGINE = ReplacingMergeTree(last_activity)
 ORDER BY (server_id, player_guid, connected_at)
-PARTITION BY toYYYYMM(connected_at)
-TTL connected_at + INTERVAL 1 YEAR;
+PARTITION BY toYYYYMM(_partition_date)
+TTL _partition_date + INTERVAL 1 YEAR;
 
 -- Player GUID registry - CONFIRMED GUID → SMF ID mappings
 -- Only populated when a player successfully authenticates via /login

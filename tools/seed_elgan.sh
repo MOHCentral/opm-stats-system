@@ -33,7 +33,7 @@ generate_event() {
             local weapon=${WEAPONS[$RANDOM % ${#WEAPONS[@]}]}
             local mod=${KILL_MODS[$RANDOM % ${#KILL_MODS[@]}]}
             local hitloc=${HITLOCS[$RANDOM % ${#HITLOCS[@]}]}
-            echo "{\"event_type\":\"kill\",\"timestamp\":\"$ts\",\"server_id\":\"$server\",\"map_name\":\"$map\",\"match_id\":\"$match_id\",\"attacker_guid\":\"$GUID\",\"attacker_name\":\"$NAME\",\"target_id\":\"GUID_${victim}\",\"target_name\":\"$victim\",\"weapon\":\"$weapon\",\"damage\":$((50 + RANDOM % 100)),\"means_of_death\":\"$mod\",\"hit_location\":\"$hitloc\"}"
+            echo "{\"event_type\":\"kill\",\"timestamp\":\"$ts\",\"server_id\":\"$server\",\"map_name\":\"$map\",\"match_id\":\"$match_id\",\"attacker_guid\":\"$GUID\",\"attacker_name\":\"$NAME\",\"attacker_smf_id\":42,\"target_id\":\"GUID_${victim}\",\"target_name\":\"$victim\",\"target_smf_id\":0,\"weapon\":\"$weapon\",\"damage\":$((50 + RANDOM % 100)),\"means_of_death\":\"$mod\",\"hit_location\":\"$hitloc\"}"
             ;;
         death)
             local killer=${OTHER_PLAYERS[$RANDOM % ${#OTHER_PLAYERS[@]}]}

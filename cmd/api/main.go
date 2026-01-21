@@ -168,6 +168,7 @@ func main() {
 			r.Get("/leaderboard/weapon/{weapon}", h.GetWeaponLeaderboard)
 			r.Get("/leaderboard/map/{map}", h.GetMapLeaderboard)
 
+			r.Get("/player/name/{name}", h.GetPlayerStatsByName)
 			r.Get("/player/{guid}", h.GetPlayerStats)
 			r.Get("/player/{guid}/deep", h.GetPlayerDeepStats)
 			r.Get("/player/{guid}/matches", h.GetPlayerMatches)
@@ -232,8 +233,8 @@ func main() {
 		})
 
 		// Achievement endpoints - match/tournament specific
-		r.Get("/achievements/match/{match_id}", h.GetMatchAchievements)
-		r.Get("/achievements/tournament/{tournament_id}", h.GetTournamentAchievements)
+		// r.Get("/achievements/match/{match_id}", h.GetMatchAchievements)
+		// r.Get("/achievements/tournament/{tournament_id}", h.GetTournamentAchievements)
 
 		// Auth endpoints
 		r.Route("/auth", func(r chi.Router) {

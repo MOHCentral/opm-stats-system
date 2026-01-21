@@ -362,7 +362,7 @@ function template_mohaa_servers_live()
             foreach (array_slice($server['players'], 0, 8) as $player) {
                 echo '
                             <tr>
-                                <td><a href="', $scripturl, '?action=mohaaplayer;guid=', urlencode($player['guid'] ?? ''), '">', htmlspecialchars($player['name'] ?? 'Unknown'), '</a></td>
+                                <td><a href="', $scripturl, '?action=mohaastats;sa=player;guid=', urlencode($player['guid'] ?? ''), '">', htmlspecialchars($player['name'] ?? 'Unknown'), '</a></td>
                                 <td>', $player['kills'] ?? 0, '</td>
                                 <td>', $player['deaths'] ?? 0, '</td>
                                 <td>', $player['score'] ?? 0, '</td>
@@ -502,7 +502,7 @@ function template_mohaa_server_detail()
             foreach ($live['players'] as $player) {
                 echo '
                             <tr>
-                                <td><a href="', $scripturl, '?action=mohaaplayer;guid=', urlencode($player['guid'] ?? ''), '">', htmlspecialchars($player['name'] ?? 'Unknown'), '</a></td>
+                                <td><a href="', $scripturl, '?action=mohaastats;sa=player;guid=', urlencode($player['guid'] ?? ''), '">', htmlspecialchars($player['name'] ?? 'Unknown'), '</a></td>
                                 <td>', ucfirst($player['team'] ?? '-'), '</td>
                                 <td>', $player['kills'] ?? 0, '</td>
                                 <td>', $player['deaths'] ?? 0, '</td>
@@ -597,7 +597,7 @@ function template_mohaa_server_detail()
                         <tr>
                             <td class="rank">', $player['rank'] ?? '-', '</td>
                             <td class="country" title="', htmlspecialchars($player['country'] ?? ''), '">', $countryFlag, '</td>
-                            <td class="player"><a href="', $scripturl, '?action=mohaaplayer;guid=', urlencode($player['guid'] ?? ''), '">', htmlspecialchars($player['name'] ?? 'Unknown'), '</a></td>
+                            <td class="player"><a href="', $scripturl, '?action=mohaastats;sa=player;guid=', urlencode($player['guid'] ?? ''), '">', htmlspecialchars($player['name'] ?? 'Unknown'), '</a></td>
                             <td>', number_format($player['kills'] ?? 0), '</td>
                             <td>', number_format($player['kd_ratio'] ?? 0, 2), '</td>
                             <td>', number_format($player['time_played_hours'] ?? 0, 1), 'h</td>

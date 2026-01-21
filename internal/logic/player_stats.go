@@ -385,3 +385,29 @@ func (s *PlayerStatsService) fillStanceStats(ctx context.Context, guid string, o
 
 	return nil
 }
+
+// ResolvePlayerGUID finds the most recent GUID associated with a player name
+func (s *PlayerStatsService) ResolvePlayerGUID(ctx context.Context, name string) (string, error) {
+	var guid string
+	query := `
+		SELECT actor_id 
+		FROM raw_events 
+		WHERE actor_name = ? AND actor_id != ''
+		ORDER BY timestamp DESC 
+		LIMIT 1
+	`
+	if err := s.ch.QueryRow(ctx, query, name).Scan(&guid); err != nil {
+		// Also check target_name in case they were only victims
+		err2 := s.ch.QueryRow(ctx, `
+			SELECT target_id 
+			FROM raw_events 
+			WHERE target_name = ? AND target_id != ''
+			ORDER BY timestamp DESC 
+			LIMIT 1
+		`, name).Scan(&guid)
+		if err2 != nil {
+			return "", fmt.Errorf("player not found by name: %w", err2)
+		}
+	}
+	return guid, nil
+}

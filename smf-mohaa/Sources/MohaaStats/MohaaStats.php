@@ -310,14 +310,33 @@ function MohaaStats_Player(): void
 {
     global $context, $txt, $scripturl;
     
-    $guid = isset($_GET['guid']) ? $_GET['guid'] : '';
+    $guid = $_GET['guid'] ?? $_GET['id'] ?? '';
+    $memberId = (int)($_GET['u'] ?? $_GET['member'] ?? 0);
+    $name = $_GET['name'] ?? '';
+
+    $api = new MohaaStatsAPIClient();
+
+    // If we have a name but no GUID, try to resolve it via API
+    if (empty($guid) && !empty($name)) {
+        $resolved = $api->resolvePlayerByName($name);
+        if (!empty($resolved['guid'])) {
+            $guid = $resolved['guid'];
+        }
+    }
+
+    // If we have a member ID but no GUID, try to find the linked identity
+    if (empty($guid) && !empty($memberId)) {
+        $identities = MohaaStats_GetUserIdentities($memberId);
+        if (!empty($identities)) {
+            $guid = $identities[0]['player_guid'];
+        }
+    }
     
     if (empty($guid)) {
         redirectexit('action=mohaastats;sa=leaderboards');
         return;
     }
     
-    $api = new MohaaStatsAPIClient();
     
     // Parallel Fetching for Speed
     $requests = [
