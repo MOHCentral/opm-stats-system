@@ -3,32 +3,24 @@
 // ============================================================================
 
 on_explosion local.entity local.attacker local.damage:
-    local.payload = "type=explosion"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "explosion"
     local.payload = local.payload + "&damage=" + local.damage
-    
-    // Optional attacker info
     local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_door_open local.door local.activator:
-    local.payload = "type=door_open"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
-    local.payload = local.payload + "&door=" + local.door
-    local.payload = local.payload + tracker_common.scr::build_player_payload local.activator "activator"
+    local.payload = tracker_common.scr::build_base_payload "door_open"
+    local.payload = local.payload + "&entity=" + local.door
+    local.payload = local.payload + tracker_common.scr::build_player_payload local.activator "player"
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_door_close local.door:
-    local.payload = "type=door_close"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
-    local.payload = local.payload + "&door=" + local.door
+    local.payload = tracker_common.scr::build_base_payload "door_close"
+    local.payload = local.payload + "&entity=" + local.door
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end

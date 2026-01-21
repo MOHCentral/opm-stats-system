@@ -3,61 +3,49 @@
 // ============================================================================
 
 on_vehicle_enter local.player local.vehicle:
-    local.payload = "type=vehicle_enter"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "vehicle_enter"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
-    local.payload = local.payload + "&vehicle=" + local.vehicle
+    local.payload = local.payload + "&entity=" + local.vehicle
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_vehicle_exit local.player local.vehicle:
-    local.payload = "type=vehicle_exit"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "vehicle_exit"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
-    local.payload = local.payload + "&vehicle=" + local.vehicle
+    local.payload = local.payload + "&entity=" + local.vehicle
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_vehicle_death local.vehicle local.attacker:
-    local.payload = "type=vehicle_death"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
-    local.payload = local.payload + "&vehicle=" + local.vehicle
+    local.payload = tracker_common.scr::build_base_payload "vehicle_death"
+    local.payload = local.payload + "&entity=" + local.vehicle
     local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_vehicle_collision local.vehicle local.other:
-    local.payload = "type=vehicle_collision"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
-    local.payload = local.payload + "&vehicle=" + local.vehicle
+    local.payload = tracker_common.scr::build_base_payload "vehicle_collision"
+    local.payload = local.payload + "&entity=" + local.vehicle
     local.payload = local.payload + "&other=" + local.other
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_turret_enter local.player local.turret:
-    local.payload = "type=turret_enter"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "turret_enter"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
-    local.payload = local.payload + "&turret=" + local.turret
+    local.payload = local.payload + "&entity=" + local.turret
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_turret_exit local.player local.turret:
-    local.payload = "type=turret_exit"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "turret_exit"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
-    local.payload = local.payload + "&turret=" + local.turret
+    local.payload = local.payload + "&entity=" + local.turret
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end

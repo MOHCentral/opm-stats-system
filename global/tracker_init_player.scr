@@ -12,7 +12,7 @@ init:
     event_subscribe "player_kill" "tracker.scr::on_player_kill"
     event_subscribe "player_death" "tracker.scr::on_player_death"
     event_subscribe "player_damage" "tracker.scr::on_player_damage"
-    event_subscribe "player_pain" "tracker_combat_ext.scr::on_player_pain"
+    event_subscribe "player_pain" "tracker.scr::on_player_pain"
     event_subscribe "player_headshot" "tracker.scr::on_player_headshot"
     event_subscribe "player_suicide" "tracker_combat_ext.scr::on_player_suicide"
     event_subscribe "player_crushed" "tracker_combat_ext.scr::on_player_crushed"

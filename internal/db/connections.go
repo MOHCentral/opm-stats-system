@@ -44,9 +44,11 @@ func NewClickHouseConn(ctx context.Context, connString string) (driver.Conn, err
 		return nil, err
 	}
 
-	opts.MaxOpenConns = 10
-	opts.MaxIdleConns = 5
+	// Increased pool size: 8 workers + multiple query handlers
+	opts.MaxOpenConns = 50
+	opts.MaxIdleConns = 20
 	opts.ConnMaxLifetime = time.Hour
+	opts.DialTimeout = 10 * time.Second // Increased from default 1s
 	opts.Compression = &clickhouse.Compression{
 		Method: clickhouse.CompressionLZ4,
 	}

@@ -3,16 +3,6 @@
 // Additional ScriptDelegate combat events
 // ============================================================================
 
-on_player_pain local.player local.attacker local.damage local.mod local.location:
-    local.payload = tracker_common.scr::build_base_payload "player_pain"
-    local.payload = local.payload + tracker_common.scr::build_player_payload local.player "victim"
-    local.payload = local.payload + tracker_common.scr::build_player_payload local.attacker "attacker"
-    local.payload = local.payload + "&damage=" + local.damage
-    local.payload = local.payload + "&meansofdeath=" + local.mod
-    local.payload = local.payload + "&hit_location=" + local.location
-
-    thread tracker_common.scr::queue_event local.payload
-end
 
 on_player_suicide local.player:
     local.payload = tracker_common.scr::build_base_payload "player_suicide"

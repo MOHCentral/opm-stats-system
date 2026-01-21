@@ -344,6 +344,17 @@ function MohaaPlayers_Dashboard(): void
         
         // Build the War Room dashboard format
         $playerStats = $playerResults['player'] ?? [];
+        
+        // Map API response keys to template-expected keys
+        if (!empty($playerStats)) {
+            // Transform total_* keys to match template expectations
+            $playerStats['kills'] = $playerStats['total_kills'] ?? 0;
+            $playerStats['deaths'] = $playerStats['total_deaths'] ?? 0;
+            $playerStats['damage'] = $playerStats['total_damage'] ?? 0;
+            $playerStats['headshots'] = $playerStats['total_headshots'] ?? 0;
+            // matches_played and matches_won already match
+        }
+        
         $playerStats['weapons'] = $playerResults['weapons'] ?? [];
         $playerStats['maps'] = $playerResults['maps'] ?? [];
         $playerStats['recent_matches'] = $playerResults['matches'] ?? [];
