@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+# OPM CLI Helper
+# Automatically builds and runs the Unified CLI
+
+# Build if needed
+if [ ! -f "bin/opm" ] || [ "cmd/opm/main.go" -nt "bin/opm" ]; then
+    echo "🔨 Building OPM CLI..."
+    mkdir -p bin
+    go build -o bin/opm ./cmd/opm
+fi
+
+# Run
+./bin/opm "$@"

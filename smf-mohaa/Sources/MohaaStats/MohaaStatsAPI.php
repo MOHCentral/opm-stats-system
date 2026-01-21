@@ -486,6 +486,13 @@ class MohaaStatsAPIClient
     public function getHeadToHead(string $guid1, string $guid2): ?array { return []; }
     public function getLeaderboardCards(): ?array { return $this->get('/stats/leaderboard/cards'); }
 
+    // Achievement methods
+    public function getPlayerAchievementProgress(int $memberId): ?array { return $this->get('/api/v1/achievements/player/' . $memberId . '/progress'); }
+    public function getPlayerAchievementStats(int $memberId): ?array { return $this->get('/api/v1/achievements/player/' . $memberId . '/stats'); }
+    public function getRecentAchievementUnlocks(int $limit = 20): ?array { return $this->get('/api/v1/achievements/recent', ['limit' => $limit]); }
+    public function getAchievementLeaderboard(string $sortBy = 'points', int $limit = 100): ?array { return $this->get('/api/v1/achievements/leaderboard', ['sort' => $sortBy, 'limit' => $limit]); }
+    public function getRarestAchievements(int $limit = 10): ?array { return $this->get('/api/v1/achievements/rarest', ['limit' => $limit]); }
+
     // Auth/Identity methods
     public function getLoginHistory(int $memberId): ?array { return $this->get('/auth/login-history/' . $memberId); }
     public function getTrustedIPs(int $memberId): ?array { return $this->get('/auth/trusted-ips/' . $memberId); }

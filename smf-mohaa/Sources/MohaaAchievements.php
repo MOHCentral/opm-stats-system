@@ -97,8 +97,39 @@ function MohaaAchievements_List(): void
     $context['achievements_page'] = $page;
     $context['achievements_per_page'] = $perPage;
     
-    // Build WHERE clause for filtering
-    $whereClause = 'is_hidden = 0';
+    // Fetch from database instead of static definitions
+    require_once(dirname(__FILE__) . '/MohaaStats/MohaaStatsAPI.php');
+    $apiClient = new MohaaStatsAPI();
+    
+    // Get achievements from Postgres
+    $dbResult = $apiClient->query('SELECT achievement_id, achievement_code, achievement_name, description, category, tier, points, icon_url FROM mohaa_achievements ORDER BY category, tier, achievement_name');
+    
+    $allAchievements = [];
+    if ($dbResult && $dbResult['success']) {
+        $allAchievements = $dbResult['data'] ?? [];
+    }
+    
+    // Get player progress if logged in
+    $playerProgress = [];
+    if (!empty($user_info['id'])) {
+        $progressResult = $apiClient->getPlayerAchievementProgress($user_info['id']);
+        if ($progressResult && isset($progressResult['achievements'])) {
+            foreach ($progressResult['achievements'] as $ach) {
+                $playerProgress[$ach['achievement_code']] = $ach;
+            }
+        }
+    }
+    
+    // Apply filters
+    $filteredAchievements = $allAchievements;
+    if (!empty($categoryFilter)) {
+        $filteredAchievements = array_filter($filteredAchievements, function($ach) use ($categoryFilter) {
+            return strcasecmp($ach['category'], $categoryFilter) === 0;
+        });
+    }
+    
+    // Build WHERE clause for compatibility (legacy)
+    $whereClause = '1=1';
     $params = [];
     
     if (!empty($search)) {

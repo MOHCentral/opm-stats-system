@@ -507,7 +507,7 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Simplified leaderboard query that matches actual event types in raw_events
-	// Event types used by statscli: kill, death, headshot, weapon_fire, weapon_hit, damage, jump, distance, etc.
+	// Event types used by opm/seeder: kill, death, headshot, weapon_fire, weapon_hit, damage, jump, distance, etc.
 	query := fmt.Sprintf(`
 		SELECT 
 			player_id,
