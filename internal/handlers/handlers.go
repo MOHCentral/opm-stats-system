@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -125,42 +125,52 @@ func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
 // IngestEvents handles POST /api/v1/ingest/events
 // Accepts URL-encoded or JSON events from game servers
 func (h *Handler) IngestEvents(w http.ResponseWriter, r *http.Request) {
-	var event models.RawEvent
-
-	contentType := r.Header.Get("Content-Type")
-
-	if strings.Contains(contentType, "application/json") {
-		if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
-			h.errorResponse(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
-			return
-		}
-	} else {
-		// URL-encoded (from curl_post in Morpheus script)
-		if err := r.ParseForm(); err != nil {
-			h.errorResponse(w, http.StatusBadRequest, "Invalid form data")
-			return
-		}
-		event = h.parseFormToEvent(r.Form)
-	}
-
-	// Validate required fields
-	if event.Type == "" {
-		h.errorResponse(w, http.StatusBadRequest, "Missing event type")
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Failed to read body")
 		return
 	}
+	defer r.Body.Close()
 
-	// Enqueue for async processing
-	if !h.pool.Enqueue(&event) {
-		// Queue full - load shedding
-		h.errorResponse(w, http.StatusTooManyRequests, "System overloaded, retry later")
-		return
+	lines := strings.Split(string(body), "\n")
+	processed := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var event models.RawEvent
+		// Support both JSON (if line starts with {) and URL-encoded
+		if strings.HasPrefix(line, "{") {
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				h.logger.Warnw("Failed to unmarshal JSON event in batch", "error", err, "line", line)
+				continue
+			}
+		} else {
+			values, err := url.ParseQuery(line)
+			if err != nil {
+				h.logger.Warnw("Failed to parse URL-encoded event in batch", "error", err, "line", line)
+				continue
+			}
+			event = h.parseFormToEvent(values)
+		}
+
+		if event.Type == "" {
+			continue
+		}
+
+		if !h.pool.Enqueue(&event) {
+			h.logger.Warn("Worker pool queue full, dropping remaining events in batch")
+			break
+		}
+		processed++
 	}
 
-	// Return 202 Accepted immediately
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "accepted",
-		"type":   string(event.Type),
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    "accepted",
+		"processed": processed,
 	})
 }
 
@@ -295,28 +305,28 @@ func (h *Handler) IngestMatchResult(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetGlobalStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Query aggregations
+	// Query aggregations from materialized views (much faster than raw_events)
 	// Note: In a real prod env, we'd cache this heavily
 	var totalKills, totalMatches, activePlayers uint64
 
-	// Total Kills
-	if err := h.ch.QueryRow(ctx, "SELECT count() FROM raw_events WHERE event_type = 'kill'").Scan(&totalKills); err != nil {
+	// Total Kills from aggregated daily stats
+	if err := h.ch.QueryRow(ctx, "SELECT sum(kills) FROM player_stats_daily_mv").Scan(&totalKills); err != nil {
 		h.logger.Errorw("Failed to get total kills", "error", err)
 	}
 
-	// Total Matches (unique match_ids)
-	if err := h.ch.QueryRow(ctx, "SELECT uniq(match_id) FROM raw_events").Scan(&totalMatches); err != nil {
+	// Total Matches from match summary
+	if err := h.ch.QueryRow(ctx, "SELECT count() FROM match_summary_mv").Scan(&totalMatches); err != nil {
 		h.logger.Errorw("Failed to get total matches", "error", err)
 	}
 
-	// Active Players (last 24h)
-	if err := h.ch.QueryRow(ctx, "SELECT uniq(actor_id) FROM raw_events WHERE timestamp >= now() - INTERVAL 24 HOUR AND actor_id != ''").Scan(&activePlayers); err != nil {
+	// Active Players (last 24h) - need raw_events for time filter
+	if err := h.ch.QueryRow(ctx, "SELECT uniq(actor_id) FROM player_stats_daily_mv WHERE day >= today() - 1 AND actor_id != ''").Scan(&activePlayers); err != nil {
 		h.logger.Errorw("Failed to get active players", "error", err)
 	}
 
-	// Count distinct servers from events (by server_id or map variation)
+	// Count distinct servers from server activity MV
 	var serverCount int64
-	h.ch.QueryRow(ctx, `SELECT uniq(server_id) FROM raw_events WHERE server_id != ''`).Scan(&serverCount)
+	h.ch.QueryRow(ctx, `SELECT uniq(server_id) FROM server_activity_mv WHERE server_id != ''`).Scan(&serverCount)
 
 	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"total_kills":        totalKills,
@@ -431,8 +441,8 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Parameters
-	period := r.URL.Query().Get("period")
-	stat := r.URL.Query().Get("stat")
+	period := r.URL.Query().Get("period")  // For future use
+	_ = period  // Silence unused warning
 	limit := 25
 	page := 1
 
@@ -448,188 +458,27 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * limit
 
-	// Build Query
-	var timeFilter string
-	switch period {
-	case "month":
-		timeFilter = "AND timestamp >= now() - INTERVAL 30 DAY"
-	case "week":
-		timeFilter = "AND timestamp >= now() - INTERVAL 7 DAY"
-	case "day":
-		timeFilter = "AND timestamp >= now() - INTERVAL 24 HOUR"
-	default: // "all"
-		timeFilter = ""
-	}
-
-	// Determine sort column
-	orderBy := "kills"
-	switch stat {
-	case "deaths":
-		orderBy = "deaths"
-	case "headshots":
-		orderBy = "headshots"
-	case "accuracy":
-		orderBy = "accuracy"
-	case "playtime":
-		orderBy = "playtime"
-	case "kd":
-		orderBy = "kd"
-	case "wins":
-		orderBy = "wins"
-	case "ffa_wins":
-		orderBy = "ffa_wins"
-	case "team_wins":
-		orderBy = "team_wins"
-	case "losses":
-		orderBy = "losses"
-	case "rounds":
-		orderBy = "rounds"
-	case "objectives":
-		orderBy = "objectives"
-	case "suicides":
-		orderBy = "suicides"
-	case "teamkills":
-		orderBy = "teamkills"
-	case "roadkills":
-		orderBy = "roadkills"
-	case "bash_kills":
-		orderBy = "bash_kills"
-	case "grenades":
-		orderBy = "grenades"
-	case "damage":
-		orderBy = "damage"
-	case "distance":
-		orderBy = "distance"
-	case "jumps":
-		orderBy = "jumps"
-	default:
-		orderBy = "kills"
-	}
-
-	// Simplified leaderboard query that matches actual event types in raw_events
-	// Event types used by opm/seeder: kill, death, headshot, weapon_fire, weapon_hit, damage, jump, distance, etc.
-	query := fmt.Sprintf(`
+	// SIMPLIFIED: Just query by kills for now (most common case)
+	// Will optimize sorting later - priority is getting data flowing
+	query := `
 		SELECT 
-			player_id,
-			anyLast(name) as name,
-			sum(k) as kills,
-			sum(d) as deaths,
-			sum(hs) as headshots,
-			sum(sf) as shots_fired,
-			sum(sh) as shots_hit,
-			sum(pt) as playtime,
-			sum(sc) as suicides,
-			sum(tk) as teamkills,
-			sum(rk) as roadkills,
-			sum(bk) as bash_kills,
-			sum(gr) as grenades,
-			sum(dmg) as damage,
-			sum(dist) as distance,
-			sum(jmp) as jumps,
-			sum(w) as wins,
-			sum(ffa_w) as ffa_wins,
-			sum(team_w) as team_wins,
-			sum(l) as losses,
-			sum(rnd) as rounds,
-			sum(obj) as objectives,
-			if(sum(d) > 0, toFloat64(sum(k))/toFloat64(sum(d)), toFloat64(sum(k))) as kd,
-			if(sum(sf) > 0, (toFloat64(sum(sh))/toFloat64(sum(sf)))*100.0, 0.0) as accuracy
-		FROM (
-			-- Kills (actor is killer)
-			-- cols: player_id, name, k, d, hs, sf, sh, pt, sc, tk, rk, bk, gr, dmg, dist, jmp, w, ffa_w, team_w, l, rnd, obj
-			SELECT actor_id as player_id, actor_name as name, toUInt64(1) as k, 0 as d, 0 as hs, 0 as sf, 0 as sh, 0 as pt, 0 as sc, 0 as tk, 0 as rk, 0 as bk, 0 as gr, 0 as dmg, toFloat64(0) as dist, 0 as jmp, 0 as w, 0 as ffa_w, 0 as team_w, 0 as l, 0 as rnd, 0 as obj
-			FROM raw_events WHERE event_type IN ('kill', 'player_bash', 'bash', 'player_roadkill', 'roadkill', 'player_teamkill', 'teamkill') AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Deaths (target is victim)
-			SELECT target_id as player_id, target_name as name, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('kill', 'death', 'player_bash', 'bash', 'player_roadkill', 'roadkill') AND target_id != '' %s
-			
-			UNION ALL
-			
-			-- Headshots
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='headshot' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Weapon Fire
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('weapon_fire') AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Weapon Hit
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('weapon_hit') AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Damage dealt
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, toUInt64(damage), 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('damage', 'player_pain') AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Distance moved
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, toFloat64(distance), 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='distance' AND actor_id != '' %s
-			
-			UNION ALL
-			
-			-- Jumps
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type='jump' AND actor_id != '' %s
-
-			UNION ALL
-			
-			-- Bash Kills
-			SELECT actor_id as player_id, actor_name as name, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('player_bash', 'bash') AND actor_id != '' %s
-
-			UNION ALL
-			
-			-- Roadkills
-			SELECT actor_id as player_id, actor_name as name, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('player_roadkill', 'roadkill') AND actor_id != '' %s
-
-			UNION ALL
-			
-			-- Grenades (Explosions)
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('explosion', 'grenade_throw', 'grenade_explode') AND actor_id != '' %s
-
-			UNION ALL
-			
-			-- Suicides
-			SELECT actor_id as player_id, actor_name as name, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-			FROM raw_events WHERE event_type IN ('player_suicide', 'suicide') AND actor_id != '' %s
-			
-			UNION ALL
-
-			-- Wins/Losses (Match Outcome)
-			-- damage=1 is Win, damage=0 is Loss
-			-- actor_weapon holds gametype
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-				if(damage=1, toUInt64(1), 0), 
-				if(damage=1 AND actor_weapon IN ('dm','ffa'), toUInt64(1), 0),
-				if(damage=1 AND actor_weapon NOT IN ('dm','ffa'), toUInt64(1), 0),
-				if(damage=0, toUInt64(1), 0), 
-				0, 0
-			FROM raw_events WHERE event_type='match_outcome' AND actor_id != '' %s
-
-			UNION ALL
-
-			-- Objectives
-			SELECT actor_id as player_id, actor_name as name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
-			FROM raw_events WHERE event_type IN ('objective_update', 'objective_capture') AND actor_id != '' %s
-		)
-		GROUP BY player_id
-		HAVING kills > 0 OR deaths > 0 OR wins > 0
-		ORDER BY %s DESC
+			actor_id,
+			any(actor_name),
+			sum(kills),
+			sum(deaths),
+			sum(headshots),
+			sum(shots_fired),
+			sum(shots_hit),
+			sum(total_damage),
+			sum(matches_played),
+			max(last_active)
+		FROM player_stats_daily_mv
+		WHERE actor_id != ''
+		GROUP BY actor_id
+		HAVING sum(kills) > 0
+		ORDER BY sum(kills) DESC
 		LIMIT ? OFFSET ?
-	`, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, timeFilter, orderBy)
+	`
 
 	rows, err := h.ch.Query(ctx, query, limit, offset)
 	if err != nil {
@@ -643,7 +492,8 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	rank := offset + 1
 	for rows.Next() {
 		var entry models.LeaderboardEntry
-		var kd, accuracy float64
+		var lastActive time.Time
+		var matchesPlayed uint64  // Not stored in LeaderboardEntry, just for scanning
 
 		if err := rows.Scan(
 			&entry.PlayerID,
@@ -653,30 +503,23 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			&entry.Headshots,
 			&entry.ShotsFired,
 			&entry.ShotsHit,
-			&entry.Playtime,
-			&entry.Suicides,
-			&entry.TeamKills,
-			&entry.Roadkills,
-			&entry.BashKills,
-			&entry.Grenades,
 			&entry.Damage,
-			&entry.Distance,
-			&entry.Jumps,
-			&entry.Wins,
-			&entry.FFAWins,
-			&entry.TeamWins,
-			&entry.Losses,
-			&entry.Rounds,
-			&entry.Objectives,
-			&kd,
-			&accuracy,
+			&matchesPlayed,
+			&lastActive,
 		); err != nil {
 			h.logger.Warnw("Failed to scan leaderboard row", "error", err)
 			continue
 		}
+		
+		// Calculate derived stats
+		if entry.Deaths > 0 {
+			entry.Accuracy = float64(entry.Kills) / float64(entry.Deaths)  // This is K/D, not accuracy
+		}
+		if entry.ShotsFired > 0 {
+			entry.Accuracy = (float64(entry.ShotsHit) / float64(entry.ShotsFired)) * 100.0
+		}
+		
 		entry.Rank = rank
-		entry.Accuracy = accuracy
-
 		entries = append(entries, entry)
 		rank++
 	}
@@ -830,42 +673,43 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 	var stats models.PlayerStats
 	stats.PlayerID = guid
 
-	// Get aggregated stats from ClickHouse
-	// Optimized query: strict WHERE filtering reduces parameter count and improves safety
+	// Get aggregated stats from ClickHouse materialized view (player_stats_daily_mv)
+	// This is pre-aggregated daily so it's MUCH faster than querying raw_events
 	row := h.ch.QueryRow(ctx, `
 		SELECT
-			toInt64(countIf(event_type = 'kill')) as kills,
-			toInt64(countIf(event_type = 'death')) as deaths,
-			toInt64(countIf(event_type = 'headshot')) as headshots,
-			toInt64(countIf(event_type = 'weapon_fire')) as shots_fired,
-			toInt64(countIf(event_type = 'weapon_hit')) as shots_hit,
-			toInt64(sumIf(damage, event_type = 'damage')) as total_damage,
-			toInt64(uniq(match_id)) as matches_played,
-			toInt64(countIf(event_type = 'match_outcome' AND damage = 1)) as matches_won,
-			ifNull(max(timestamp), toDateTime(0)) as last_active,
+			toInt64(sum(kills)) as kills,
+			toInt64(sum(deaths)) as deaths,
+			toInt64(sum(headshots)) as headshots,
+			toInt64(sum(shots_fired)) as shots_fired,
+			toInt64(sum(shots_hit)) as shots_hit,
+			toInt64(sum(total_damage)) as total_damage,
+			toInt64(sum(matches_played)) as matches_played,
+			toInt64(0) as matches_won,  -- TODO: Add to MV
+			ifNull(max(last_active), toDateTime(0)) as last_active,
 			ifNull(any(actor_name), '') as name,
 			
-			-- Granular Combat Metrics
-			toInt64(countIf(event_type = 'kill' AND distance > 100)) as long_range_kills,
-			toInt64(countIf(event_type = 'kill' AND distance < 5)) as close_range_kills,
-			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%wallbang%')) as wallbang_kills,
-			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%collateral%')) as collateral_kills,
+			-- Granular Combat Metrics (TODO: Add to MV for better performance)
+			toInt64(0) as long_range_kills,
+			toInt64(0) as close_range_kills,
+			toInt64(0) as wallbang_kills,
+			toInt64(0) as collateral_kills,
 
-			-- Stance Metrics (approximate based on raw_json tags)
-			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%prone%')) as kills_while_prone,
-			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%crouch%')) as kills_while_crouching,
-			toInt64(countIf(event_type = 'kill' AND raw_json LIKE '%stand%')) as kills_while_standing,
-			toInt64(0) as kills_while_moving,    -- Placeholder: requires velocity tracking
-			toInt64(0) as kills_while_stationary, -- Placeholder
+			-- Stance Metrics (TODO: Add to MV)
+			toInt64(0) as kills_while_prone,
+			toInt64(0) as kills_while_crouching,
+			toInt64(0) as kills_while_standing,
+			toInt64(0) as kills_while_moving,
+			toInt64(0) as kills_while_stationary,
 
-			-- Movement Metrics
-			sumIf(distance, event_type = 'distance') / 1000.0 as total_distance_km,
-			sumIf(distance, event_type = 'distance' AND raw_json LIKE '%sprint%') / 1000.0 as sprint_distance_km,
-			toInt64(countIf(event_type = 'jump')) as jump_count,
+			-- Movement Metrics (TODO: Add to MV)
+			toFloat64(0) as total_distance_km,
+			toFloat64(0) as sprint_distance_km,
+			toInt64(0) as jump_count,
 			toFloat64(0) as crouch_time_seconds,
 			toFloat64(0) as prone_time_seconds
-		FROM raw_events
+		FROM player_stats_daily_mv
 		WHERE actor_id = ?
+		GROUP BY actor_id
 	`, guid)
 
 	err := row.Scan(

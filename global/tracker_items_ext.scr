@@ -3,41 +3,34 @@
 // ============================================================================
 
 on_health_pickup local.player local.amount:
-    local.payload = "type=health_pickup"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "health_pickup"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
-    local.payload = local.payload + "&amount=" + local.amount
+    local.payload = local.payload + "&count=" + local.amount
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_ammo_pickup local.player local.item_name local.amount:
-    local.payload = "type=ammo_pickup"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "ammo_pickup"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
-    local.payload = local.payload + "&item_name=" + local.item_name
-    local.payload = local.payload + "&amount=" + local.amount
+    local.payload = local.payload + "&item=" + local.item_name
+    local.payload = local.payload + "&count=" + local.amount
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_armor_pickup local.player local.amount:
-    local.payload = "type=armor_pickup"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "armor_pickup"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
-    local.payload = local.payload + "&amount=" + local.amount
+    local.payload = local.payload + "&count=" + local.amount
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
-on_item_respawn local.entity local.item_name:
-    local.payload = "type=item_respawn"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
-    local.payload = local.payload + "&entity=" + local.entity
-    local.payload = local.payload + "&item_name=" + local.item_name
 
-    thread tracker_common.scr::send_to_api local.payload
+on_item_respawn local.entity local.item_name:
+    local.payload = tracker_common.scr::build_base_payload "item_respawn"
+    local.payload = local.payload + "&entity=" + local.entity
+    local.payload = local.payload + "&item=" + local.item_name
+
+    thread tracker_common.scr::queue_event local.payload
 end

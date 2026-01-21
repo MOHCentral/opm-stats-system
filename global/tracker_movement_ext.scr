@@ -4,33 +4,22 @@
 // ============================================================================
 
 on_player_respawn local.player:
-    local.payload = "type=player_respawn"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "player_respawn"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_player_stand local.dummy:
-    local.payload = "type=player_stand"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "player_stand"
     local.payload = local.payload + tracker_common.scr::build_player_payload self "player"
 
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end
 
 on_player_spawn local.player:
-    local.payload = "type=player_spawn"
-    local.payload = local.payload + "&match_id=" + level.match_id
-    local.payload = local.payload + "&timestamp=" + level.time
+    local.payload = tracker_common.scr::build_base_payload "player_spawn"
     local.payload = local.payload + tracker_common.scr::build_player_payload local.player "player"
 
-    local.pos = local.player.origin
-    local.payload = local.payload + "&pos_x=" + local.pos[0]
-    local.payload = local.payload + "&pos_y=" + local.pos[1]
-    local.payload = local.payload + "&pos_z=" + local.pos[2]
-
-    thread tracker_common.scr::send_to_api local.payload
+    thread tracker_common.scr::queue_event local.payload
 end

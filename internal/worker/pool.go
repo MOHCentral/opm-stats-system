@@ -147,10 +147,22 @@ func (p *Pool) Enqueue(event *models.RawEvent) bool {
 		Timestamp: time.Now(),
 	}
 
-	// Blocking send - wait for space in queue
-	p.jobQueue <- job
-	eventsIngested.Inc()
-	return true
+	// Protect against sending on closed channel
+	defer func() {
+		if r := recover(); r != nil {
+			p.logger.Warnw("Failed to enqueue event (pool stopped)", "error", r)
+		}
+	}()
+
+	select {
+	case p.jobQueue <- job:
+		eventsIngested.Inc()
+		return true
+	case <-p.ctx.Done():
+		p.logger.Warn("Worker pool context canceled, dropping event")
+		eventsLoadShed.Inc()
+		return false
+	}
 }
 
 // QueueDepth returns current queue size
@@ -171,6 +183,8 @@ func (p *Pool) worker(id int) {
 			return
 		}
 
+		p.logger.Infow("Flushing batch", "worker", id, "batchSize", len(batch))
+
 		start := time.Now()
 		if err := p.processBatch(batch); err != nil {
 			p.logger.Errorw("Batch processing failed",
@@ -180,6 +194,7 @@ func (p *Pool) worker(id int) {
 			)
 			eventsFailed.Add(float64(len(batch)))
 		} else {
+			p.logger.Infow("Batch processed successfully", "worker", id, "batchSize", len(batch), "duration", time.Since(start))
 			eventsProcessed.Add(float64(len(batch)))
 		}
 		batchInsertDuration.Observe(time.Since(start).Seconds())
@@ -223,11 +238,11 @@ func (p *Pool) processBatch(batch []Job) error {
 	chBatch, err := p.config.ClickHouse.PrepareBatch(ctx, `
 		INSERT INTO raw_events (
 			timestamp, match_id, server_id, map_name, event_type,
-			actor_id, actor_name, actor_team, actor_smf_id, actor_weapon,
+			actor_id, actor_name, actor_team, actor_weapon,
 			actor_pos_x, actor_pos_y, actor_pos_z, actor_pitch, actor_yaw,
-			target_id, target_name, target_team, target_smf_id,
+			target_id, target_name, target_team,
 			target_pos_x, target_pos_y, target_pos_z,
-			damage, hitloc, distance, raw_json
+			damage, hitloc, distance, raw_json, actor_smf_id, target_smf_id
 		)
 	`)
 	if err != nil {
@@ -249,7 +264,6 @@ func (p *Pool) processBatch(batch []Job) error {
 			chEvent.ActorID,
 			chEvent.ActorName,
 			chEvent.ActorTeam,
-			chEvent.ActorSMFID,
 			chEvent.ActorWeapon,
 			chEvent.ActorPosX,
 			chEvent.ActorPosY,
@@ -259,7 +273,6 @@ func (p *Pool) processBatch(batch []Job) error {
 			chEvent.TargetID,
 			chEvent.TargetName,
 			chEvent.TargetTeam,
-			chEvent.TargetSMFID,
 			chEvent.TargetPosX,
 			chEvent.TargetPosY,
 			chEvent.TargetPosZ,
@@ -267,9 +280,11 @@ func (p *Pool) processBatch(batch []Job) error {
 			chEvent.Hitloc,
 			chEvent.Distance,
 			chEvent.RawJSON,
+			chEvent.ActorSMFID,
+			chEvent.TargetSMFID,
 		)
 		if err != nil {
-			p.logger.Warnw("Failed to append event to batch", "error", err)
+			p.logger.Warnw("Failed to append event to batch", "error", err, "event_type", event.Type)
 			continue
 		}
 
@@ -277,7 +292,11 @@ func (p *Pool) processBatch(batch []Job) error {
 		go p.processEventSideEffects(ctx, event)
 	}
 
-	return chBatch.Send()
+	err = chBatch.Send()
+	if err != nil {
+		p.logger.Errorw("Failed to send batch to ClickHouse", "error", err, "batchSize", len(batch))
+	}
+	return err
 }
 
 // convertToClickHouseEvent normalizes a raw event for ClickHouse

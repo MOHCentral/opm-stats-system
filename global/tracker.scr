@@ -76,6 +76,9 @@ main:
     
         // Start heartbeat loop (every 30 seconds)
         thread heartbeat_loop
+        
+        // Start API flush loop (every 2 seconds)
+        thread global/tracker_common.scr::flush_loop
     
         // TODO: Implement per-player HUD notifications using hud_draw
         // hud_draw allows rendering text/elements on individual player screens
@@ -115,36 +118,9 @@ player_hud_manager:
 
 show_hud_notification local.player local.message local.r local.g local.b:
         if (!local.player) end
-
-            // Defaults
-        if (local.r == NIL) local.r = 1.0
-            if (local.g == NIL) local.g = 1.0
-                if (local.b == NIL) local.b = 1.0
-
-                    // Use index 201 for notifications (safe range usually)
-        local.index = 201
-
-        local.player ihuddraw_virtualsize local.index 1
-        local.player ihuddraw_align local.index "center"
-        local.player ihuddraw_font local.index "verdana-14"
-        local.player ihuddraw_rect local.index 320 80 0 0
-        local.player ihuddraw_string local.index local.message
-        local.player ihuddraw_color local.index local.r local.g local.b
-        local.player ihuddraw_alpha local.index 1.0
-
-        // Duration
-        wait 4
-
-        // Fade out
-        for (local.i = 20; local.i >= 0; local.i--) {
-            if (!local.player) end
-                local.player ihuddraw_alpha local.index (local.i / 20.0)
-            waitframe
-        }
-    
-        if (local.player) {
-            local.player ihuddraw_string local.index ""
-        }
+        
+            // MoHAA hudprint sends message to the specific player's chat area
+        local.player hudprint (">>> " + local.message + "\n")
     end
 
     // ============================================================================
@@ -179,16 +155,16 @@ cmd_login local.player local.args:
         // This verifies the token and returns the SMF member_id
         local.url = level.api_base_url + "/api/v1/auth/smf-verify"
         local.data = "token=" + local.token
-        local.data = local.data + "&guid=" + local.player.dmteam
+        local.data = local.data + "&guid=" + (getclientnum local.player)
         local.data = local.data + "&player_name=" + local.player.netname
-        local.data = local.data + "&server_ip=" + getcvar "net_ip"
-        local.data = local.data + "&server_port=" + getcvar "net_port"
+        local.data = local.data + "&server_ip=" + (getcvar "net_ip")
+        local.data = local.data + "&server_port=" + (getcvar "net_port")
         local.data = local.data + "&server_id=" + level.server_id
     
         // Store player reference for callback
         level.pending_auth_player = local.player
     
-        curl_post local.url local.data "on_smf_auth_verify"
+        curl_post local.url local.data "global/tracker.scr::on_smf_auth_verify"
     end
 
 cmd_logout local.player local.args:
@@ -200,8 +176,8 @@ cmd_logout local.player local.args:
         // Send logout notification to SMF
         local.url = level.api_base_url + "/api/v1/auth/smf-logout"
         local.data = "member_id=" + local.player.smf_member_id
-        local.data = local.data + "&guid=" + local.player.dmteam
-        curl_post local.url local.data "on_http_callback"
+        local.data = local.data + "&guid=" + (getclientnum local.player)
+        curl_post local.url local.data "global/tracker_common.scr::on_http_callback"
     
         // Clear auth state
         local.player.is_authenticated = 0
@@ -230,10 +206,10 @@ cmd_stats local.player local.args:
         if (local.player.is_authenticated && local.player.smf_member_id > 0) {
             local.url = level.api_base_url + "/api/v1/stats/member/" + local.player.smf_member_id
         } else {
-            local.url = level.api_base_url + "/api/v1/stats/player/" + local.player.dmteam
+            local.url = level.api_base_url + "/api/v1/stats/player/" + (getclientnum local.player)
         }
     
-        curl_get local.url "on_stats_response"
+        curl_get local.url "global/tracker.scr::on_stats_response"
     end
 
 cmd_whoami local.player local.args:
@@ -252,35 +228,29 @@ send_match_start:
         level.match_id = "match_" + level.session_id + "_" + level.time
         level.round_number = 1
     
-        local.payload = "type=match_start"
-        local.payload = local.payload + "&match_id=" + level.match_id
-        local.payload = local.payload + "&session_id=" + level.session_id
+        local.payload = global/tracker_common.scr::build_base_payload "match_start"
         local.payload = local.payload + "&server_id=" + level.server_id
         local.payload = local.payload + "&map_name=" + level.map_name
-        local.payload = local.payload + "&timestamp=" + level.time
-        local.payload = local.payload + "&gametype=" + getcvar "g_gametype"
-        local.payload = local.payload + "&timelimit=" + getcvar "timelimit"
-        local.payload = local.payload + "&fraglimit=" + getcvar "fraglimit"
-        local.payload = local.payload + "&maxclients=" + getcvar "sv_maxclients"
+        local.payload = local.payload + "&gametype=" + (getcvar "g_gametype")
+        local.payload = local.payload + "&timelimit=" + (getcvar "timelimit")
+        local.payload = local.payload + "&fraglimit=" + (getcvar "fraglimit")
+        local.payload = local.payload + "&maxclients=" + (getcvar "sv_maxclients")
     
-        thread send_to_api local.payload "on_http_callback"
+        thread global/tracker_common.scr::queue_event local.payload
         println ("MATCH START: " + level.match_id)
     end
 
 send_match_end local.winning_team local.allies_score local.axis_score:
-        local.payload = "type=match_end"
-        local.payload = local.payload + "&match_id=" + level.match_id
-        local.payload = local.payload + "&session_id=" + level.session_id
+        local.payload = global/tracker_common.scr::build_base_payload "match_end"
         local.payload = local.payload + "&server_id=" + level.server_id
         local.payload = local.payload + "&map_name=" + level.map_name
-        local.payload = local.payload + "&timestamp=" + level.time
         local.payload = local.payload + "&duration=" + (level.time - level.match_start_time)
         local.payload = local.payload + "&winning_team=" + local.winning_team
         local.payload = local.payload + "&allies_score=" + local.allies_score
         local.payload = local.payload + "&axis_score=" + local.axis_score
         local.payload = local.payload + "&total_rounds=" + level.round_number
     
-        thread send_to_api local.payload "on_http_callback"
+        thread global/tracker_common.scr::queue_event local.payload
         println ("MATCH END: " + level.match_id + " Winner: " + local.winning_team)
     end
 
@@ -346,56 +316,19 @@ build_player_payload local.player local.prefix:
         end local.payload
 
 on_player_kill local.attacker local.victim local.inflictor local.hitloc local.mod:
-            if (level.tracker_debug) { println "EVENT: player_kill" }
-    
-                local.payload = "type=kill"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-    
-            if (local.attacker && local.attacker.netname != NIL) {
-                local.payload = local.payload + "&attacker_name=" + local.attacker.netname
-                local.payload = local.payload + "&attacker_guid=" + local.attacker.dmteam
-                local.payload = local.payload + "&attacker_team=" + local.attacker.dmteam
-        
-                // Include SMF member_id if authenticated (IMPORTANT!)
-                if (local.attacker.is_authenticated && local.attacker.smf_member_id > 0) {
-                    local.payload = local.payload + "&attacker_member_id=" + local.attacker.smf_member_id
-                }
-        
-                local.apos = local.attacker.origin
-                local.payload = local.payload + "&attacker_x=" + local.apos[0]
-                local.payload = local.payload + "&attacker_y=" + local.apos[1]
-                local.payload = local.payload + "&attacker_z=" + local.apos[2]
-        
-                local.aang = local.attacker.angles
-                local.payload = local.payload + "&attacker_pitch=" + local.aang[0]
-                local.payload = local.payload + "&attacker_yaw=" + local.aang[1]
-            } else {
-                local.payload = local.payload + "&attacker_name=world"
-                local.payload = local.payload + "&attacker_guid=world"
+            if (local.attacker) {
+                if (local.attacker.shots_hit == NIL) local.attacker.shots_hit = 0
+                    local.attacker.shots_hit++
             }
-    
-            if (local.victim && local.victim.netname != NIL) {
-                local.payload = local.payload + "&victim_name=" + local.victim.netname
-                local.payload = local.payload + "&victim_guid=" + local.victim.dmteam
-                local.payload = local.payload + "&victim_team=" + local.victim.dmteam
-        
-                // Include SMF member_id if authenticated (IMPORTANT!)
-                if (local.victim.is_authenticated && local.victim.smf_member_id > 0) {
-                    local.payload = local.payload + "&victim_member_id=" + local.victim.smf_member_id
-                }
-        
-                local.vpos = local.victim.origin
-                local.payload = local.payload + "&victim_x=" + local.vpos[0]
-                local.payload = local.payload + "&victim_y=" + local.vpos[1]
-                local.payload = local.payload + "&victim_z=" + local.vpos[2]
-            }
-    
-            local.payload = local.payload + "&weapon=" + local.mod
-            local.payload = local.payload + "&hitloc=" + local.hitloc
+
+            local.payload = global/tracker_common.scr::build_base_payload "player_kill"
+            local.payload = local.payload + global/tracker_common.scr::build_player_payload local.attacker "attacker"
+            local.payload = local.payload + global/tracker_common.scr::build_player_payload local.victim "victim"
             local.payload = local.payload + "&inflictor=" + local.inflictor
-    
-            thread send_to_api local.payload "on_http_callback"
+            local.payload = local.payload + "&hitlocation=" + local.hitloc
+            local.payload = local.payload + "&mod=" + local.mod
+
+            thread global/tracker_common.scr::queue_event local.payload
         end
 
 on_player_death local.inflictor:
@@ -425,509 +358,452 @@ on_player_death local.inflictor:
 on_player_damage local.attacker local.amount local.mod:
             if (level.tracker_debug) { println "EVENT: player_damage" }
     
-                local.payload = "type=damage"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&victim_name=" + self.netname
-            local.payload = local.payload + "&victim_guid=" + self.dmteam
-            local.payload = local.payload + "&damage=" + local.amount
-            local.payload = local.payload + "&weapon=" + local.mod
+on_player_damage local.attacker local.amount local.mod:
+                local.payload = global/tracker_common.scr::build_base_payload "damage"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload self "victim"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload local.attacker "attacker"
+                local.payload = local.payload + "&damage=" + local.amount
+                local.payload = local.payload + "&weapon=" + local.mod
     
-            // Include SMF member_id for victim
-            if (self.is_authenticated && self.smf_member_id > 0) {
-                local.payload = local.payload + "&victim_member_id=" + self.smf_member_id
-            }
-    
-            if (local.attacker && local.attacker.netname != NIL) {
-                local.payload = local.payload + "&attacker_name=" + local.attacker.netname
-                local.payload = local.payload + "&attacker_guid=" + local.attacker.dmteam
-        
-                // Include SMF member_id for attacker
-                if (local.attacker.is_authenticated && local.attacker.smf_member_id > 0) {
-                    local.payload = local.payload + "&attacker_member_id=" + local.attacker.smf_member_id
-                }
-            } else {
-                local.payload = local.payload + "&attacker_name=world"
-            }
-    
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread global/tracker_common.scr::queue_event local.payload
+            end
 
-on_weapon_fire local.weapon local.ammo:
-            if (level.tracker_debug) { println "EVENT: weapon_fire" }
+on_player_pain local.player local.attacker local.damage local.mod local.location:
+                local.payload = global/tracker_common.scr::build_base_payload "player_pain"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload local.player "victim"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload local.attacker "attacker"
+                local.payload = local.payload + "&damage=" + local.damage
+                local.payload = local.payload + "&weapon=" + local.mod
+                local.payload = local.payload + "&hitloc=" + local.location
     
-                local.payload = "type=weapon_fire"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&weapon=" + local.weapon
-            local.payload = local.payload + "&ammo_remaining=" + local.ammo
-    
-            // Include SMF member_id if authenticated
-            if (self.is_authenticated && self.smf_member_id > 0) {
-                local.payload = local.payload + "&player_member_id=" + self.smf_member_id
-            }
-    
-            local.pos = self.origin
-            local.payload = local.payload + "&pos_x=" + local.pos[0]
-            local.payload = local.payload + "&pos_y=" + local.pos[1]
-            local.payload = local.payload + "&pos_z=" + local.pos[2]
-    
-            local.ang = self.angles
-            local.payload = local.payload + "&aim_pitch=" + local.ang[0]
-            local.payload = local.payload + "&aim_yaw=" + local.ang[1]
-    
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread global/tracker_common.scr::queue_event local.payload
+            end
 
-on_weapon_hit local.target local.location:
-            if (level.tracker_debug) { println "EVENT: weapon_hit" }
+on_weapon_fire local.player local.weapon_name local.ammo_left:
+            // Track localized accuracy
+                if (local.player.shots_fired == NIL) local.player.shots_fired = 0
+                    local.player.shots_fired++
+
+                local.payload = global/tracker_common.scr::build_base_payload "weapon_fire"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload local.player "player"
+                local.payload = local.payload + "&weapon=" + local.weapon_name
+                local.payload = local.payload + "&ammo_remaining=" + local.ammo_left
     
-                local.payload = "type=weapon_hit"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&hitloc=" + local.location
+                thread global/tracker_common.scr::queue_event local.payload
+            end
+
+on_weapon_hit local.player local.target local.location:
+                if (local.player.shots_hit == NIL) local.player.shots_hit = 0
+                    local.player.shots_hit++
+
+                local.payload = global/tracker_common.scr::build_base_payload "weapon_hit"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload local.player "player"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload local.target "target"
+                local.payload = local.payload + "&hitloc=" + local.location
     
-            // Include SMF member_id for shooter
-            if (self.is_authenticated && self.smf_member_id > 0) {
-                local.payload = local.payload + "&player_member_id=" + self.smf_member_id
-            }
-    
-            if (local.target && local.target.netname != NIL) {
-                local.payload = local.payload + "&target_name=" + local.target.netname
-                local.payload = local.payload + "&target_guid=" + local.target.dmteam
-        
-                // Include SMF member_id for target
-                if (local.target.is_authenticated && local.target.smf_member_id > 0) {
-                    local.payload = local.payload + "&target_member_id=" + local.target.smf_member_id
-                }
-            }
-    
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread global/tracker_common.scr::queue_event local.payload
+            end
 
 on_player_headshot local.target local.weapon:
-            if (level.tracker_debug) { println "EVENT: player_headshot" }
-    
-                local.payload = "type=headshot"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&weapon=" + local.weapon
-    
-            // Include SMF member_id for shooter
-            if (self.is_authenticated && self.smf_member_id > 0) {
-                local.payload = local.payload + "&player_member_id=" + self.smf_member_id
-            }
-    
-            if (local.target && local.target.netname != NIL) {
-                local.payload = local.payload + "&victim_name=" + local.target.netname
-                local.payload = local.payload + "&victim_guid=" + local.target.dmteam
-        
-                // Include SMF member_id for victim
-                if (local.target.is_authenticated && local.target.smf_member_id > 0) {
-                    local.payload = local.payload + "&victim_member_id=" + local.target.smf_member_id
-                }
-            }
-    
-            thread send_to_api local.payload "on_http_callback"
-        end
+                local.payload = global/tracker_common.scr::build_base_payload "headshot"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload self "attacker"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload local.target "victim"
+                local.payload = local.payload + "&weapon=" + local.weapon
+
+                thread global/tracker_common.scr::queue_event local.payload
+            end
 
 on_weapon_reload local.weapon:
-            if (level.tracker_debug) { println "EVENT: weapon_reload" }
+                if (level.tracker_debug) { println "EVENT: weapon_reload" }
     
-                local.payload = "type=reload"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&weapon=" + local.weapon
+                    local.payload = "type=reload"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&weapon=" + local.weapon
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_weapon_change local.old local.new:
-            if (level.tracker_debug) { println "EVENT: weapon_change" }
+                if (level.tracker_debug) { println "EVENT: weapon_change" }
     
-                local.payload = "type=weapon_change"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&old_weapon=" + local.old
-            local.payload = local.payload + "&new_weapon=" + local.new
+                    local.payload = "type=weapon_change"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&old_weapon=" + local.old
+                local.payload = local.payload + "&new_weapon=" + local.new
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_grenade_throw local.proj:
-            if (level.tracker_debug) { println "EVENT: grenade_throw" }
+                if (level.tracker_debug) { println "EVENT: grenade_throw" }
     
-                local.payload = "type=grenade_throw"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&projectile=" + local.proj
+                    local.payload = "type=grenade_throw"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&projectile=" + local.proj
     
-            local.pos = self.origin
-            local.payload = local.payload + "&pos_x=" + local.pos[0]
-            local.payload = local.payload + "&pos_y=" + local.pos[1]
-            local.payload = local.payload + "&pos_z=" + local.pos[2]
+                local.pos = self.origin
+                local.payload = local.payload + "&pos_x=" + local.pos[0]
+                local.payload = local.payload + "&pos_y=" + local.pos[1]
+                local.payload = local.payload + "&pos_z=" + local.pos[2]
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_grenade_explode local.proj:
-            if (level.tracker_debug) { println "EVENT: grenade_explode" }
+                if (level.tracker_debug) { println "EVENT: grenade_explode" }
     
-                local.payload = "type=grenade_explode"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&projectile=" + local.proj
+                    local.payload = "type=grenade_explode"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&projectile=" + local.proj
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
-        // ============================================================================
-        // MOVEMENT EVENT HANDLERS
-        // ============================================================================
+            // ============================================================================
+            // MOVEMENT EVENT HANDLERS
+            // ============================================================================
 
 on_player_jump local.dummy:
-            local.payload = "type=jump"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = "type=jump"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
     
-            local.pos = self.origin
-            local.payload = local.payload + "&pos_x=" + local.pos[0]
-            local.payload = local.payload + "&pos_y=" + local.pos[1]
-            local.payload = local.payload + "&pos_z=" + local.pos[2]
+                local.pos = self.origin
+                local.payload = local.payload + "&pos_x=" + local.pos[0]
+                local.payload = local.payload + "&pos_y=" + local.pos[1]
+                local.payload = local.payload + "&pos_z=" + local.pos[2]
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_player_land local.height:
-            local.payload = "type=land"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&fall_height=" + local.height
+                local.payload = "type=land"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&fall_height=" + local.height
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_player_crouch local.dummy:
-            local.payload = "type=crouch"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = "type=crouch"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_player_prone local.dummy:
-            local.payload = "type=prone"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = "type=prone"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_player_distance local.walked local.sprinted local.swam local.driven:
-            local.payload = "type=distance"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&walked=" + local.walked
-            local.payload = local.payload + "&sprinted=" + local.sprinted
-            local.payload = local.payload + "&swam=" + local.swam
-            local.payload = local.payload + "&driven=" + local.driven
+                local.payload = "type=distance"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&walked=" + local.walked
+                local.payload = local.payload + "&sprinted=" + local.sprinted
+                local.payload = local.payload + "&swam=" + local.swam
+                local.payload = local.payload + "&driven=" + local.driven
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
-        // ============================================================================
-        // INTERACTION EVENT HANDLERS
-        // ============================================================================
+            // ============================================================================
+            // INTERACTION EVENT HANDLERS
+            // ============================================================================
 
 on_ladder_mount local.ladder:
-            local.payload = "type=ladder_mount"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = "type=ladder_mount"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_ladder_dismount local.ladder:
-            local.payload = "type=ladder_dismount"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = "type=ladder_dismount"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_item_pickup local.item local.count:
-            local.payload = "type=item_pickup"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&item=" + local.item
-            local.payload = local.payload + "&count=" + local.count
+                local.payload = "type=item_pickup"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&item=" + local.item
+                local.payload = local.payload + "&count=" + local.count
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_item_drop local.item:
-            local.payload = "type=item_drop"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&item=" + local.item
+                local.payload = "type=item_drop"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&item=" + local.item
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_player_use local.entity:
-            local.payload = "type=use"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&entity=" + local.entity
+                local.payload = "type=use"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&entity=" + local.entity
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
-        // ============================================================================
-        // SESSION EVENT HANDLERS
-        // ============================================================================
+            // ============================================================================
+            // SESSION EVENT HANDLERS
+            // ============================================================================
 
 on_client_connect local.clientnum:
-            if (level.tracker_debug) { println "EVENT: client_connect" }
+                if (level.tracker_debug) { println "EVENT: client_connect" }
     
-                local.payload = "type=connect"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&session_id=" + level.session_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&client_num=" + local.clientnum
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
+                    local.payload = "type=connect"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&session_id=" + level.session_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&client_num=" + local.clientnum
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_client_disconnect local.dummy:
-            if (level.tracker_debug) { println "EVENT: client_disconnect" }
+                if (level.tracker_debug) { println "EVENT: client_disconnect" }
     
-                local.payload = "type=disconnect"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&session_id=" + level.session_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-    
-            thread send_to_api local.payload "on_http_callback"
-        end
+                    local.payload = "type=disconnect"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&session_id=" + level.session_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                thread send_to_api local.payload "on_http_callback"
+            end
 
-on_client_begin local.dummy:
-            if (level.tracker_debug) { println "EVENT: client_begin" }
+on_client_begin local.player:
+            // Initialize session-based counters
+                local.player.shots_fired = 0
+                local.player.shots_hit = 0
+
+                local.payload = global/tracker_common.scr::build_base_payload "client_begin"
+                local.payload = local.payload + global/tracker_common.scr::build_player_payload local.player "player"
+
+                thread global/tracker_common.scr::queue_event local.payload
     
-                local.payload = "type=spawn"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&team=" + self.dmteam
-    
-            local.pos = self.origin
-            local.payload = local.payload + "&pos_x=" + local.pos[0]
-            local.payload = local.payload + "&pos_y=" + local.pos[1]
-            local.payload = local.payload + "&pos_z=" + local.pos[2]
-    
-            thread send_to_api local.payload "on_http_callback"
-        end
+                // Start per-player accuracy summary thread
+                thread player_accuracy_loop local.player
+            end
+
+player_accuracy_loop local.player:
+                while (local.player) {
+                    wait 10 // Every 10 seconds send summary
+        
+                    if (!local.player) end
+
+                        if (local.player.shots_fired > 0) {
+                        local.payload = global/tracker_common.scr::build_base_payload "accuracy_summary"
+                        local.payload = local.payload + global/tracker_common.scr::build_player_payload_compact local.player "player"
+                        local.payload = local.payload + "&fired=" + local.player.shots_fired
+                        local.payload = local.payload + "&hits=" + local.player.shots_hit
+            
+                        thread global/tracker_common.scr::queue_event local.payload
+                    }
+                }
+            end
 
 on_team_join local.old_team local.new_team:
-            if (level.tracker_debug) { println "EVENT: team_join" }
+                if (level.tracker_debug) { println "EVENT: team_join" }
     
-                local.payload = "type=team_change"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&old_team=" + local.old_team
-            local.payload = local.payload + "&new_team=" + local.new_team
+                    local.payload = "type=team_change"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + self.netname
+                local.payload = local.payload + "&player_guid=" + self.dmteam
+                local.payload = local.payload + "&old_team=" + local.old_team
+                local.payload = local.payload + "&new_team=" + local.new_team
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
-on_player_say local.text:
-            if (level.tracker_debug) { println "EVENT: player_say" }
-    
-                local.payload = "type=chat"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + self.netname
-            local.payload = local.payload + "&player_guid=" + self.dmteam
-            local.payload = local.payload + "&message=" + local.text
-    
-            thread send_to_api local.payload "on_http_callback"
-        end
+            // on_player_say is handled in tracker_interaction_ext.scr
 
-        // ============================================================================
-        // HTTP TRANSPORT LAYER
-        // ============================================================================
+            // ============================================================================
+            // HTTP TRANSPORT LAYER
+            // ============================================================================
 
 send_to_api local.payload local.callback:
-            local.url = level.api_base_url + level.api_events_endpoint
+                local.url = level.api_base_url + level.api_events_endpoint
     
-            local.full_payload = local.payload + "&server_token=" + level.server_token
-            local.full_payload = local.full_payload + "&server_id=" + level.server_id
+                local.full_payload = local.payload + "&server_token=" + level.server_token
+                local.full_payload = local.full_payload + "&server_id=" + level.server_id
     
-            if (level.tracker_debug) {
-                println ("API POST: " + local.url)
-            }
+                if (level.tracker_debug) {
+                    println ("API POST: " + local.url)
+                }
     
-            curl_post local.url local.full_payload local.callback
-        end
+                curl_post local.url local.full_payload local.callback
+            end
 
 on_http_callback local.success local.response local.http_code:
-            if (level.tracker_debug) {
-                if (local.success) {
-                    println ("HTTP OK [" + local.http_code + "]")
-                } else {
-                    println ("HTTP FAIL [" + local.http_code + "]: " + local.response)
+                if (level.tracker_debug) {
+                    if (local.success) {
+                        println ("HTTP OK [" + local.http_code + "]")
+                    } else {
+                        println ("HTTP FAIL [" + local.http_code + "]: " + local.response)
+                    }
                 }
-            }
-        end
+            end
 
-        // ============================================================================
-        // SMF AUTHENTICATION CALLBACKS
-        // ============================================================================
-        // These handle responses from the SMF login token verification system.
-        // On success, we store the SMF member_id on the player for use in all events.
-        // ============================================================================
+            // ============================================================================
+            // SMF AUTHENTICATION CALLBACKS
+            // ============================================================================
+            // These handle responses from the SMF login token verification system.
+            // On success, we store the SMF member_id on the player for use in all events.
+            // ============================================================================
 
 on_smf_auth_verify local.success local.response local.http_code:
-            local.player = level.pending_auth_player
+                local.player = level.pending_auth_player
     
-            if (local.success && local.http_code == 200) {
-                // Parse JSON response to get member_id and member_name
-                // Response format: {"success":true,"member_id":123,"member_name":"PlayerName","guid":"xxx"}
-                println ("SMF Auth response: " + local.response)
+                if (local.success && local.http_code == 200) {
+                    // Parse JSON response to get member_id and member_name
+                    // Response format: {"success":true,"member_id":123,"member_name":"PlayerName","guid":"xxx"}
+                    println ("SMF Auth response: " + local.response)
         
-                // Simple JSON parsing for member_id (look for "member_id":NUMBER)
-                // In production, use proper JSON parsing if available
-                local.member_id = 0
-                local.member_name = "Unknown"
+                    // Simple JSON parsing for member_id (look for "member_id":NUMBER)
+                    // In production, use proper JSON parsing if available
+                    local.member_id = 0
+                    local.member_name = "Unknown"
         
-                // Extract member_id from response
-                // TODO: Use proper JSON parsing when available in OpenMOHAA
-                // For now, we assume the API returns the member_id in a parseable format
-                local.member_id = json_get_int local.response "member_id"
-                local.member_name = json_get_string local.response "member_name"
+                    // Extract member_id from response
+                    // TODO: Use proper JSON parsing when available in OpenMOHAA
+                    // For now, we assume the API returns the member_id in a parseable format
+                    local.member_id = json_get_int local.response "member_id"
+                    local.member_name = json_get_string local.response "member_name"
         
-                if (local.member_id > 0) {
-                    // SUCCESS - Store SMF identity on player
-                    local.player.is_authenticated = 1
-                    local.player.smf_member_id = local.member_id
-                    local.player.smf_member_name = local.member_name
-                    local.player.auth_token = local.player.pending_auth_token
+                    if (local.member_id > 0) {
+                        // SUCCESS - Store SMF identity on player
+                        local.player.is_authenticated = 1
+                        local.player.smf_member_id = local.member_id
+                        local.player.smf_member_name = local.member_name
+                        local.player.auth_token = local.player.pending_auth_token
             
-                    iprintln ("Welcome, " + local.member_name + "! You are now logged in.")
-                    iprintln "Your stats will be tracked to your forum account."
-                    println ("SMF Auth SUCCESS: " + local.player.netname + " -> member_id=" + local.member_id)
+                        iprintln ("Welcome, " + local.member_name + "! You are now logged in.")
+                        iprintln "Your stats will be tracked to your forum account."
+                        println ("SMF Auth SUCCESS: " + local.player.netname + " -> member_id=" + local.member_id)
             
-                    // HUD Notification: Success
-                    thread show_hud_notification local.player ("Welcome " + local.member_name + "!") 0.0 1.0 0.0 // Green
+                        // HUD Notification: Success
+                        thread show_hud_notification local.player ("Welcome " + local.member_name + "!") 0.0 1.0 0.0 // Green
             
-                    // Send login event to API with SMF member_id
-                    thread send_player_auth_event local.player
-                } else {
+                        // Send login event to API with SMF member_id
+                        thread send_player_auth_event local.player
+                    } else {
+                        local.player.is_authenticated = 0
+                        iprintln "Login failed: Could not verify token."
+                        println ("SMF Auth FAIL: No member_id in response")
+
+                        // HUD Notification: Fail
+                        thread show_hud_notification local.player "Login Failed: Invalid Response" 1.0 0.0 0.0 // Red
+                    }
+                } else if (local.http_code == 401 || local.http_code == 403) {
                     local.player.is_authenticated = 0
-                    iprintln "Login failed: Could not verify token."
-                    println ("SMF Auth FAIL: No member_id in response")
+                    iprintln "Login failed: Invalid or expired token."
+                    iprintln "Generate a new token from the forum."
+                    println ("SMF Auth FAIL: " + local.http_code + " - " + local.response)
 
                     // HUD Notification: Fail
-                    thread show_hud_notification local.player "Login Failed: Invalid Response" 1.0 0.0 0.0 // Red
+                    thread show_hud_notification local.player "Login Failed: Invalid Token" 1.0 0.0 0.0 // Red
+                } else {
+                    local.player.is_authenticated = 0
+                    iprintln "Login failed: Server error. Try again later."
+                    println ("SMF Auth ERROR: " + local.http_code + " - " + local.response)
+
+                    // HUD Notification: Fail
+                    thread show_hud_notification local.player "Login Failed: Server Error" 1.0 0.0 0.0 // Red
                 }
-            } else if (local.http_code == 401 || local.http_code == 403) {
-                local.player.is_authenticated = 0
-                iprintln "Login failed: Invalid or expired token."
-                iprintln "Generate a new token from the forum."
-                println ("SMF Auth FAIL: " + local.http_code + " - " + local.response)
-
-                // HUD Notification: Fail
-                thread show_hud_notification local.player "Login Failed: Invalid Token" 1.0 0.0 0.0 // Red
-            } else {
-                local.player.is_authenticated = 0
-                iprintln "Login failed: Server error. Try again later."
-                println ("SMF Auth ERROR: " + local.http_code + " - " + local.response)
-
-                // HUD Notification: Fail
-                thread show_hud_notification local.player "Login Failed: Server Error" 1.0 0.0 0.0 // Red
-            }
     
-            // Clear pending reference
-            level.pending_auth_player = NIL
-        end
+                // Clear pending reference
+                level.pending_auth_player = NIL
+            end
 
 send_player_auth_event local.player:
-        // Send authenticated player event to API
-            local.payload = "type=player_auth"
-            local.payload = local.payload + "&match_id=" + level.match_id
-            local.payload = local.payload + "&timestamp=" + level.time
-            local.payload = local.payload + "&player_name=" + local.player.netname
-            local.payload = local.payload + "&player_guid=" + local.player.dmteam
-            local.payload = local.payload + "&smf_member_id=" + local.player.smf_member_id
-            local.payload = local.payload + "&smf_member_name=" + local.player.smf_member_name
+            // Send authenticated player event to API
+                local.payload = "type=player_auth"
+                local.payload = local.payload + "&match_id=" + level.match_id
+                local.payload = local.payload + "&timestamp=" + level.time
+                local.payload = local.payload + "&player_name=" + local.player.netname
+                local.payload = local.payload + "&player_guid=" + local.player.dmteam
+                local.payload = local.payload + "&smf_member_id=" + local.player.smf_member_id
+                local.payload = local.payload + "&smf_member_name=" + local.player.smf_member_name
     
-            thread send_to_api local.payload "on_http_callback"
-        end
+                thread send_to_api local.payload "on_http_callback"
+            end
 
 on_auth_verify local.success local.response local.http_code:
-        // Legacy callback - redirect to SMF auth
-            if (local.success && local.http_code == 200) {
-                println ("Legacy auth verified: " + local.response)
-                iprintln "Authentication successful!"
-            } else {
-                println ("Legacy auth failed: " + local.response)
-                iprintln "Authentication failed. Check your token."
-            }
-        end
+            // Legacy callback - redirect to SMF auth
+                if (local.success && local.http_code == 200) {
+                    println ("Legacy auth verified: " + local.response)
+                    iprintln "Authentication successful!"
+                } else {
+                    println ("Legacy auth failed: " + local.response)
+                    iprintln "Authentication failed. Check your token."
+                }
+            end
 
 on_claim_response local.success local.response local.http_code:
-            if (local.success && local.http_code == 200) {
-                iprintln "Identity claimed! Your stats are now linked."
-            } else if (local.http_code == 404) {
-                iprintln "Invalid claim code. Try again."
-            } else {
-                iprintln "Claim failed. Try again later."
-            }
-        end
+                if (local.success && local.http_code == 200) {
+                    iprintln "Identity claimed! Your stats are now linked."
+                } else if (local.http_code == 404) {
+                    iprintln "Invalid claim code. Try again."
+                } else {
+                    iprintln "Claim failed. Try again later."
+                }
+            end
 
 on_stats_response local.success local.response local.http_code:
-            if (local.success) {
-                iprintln "Stats fetched - check console"
-                println ("Stats: " + local.response)
-            } else {
-                iprintln "Could not fetch stats."
-            }
-        end
+                if (local.success) {
+                    iprintln "Stats fetched - check console"
+                    println ("Stats: " + local.response)
+                } else {
+                    iprintln "Could not fetch stats."
+                }
+            end

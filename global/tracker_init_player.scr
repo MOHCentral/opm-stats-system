@@ -55,7 +55,7 @@ init:
     event_subscribe "player_use_object_finish" "tracker_interaction_ext.scr::on_player_use_object_finish"
     event_subscribe "player_spectate" "tracker_interaction_ext.scr::on_player_spectate"
     event_subscribe "player_freeze" "tracker_interaction_ext.scr::on_player_freeze"
-    event_subscribe "player_say" "tracker.scr::on_player_say"
+    event_subscribe "player_say" "tracker_interaction_ext.scr::on_player_say"
 
     // ========================================================================
     // ITEM EVENTS (5 events)
