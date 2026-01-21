@@ -165,13 +165,8 @@ function MohaaStats_MenuButtons(array &$buttons): void
                 'disabled' => true,
             ],
             'identity' => [
-                'title' => $txt['mohaa_identity'] ?? '🎮 My Identity',
+                'title' => $txt['mohaa_identity'] ?? '🎮 Link Game Account',
                 'href' => $scripturl . '?action=mohaaidentity',
-                'show' => true,
-            ],
-            'tokens' => [
-                'title' => $txt['mohaa_tokens'] ?? '🔗 Link Account',
-                'href' => $scripturl . '?action=profile;area=mohaaidentity',
                 'show' => true,
             ],
         ],
