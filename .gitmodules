@@ -1,0 +1,9 @@
+[submodule "opm-stats-api"]
+	path = opm-stats-api
+	url = git@github.com:MOHCentral/opm-stats-api.git
+[submodule "opm-stats-game-scripts"]
+	path = opm-stats-game-scripts
+	url = git@github.com:MOHCentral/opm-stats-game-scripts.git
+[submodule "opm-stats-smf-integration"]
+	path = opm-stats-smf-integration
+	url = git@github.com:MOHCentral/opm-stats-smf-integration.git
