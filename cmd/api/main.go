@@ -173,6 +173,9 @@ func main() {
 			r.Get("/player/name/{name}", h.GetPlayerStatsByName)
 			r.Get("/player/{guid}", h.GetPlayerStats)
 			r.Get("/player/{guid}/deep", h.GetPlayerDeepStats)
+			r.Get("/player/{guid}/combat", h.GetPlayerCombatStats)     // Subset of deep stats
+			r.Get("/player/{guid}/movement", h.GetPlayerMovementStats) // Subset of deep stats
+			r.Get("/player/{guid}/stance", h.GetPlayerStanceStats)     // Subset of deep stats
 			r.Get("/player/{guid}/matches", h.GetPlayerMatches)
 			r.Get("/player/{guid}/weapons", h.GetPlayerWeaponStats)
 			r.Get("/player/{guid}/gametypes", h.GetPlayerStatsByGametype)

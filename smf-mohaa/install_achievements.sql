@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `{$db_prefix}mohaa_achievement_defs` (
   `description` text,
   `category` varchar(50) NOT NULL DEFAULT 'basic',
   `tier` int(10) unsigned NOT NULL DEFAULT 1,
-  `icon` varchar(50) NOT NULL DEFAULT '🏆',
+  `icon` varchar(50) NOT NULL DEFAULT 'trophy',
   `requirement_type` varchar(50) NOT NULL,
   `requirement_value` int(10) unsigned NOT NULL DEFAULT 1,
   `points` int(10) unsigned NOT NULL DEFAULT 10,

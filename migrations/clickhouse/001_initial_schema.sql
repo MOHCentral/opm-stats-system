@@ -89,6 +89,7 @@ AS SELECT
     countIf(event_type = 'weapon_hit') AS shots_hit,
     sumIf(damage, event_type = 'damage') AS total_damage,
     uniqExact(match_id) AS matches_played,
+    countIf(event_type = 'match_outcome' AND damage = 1) AS matches_won,
     max(timestamp) AS last_active
 FROM raw_events
 WHERE actor_id != '' AND actor_id != 'world'

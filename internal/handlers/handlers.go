@@ -265,9 +265,13 @@ func (h *Handler) parseFormToEvent(form url.Values) models.RawEvent {
 	event.AttackerZ = parseFloat32(form.Get("attacker_z"))
 	event.AttackerPitch = parseFloat32(form.Get("attacker_pitch"))
 	event.AttackerYaw = parseFloat32(form.Get("attacker_yaw"))
+	event.AttackerStance = form.Get("attacker_stance")
 	event.VictimX = parseFloat32(form.Get("victim_x"))
 	event.VictimY = parseFloat32(form.Get("victim_y"))
 	event.VictimZ = parseFloat32(form.Get("victim_z"))
+	event.VictimStance = form.Get("victim_stance")
+	event.PlayerStance = form.Get("player_stance")
+	event.TargetStance = form.Get("target_stance")
 	event.AimPitch = parseFloat32(form.Get("aim_pitch"))
 	event.AimYaw = parseFloat32(form.Get("aim_yaw"))
 	event.FallHeight = parseFloat32(form.Get("fall_height"))
@@ -275,6 +279,7 @@ func (h *Handler) parseFormToEvent(form url.Values) models.RawEvent {
 	event.Sprinted = parseFloat32(form.Get("sprinted"))
 	event.Swam = parseFloat32(form.Get("swam"))
 	event.Driven = parseFloat32(form.Get("driven"))
+	event.Distance = parseFloat32(form.Get("distance"))
 
 	return event
 }
@@ -339,11 +344,33 @@ func (h *Handler) GetGlobalStats(w http.ResponseWriter, r *http.Request) {
 	var serverCount int64
 	h.ch.QueryRow(ctx, `SELECT uniq(server_id) FROM mohaa_stats.server_activity_mv WHERE server_id != ''`).Scan(&serverCount)
 
+	// Calculate Global Averages (Accuracy & KD)
+	var avgAccuracy, avgKD float64
+
+	// Average Accuracy: Sum(Hits) / Sum(Shots)
+	// Using nullif to avoid division by zero
+	h.ch.QueryRow(ctx, `
+		SELECT 
+			sum(shots_hit) / nullif(sum(shots_fired), 0) * 100 
+		FROM mohaa_stats.player_stats_daily_mv
+	`).Scan(&avgAccuracy)
+
+	// Average KD: Sum(Kills) / Sum(Deaths)
+	h.ch.QueryRow(ctx, `
+		SELECT 
+			sum(kills) / nullif(sum(deaths), 0) 
+		FROM mohaa_stats.player_stats_daily_mv
+	`).Scan(&avgKD)
+
+	// If scan failed (null result), they might stay at 0, which is fine.
+
 	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"total_kills":        totalKills,
-		"total_matches":      totalMatches,
-		"active_players_24h": activePlayers,
-		"server_count":       serverCount,
+		"total_kills":         totalKills,
+		"total_matches":       totalMatches,
+		"active_players_24h":  activePlayers,
+		"server_count":        serverCount,
+		"server_avg_accuracy": avgAccuracy,
+		"server_avg_kd":       avgKD,
 	})
 }
 
@@ -681,111 +708,178 @@ func (h *Handler) GetPlayerStats(w http.ResponseWriter, r *http.Request) {
 	guid := chi.URLParam(r, "guid")
 	ctx := r.Context()
 
-	var stats models.PlayerStats
-	stats.PlayerID = guid
-
-	// Get aggregated stats from ClickHouse materialized view (player_stats_daily_mv)
-	// This is pre-aggregated daily so it's MUCH faster than querying raw_events
-	row := h.ch.QueryRow(ctx, `
-		SELECT
-			toUInt64(sum(kills)) as kills,
-			toUInt64(sum(deaths)) as deaths,
-			toUInt64(sum(headshots)) as headshots,
-			toUInt64(sum(shots_fired)) as shots_fired,
-			toUInt64(sum(shots_hit)) as shots_hit,
-			toUInt64(sum(total_damage)) as total_damage,
-			toUInt64(sum(matches_played)) as matches_played,
-			toUInt64(0) as matches_won,  -- TODO: Add to MV
-			ifNull(max(last_active), toDateTime(0)) as last_active,
-			ifNull(any(actor_name), '') as name,
-			
-			-- Granular Combat Metrics (TODO: Add to MV for better performance)
-			toUInt64(0) as long_range_kills,
-			toUInt64(0) as close_range_kills,
-			toUInt64(0) as wallbang_kills,
-			toUInt64(0) as collateral_kills,
-
-			-- Stance Metrics (TODO: Add to MV)
-			toUInt64(0) as kills_while_prone,
-			toUInt64(0) as kills_while_crouching,
-			toUInt64(0) as kills_while_standing,
-			toUInt64(0) as kills_while_moving,
-			toUInt64(0) as kills_while_stationary,
-
-			-- Movement Metrics (TODO: Add to MV)
-			toFloat64(0) as total_distance_km,
-			toFloat64(0) as sprint_distance_km,
-			toUInt64(0) as jump_count,
-			toFloat64(0) as crouch_time_seconds,
-			toFloat64(0) as prone_time_seconds
-		FROM mohaa_stats.player_stats_daily_mv
-		WHERE actor_id = ?
-		GROUP BY actor_id
-	`, guid)
-
-	h.logger.Infow("GetPlayerStats request", "guid", guid)
-
-	err := row.Scan(
-		&stats.TotalKills,
-		&stats.TotalDeaths,
-		&stats.TotalHeadshots,
-		&stats.ShotsFired,
-		&stats.ShotsHit,
-		&stats.TotalDamage,
-		&stats.MatchesPlayed,
-		&stats.MatchesWon,
-		&stats.LastActive,
-		&stats.PlayerName,
-		// New granular metrics
-		&stats.LongRangeKills,
-		&stats.CloseRangeKills,
-		&stats.WallbangKills,
-		&stats.CollateralKills,
-		&stats.KillsWhileProne,
-		&stats.KillsWhileCrouching,
-		&stats.KillsWhileStanding,
-		&stats.KillsWhileMoving,
-		&stats.KillsWhileStationary,
-		&stats.TotalDistance,
-		&stats.SprintDistance,
-		&stats.JumpCount,
-		&stats.CrouchTime,
-		&stats.ProneTime,
-	)
+	// 1. Get Deep Stats (Combines Combat, Weapons, Movement, Stance, etc.)
+	deepStats, err := h.playerStats.GetDeepStats(ctx, guid)
 	if err != nil {
-		h.logger.Errorw("Failed to query player stats", "error", err, "guid", guid)
-		// Try to return empty stats instead of 500 if it's just no data
-		if err.Error() == "sql: no rows in result set" { // Check driver specific error if possible
-			// For now just log it.
+		h.logger.Errorw("Failed to get deep stats", "guid", guid, "error", err)
+		// Fallback to empty if failed, but try to proceed
+		deepStats = &logic.DeepStats{}
+	}
+
+	// 2. Get Performance History (Trend)
+	// We re-implement the query here to ensure data flow
+	perfRows, err := h.ch.Query(ctx, `
+		SELECT 
+			match_id,
+			countIf(event_type = 'kill' AND actor_id = ?) as kills,
+			countIf(event_type = 'death' AND actor_id = ?) as deaths,
+			min(timestamp) as played_at
+		FROM mohaa_stats.raw_events
+		WHERE match_id IN (
+			SELECT match_id FROM mohaa_stats.raw_events 
+			WHERE actor_id = ? 
+			GROUP BY match_id 
+			ORDER BY max(timestamp) DESC 
+			LIMIT 20
+		)
+		GROUP BY match_id
+		ORDER BY played_at ASC
+	`, guid, guid, guid)
+
+	performance := make([]map[string]interface{}, 0)
+	if err == nil {
+		defer perfRows.Close()
+		for perfRows.Next() {
+			var mid string
+			var k, d uint64
+			var t time.Time
+			if err := perfRows.Scan(&mid, &k, &d, &t); err == nil {
+				kd := float64(k)
+				if d > 0 {
+					kd = float64(k) / float64(d)
+				}
+				performance = append(performance, map[string]interface{}{
+					"match_id":  mid,
+					"kills":     k,
+					"deaths":    d,
+					"kd":        kd,
+					"played_at": t.Unix(),
+				})
+			}
 		}
-		h.errorResponse(w, http.StatusInternalServerError, "Query failed: "+err.Error())
-		return
 	}
 
-	// Calculate derived stats
-	if stats.TotalDeaths > 0 {
-		stats.KDRatio = float64(stats.TotalKills) / float64(stats.TotalDeaths)
-	}
-	if stats.ShotsFired > 0 {
-		stats.Accuracy = float64(stats.ShotsHit) / float64(stats.ShotsFired) * 100
-	}
-	if stats.TotalKills > 0 {
-		stats.HSPercent = float64(stats.TotalHeadshots) / float64(stats.TotalKills) * 100
-	}
-	if stats.MatchesPlayed > 0 {
-		stats.WinRate = float64(stats.MatchesWon) / float64(stats.MatchesPlayed) * 100
+	// 3. Get Map Stats (Summary for dashboard)
+	mapRows, err := h.ch.Query(ctx, `
+		SELECT 
+			map_name,
+			countIf(event_type = 'kill' AND actor_id = ?) as kills,
+			countIf(event_type = 'death' AND actor_id = ?) as deaths,
+			count(DISTINCT match_id) as matches,
+			countIf(event_type = 'match_outcome' AND winning_team = actor_team) as wins
+		FROM mohaa_stats.raw_events
+		WHERE actor_id = ? AND map_name != ''
+		GROUP BY map_name
+		ORDER BY matches DESC
+		LIMIT 5
+	`, guid, guid, guid) // Removed complicated OR clause for speed
+
+	maps := make([]map[string]interface{}, 0)
+	if err == nil {
+		defer mapRows.Close()
+		for mapRows.Next() {
+			var name string
+			var k, d, m, w uint64
+			if err := mapRows.Scan(&name, &k, &d, &m, &w); err == nil {
+				maps = append(maps, map[string]interface{}{
+					"map_name":       name,
+					"kills":          k,
+					"deaths":         d,
+					"matches_played": m,
+					"matches_won":    w,
+				})
+			}
+		}
 	}
 
-	stats.Name = stats.PlayerName
+	// 4. Get Matches List (Recent)
+	matchRows, err := h.ch.Query(ctx, `
+		SELECT 
+			match_id,
+			map_name,
+			countIf(event_type = 'kill' AND actor_id = ?) as kills,
+			countIf(event_type = 'death' AND actor_id = ?) as deaths,
+			min(timestamp) as started
+		FROM mohaa_stats.raw_events
+		WHERE actor_id = ?
+		GROUP BY match_id, map_name
+		ORDER BY started DESC
+		LIMIT 10
+	`, guid, guid, guid)
 
-	if stats.PlayTime > 0 {
-		stats.KillsPerMinute = float64(stats.TotalKills) / (stats.PlayTime / 60.0)
+	matches := make([]map[string]interface{}, 0)
+	if err == nil {
+		defer matchRows.Close()
+		for matchRows.Next() {
+			var mid, mn string
+			var k, d uint64
+			var t time.Time
+			if err := matchRows.Scan(&mid, &mn, &k, &d, &t); err == nil {
+				matches = append(matches, map[string]interface{}{
+					"match_id": mid,
+					"map_name": mn,
+					"kills":    k,
+					"deaths":   d,
+					"date":     t.Unix(),
+				})
+			}
+		}
 	}
 
-	h.logger.Infow("GetPlayerStats success", "guid", guid, "kills", stats.TotalKills, "name", stats.Name, "kpm", stats.KillsPerMinute)
+	// Construct Flat Player Object
+	player := map[string]interface{}{
+		"guid": guid,
+
+		// Combat
+		"kills":        deepStats.Combat.Kills,
+		"deaths":       deepStats.Combat.Deaths,
+		"kd_ratio":     deepStats.Combat.KDRatio,
+		"headshots":    deepStats.Combat.Headshots,
+		"accuracy":     deepStats.Accuracy.Overall,
+		"damage_dealt": deepStats.Combat.DamageDealt,
+		"damage_taken": deepStats.Combat.DamageTaken,
+		"suicides":     deepStats.Combat.Suicides,
+		"team_kills":   deepStats.Combat.TeamKills,
+		"bash_kills":   deepStats.Combat.BashKills,
+
+		// Body Parts
+		"torso_kills": deepStats.Combat.TorsoKills,
+		"limb_kills":  deepStats.Combat.LimbKills,
+
+		// Session
+		"matches_played":   deepStats.Session.MatchesPlayed,
+		"matches_won":      deepStats.Session.Wins,
+		"win_rate":         deepStats.Session.WinRate,
+		"playtime_seconds": deepStats.Session.PlaytimeHours * 3600,
+
+		// Movement
+		"distance_traveled": deepStats.Movement.TotalDistanceKm * 1000, // Return meters
+		"jumps":             deepStats.Movement.JumpCount,
+
+		// Stance
+		"standing_kills":  deepStats.Stance.StandingKills,
+		"crouching_kills": deepStats.Stance.CrouchKills,
+		"prone_kills":     deepStats.Stance.ProneKills,
+
+		// Lists
+		"weapons":        deepStats.Weapons,
+		"maps":           maps,
+		"performance":    performance,
+		"recent_matches": matches,
+		"achievements":   []string{},
+
+		"name": "Unknown Soldier",
+	}
+
+	// Try to get name
+	var name string
+	if err := h.ch.QueryRow(ctx, "SELECT any(actor_name) FROM mohaa_stats.raw_events WHERE actor_id = ?", guid).Scan(&name); err == nil && name != "" {
+		player["name"] = name
+		player["player_name"] = name
+	}
 
 	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"player": stats,
+		"player": player,
 	})
 }
 
@@ -894,6 +988,54 @@ func (h *Handler) GetPlayerDeepStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.jsonResponse(w, http.StatusOK, stats)
+}
+
+// GetPlayerCombatStats returns only combat subset of deep stats
+func (h *Handler) GetPlayerCombatStats(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	stats, err := h.playerStats.GetDeepStats(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get combat stats", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate combat stats")
+		return
+	}
+
+	// Return only combat section
+	h.jsonResponse(w, http.StatusOK, stats.Combat)
+}
+
+// GetPlayerMovementStats returns only movement subset of deep stats
+func (h *Handler) GetPlayerMovementStats(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	stats, err := h.playerStats.GetDeepStats(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get movement stats", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate movement stats")
+		return
+	}
+
+	// Return only movement section
+	h.jsonResponse(w, http.StatusOK, stats.Movement)
+}
+
+// GetPlayerStanceStats returns only stance subset of deep stats
+func (h *Handler) GetPlayerStanceStats(w http.ResponseWriter, r *http.Request) {
+	guid := chi.URLParam(r, "guid")
+	ctx := r.Context()
+
+	stats, err := h.playerStats.GetDeepStats(ctx, guid)
+	if err != nil {
+		h.logger.Errorw("Failed to get stance stats", "guid", guid, "error", err)
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to calculate stance stats")
+		return
+	}
+
+	// Return only stance section
+	h.jsonResponse(w, http.StatusOK, stats.Stance)
 }
 
 // GetPlayerVehicleStats returns vehicle and turret statistics
@@ -1090,9 +1232,10 @@ func (h *Handler) GetPlayerPerformanceHistory(w http.ResponseWriter, r *http.Req
 			min(timestamp) as played_at
 		FROM mohaa_stats.raw_events
 		WHERE match_id IN (
-			SELECT DISTINCT match_id FROM mohaa_stats.raw_events 
+			SELECT match_id FROM mohaa_stats.raw_events 
 			WHERE actor_id = ? 
-			ORDER BY timestamp DESC 
+			GROUP BY match_id 
+			ORDER BY max(timestamp) DESC 
 			LIMIT 20
 		)
 		GROUP BY match_id
@@ -1112,12 +1255,14 @@ func (h *Handler) GetPlayerPerformanceHistory(w http.ResponseWriter, r *http.Req
 		PlayedAt float64 `json:"played_at"`
 	}
 
-	var history []PerformancePoint
+	history := []PerformancePoint{} // Ensure non-nil
 	for rows.Next() {
 		var p PerformancePoint
-		if err := rows.Scan(&p.MatchID, &p.Kills, &p.Deaths, &p.PlayedAt); err != nil {
+		var t time.Time // Scan into time.Time
+		if err := rows.Scan(&p.MatchID, &p.Kills, &p.Deaths, &t); err != nil {
 			continue
 		}
+		p.PlayedAt = float64(t.Unix()) // Convert to unix timestamp for JSON
 		if p.Deaths > 0 {
 			p.KD = float64(p.Kills) / float64(p.Deaths)
 		} else {
@@ -1138,13 +1283,12 @@ func (h *Handler) GetPlayerBodyHeatmap(w http.ResponseWriter, r *http.Request) {
 	// Query breakdown of hit locations where this player was the TARGET (victim)
 	rows, err := h.ch.Query(ctx, `
 		SELECT 
-			replaceRegexpOne(
-				extract(raw_json, 'hitloc_([a-zA-Z0-9_]+)'),
-				'^$', 'torso'
-			) as body_part,
+			hitloc as body_part,
 			count() as hits
 		FROM mohaa_stats.raw_events
-		WHERE event_type = 'weapon_hit' AND target_id = ?
+		WHERE event_type IN ('weapon_hit', 'kill') 
+		  AND target_id = ? 
+		  AND hitloc != ''
 		GROUP BY body_part
 	`, guid)
 	if err != nil {

@@ -64,6 +64,13 @@ build_player_payload local.player local.prefix:
             local.payload = local.payload + "&" + local.prefix + "_pitch=" + local.ang[0]
             local.payload = local.payload + "&" + local.prefix + "_yaw=" + local.ang[1]
         }
+        
+        // Stance
+        local.stance = "stand"
+        if (local.player.tracker_stance != NIL) {
+            local.stance = local.player.tracker_stance
+        }
+        local.payload = local.payload + "&" + local.prefix + "_stance=" + local.stance
 
         end local.payload
 

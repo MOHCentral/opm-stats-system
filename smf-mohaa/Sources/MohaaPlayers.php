@@ -405,6 +405,9 @@ function MohaaPlayers_Dashboard(): void
                 'real_name' => $user_info['name'],
             ],
             'global' => $results['stats'] ?? [],
+            // Expose server averages at top level for template usage
+            'server_avg_accuracy' => $results['stats']['server_avg_accuracy'] ?? 0,
+            'server_avg_kd' => $results['stats']['server_avg_kd'] ?? 0,
             // Advanced Stats - available for template use
             'peak_performance' => $playerResults['peak'] ?? [],
             'combo_metrics' => $playerResults['combos'] ?? [],

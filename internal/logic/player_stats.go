@@ -64,6 +64,8 @@ type CombatStats struct {
 	Longshots       uint64  `json:"longshots"`
 	Roadkills       uint64  `json:"roadkills"`
 	BashKills       uint64  `json:"bash_kills"`
+	GrenadeKills    uint64  `json:"grenade_kills"`
+	GrenadesThrown  uint64  `json:"grenades_thrown"`
 	DamageDealt     uint64  `json:"damage_dealt"`
 	DamageTaken     uint64  `json:"damage_taken"`
 }
@@ -167,18 +169,23 @@ func (s *PlayerStatsService) fillCombatStats(ctx context.Context, guid string, o
 			countIf(event_type = 'player_teamkill' AND actor_id = ?) as team_kills,
 			countIf(event_type = 'player_roadkill' AND actor_id = ?) as roadkills,
 			countIf(event_type = 'player_bash' AND actor_id = ?) as bash_kills,
+			countIf(event_type = 'kill' AND actor_id = ? AND (actor_weapon ILIKE '%Grenade%' OR actor_weapon = 'Stielhandgranate')) as grenade_kills,
+			countIf(event_type = 'grenade_throw' AND actor_id = ?) as grenades_thrown,
 			sumIf(damage, event_type = 'damage' AND target_id = ?) as damage_dealt,
 			sumIf(damage, event_type = 'damage' AND actor_id = ?) as damage_taken
 		FROM raw_events
 		WHERE (actor_id = ? OR target_id = ?)
 	`
 	if err := s.ch.QueryRow(ctx, query,
-		guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, guid, // Params for select clauses
-		guid, guid, // Params for WHERE clause
+		guid, guid, guid, guid, guid, guid, guid, guid, guid, guid,
+		guid, guid, // Grenade Kills, Grenade Throws
+		guid, guid, // Damage Dealt, Damage Taken
+		guid, guid, // WHERE clause
 	).Scan(
 		&out.Kills, &out.Deaths, &out.Headshots,
 		&out.TorsoKills, &out.LimbKills, &out.MeleeKills, &out.Suicides,
 		&out.TeamKills, &out.Roadkills, &out.BashKills,
+		&out.GrenadeKills, &out.GrenadesThrown,
 		&out.DamageDealt, &out.DamageTaken,
 	); err != nil {
 		return err
@@ -233,12 +240,12 @@ func (s *PlayerStatsService) fillWeaponStats(ctx context.Context, guid string, o
 }
 
 func (s *PlayerStatsService) fillMovementStats(ctx context.Context, guid string, out *MovementStats) error {
-	// Assuming 'player_distance' event sums distance in 'extra.distance'
-	// Assuming 'player_jump' is an event
+	// Assuming 'distance' event sums distance in 'distance' field
+	// 'jump' is the correct event type
 	query := `
 		SELECT 
 			sumIf(distance, event_type = 'distance') / 100000.0 as km,
-			countIf(event_type = 'player_jump') as jumps
+			countIf(event_type = 'jump') as jumps
 		FROM raw_events
 		WHERE actor_id = ?
 	`
@@ -248,16 +255,32 @@ func (s *PlayerStatsService) fillMovementStats(ctx context.Context, guid string,
 }
 
 func (s *PlayerStatsService) fillAccuracyStats(ctx context.Context, guid string, out *AccuracyStats) error {
+	var shots, hits, headshots uint64
+	var avgDist *float64
+
 	query := `
 		SELECT 
-			sum(distance) / NULLIF(count(), 0) as avg_kill_dist
+			countIf(event_type = 'weapon_fire') as shots,
+			countIf(event_type = 'weapon_hit') as hits,
+			countIf(event_type = 'headshot') as headshots,
+			sumIf(distance, event_type = 'kill') / NULLIF(countIf(event_type = 'kill'), 0) as avg_dist
 		FROM raw_events
-		WHERE event_type = 'kill' AND actor_id = ?
+		WHERE actor_id = ?
 	`
-	var dist *float64
-	if err := s.ch.QueryRow(ctx, query, guid).Scan(&dist); err == nil && dist != nil {
-		out.AvgDistance = *dist
+	if err := s.ch.QueryRow(ctx, query, guid).Scan(&shots, &hits, &headshots, &avgDist); err != nil {
+		return err
 	}
+
+	if shots > 0 {
+		out.Overall = (float64(hits) / float64(shots)) * 100.0
+	}
+	if hits > 0 {
+		out.HeadHitPct = (float64(headshots) / float64(hits)) * 100.0
+	}
+	if avgDist != nil {
+		out.AvgDistance = *avgDist
+	}
+
 	return nil
 }
 
@@ -267,7 +290,7 @@ func (s *PlayerStatsService) fillSessionStats(ctx context.Context, guid string, 
 	query := `
 		SELECT 
 			uniq(match_id) as matches,
-			countIf(event_type = 'match_win') as wins
+			countIf(event_type = 'match_outcome' AND damage = 1) as wins
 		FROM raw_events 
 		WHERE actor_id = ?
 	`
@@ -361,11 +384,11 @@ func (s *PlayerStatsService) fillStanceStats(ctx context.Context, guid string, o
 	// Query for real stance data if available:
 	query := `
 		SELECT 
-			0 as standing,
-			0 as crouching,
-			0 as prone
+			countIf(actor_stance = 'stand') as standing,
+			countIf(actor_stance = 'crouch') as crouching,
+			countIf(actor_stance = 'prone') as prone
 		FROM raw_events 
-		WHERE event_type = 'player_kill' AND actor_id = ?
+		WHERE event_type = 'kill' AND actor_id = ?
 	`
 	if err := s.ch.QueryRow(ctx, query, guid).Scan(
 		&out.StandingKills, &out.CrouchKills, &out.ProneKills,

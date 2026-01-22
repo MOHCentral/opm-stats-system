@@ -221,6 +221,35 @@ function template_mohaa_player_full()
             </div>
         </div>
 
+        <!-- Session Statistics -->
+        <h3 style="border-left: 4px solid #9C27B0; padding-left: 10px; margin-bottom: 15px; text-transform: uppercase;">📊 Session Statistics</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+            <div style="background: '.$color_panel.'; padding: 15px; border: 1px solid #333; text-align: center;">
+                <div style="color: '.$color_muted.'; font-size: 12px; text-transform: uppercase;">Matches Played</div>
+                <div style="font-size: 24px; font-weight: bold; color: #fff;">'.number_format($stats['matches_played'] ?? 0).'</div>
+            </div>
+            <div style="background: '.$color_panel.'; padding: 15px; border: 1px solid #333; text-align: center;">
+                <div style="color: '.$color_muted.'; font-size: 12px; text-transform: uppercase;">Matches Won</div>
+                <div style="font-size: 24px; font-weight: bold; color: '.$color_accent.';">'.number_format($stats['matches_won'] ?? 0).'</div>
+            </div>
+            <div style="background: '.$color_panel.'; padding: 15px; border: 1px solid #333; text-align: center;">
+                <div style="color: '.$color_muted.'; font-size: 12px; text-transform: uppercase;">Win Rate</div>
+                <div style="font-size: 24px; font-weight: bold; color: #FFC107;">'.number_format($stats['win_rate'] ?? 0, 1).'%</div>
+            </div>
+            <div style="background: '.$color_panel.'; padding: 15px; border: 1px solid #333; text-align: center;">
+                <div style="color: '.$color_muted.'; font-size: 12px; text-transform: uppercase;">Play Time</div>
+                <div style="font-size: 24px; font-weight: bold; color: #fff;">'.number_format(($stats['play_time_seconds'] ?? 0) / 3600, 1).' <small>hrs</small></div>
+            </div>
+            <div style="background: '.$color_panel.'; padding: 15px; border: 1px solid #333; text-align: center;">
+                <div style="color: '.$color_muted.'; font-size: 12px; text-transform: uppercase;">FFA Wins</div>
+                <div style="font-size: 24px; font-weight: bold; color: #64B5F6;">'.number_format($player['ffa_wins'] ?? 0).'</div>
+            </div>
+            <div style="background: '.$color_panel.'; padding: 15px; border: 1px solid #333; text-align: center;">
+                <div style="color: '.$color_muted.'; font-size: 12px; text-transform: uppercase;">Team Wins</div>
+                <div style="font-size: 24px; font-weight: bold; color: #FF9800;">'.number_format($player['team_wins'] ?? 0).'</div>
+            </div>
+        </div>
+
         <!-- Stance Distribution -->
         <div style="background: '.$color_panel.'; padding: 20px; border: 1px solid #333; margin-bottom: 30px;">
             <h4 style="margin: 0 0 15px 0;">Stance Distribution & Movement Patterns</h4>

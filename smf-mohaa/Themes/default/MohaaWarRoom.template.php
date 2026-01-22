@@ -1371,33 +1371,56 @@ function template_war_room_movement_content($player) {
 }
 
 function template_war_room_stance_content($player) {
+    // 1. Get raw counts (support both naming conventions just in case)
+    $stand = $player['kills_while_standing'] ?? $player['standing_kills'] ?? 0;
+    $crouch = $player['kills_while_crouching'] ?? $player['crouching_kills'] ?? 0;
+    $prone = $player['kills_while_prone'] ?? $player['prone_kills'] ?? 0;
+    
+    // 2. Calculate Total
+    $total = $stand + $crouch + $prone;
+    if ($total == 0) $total = 1; // Avoid div by zero
+    
+    // 3. Calculate Percentages
+    $standPct = round(($stand / $total) * 100, 1);
+    $crouchPct = round(($crouch / $total) * 100, 1);
+    $pronePct = round(($prone / $total) * 100, 1);
+    
     return '
     <div style="padding: 10px;">
-        <div style="margin-bottom: 12px;">
+        <div style="margin-bottom: 12px; cursor: pointer;" class="drilldown-stat" data-stat="kills_while_standing" data-dimension="map" title="Click for details">
             <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
                 <span>Standing</span>
-                <strong>'.($player['standing_kills_pct'] ?? 0).'%</strong>
+                <div>
+                    <strong>'.number_format($stand).'</strong>
+                    <span style="font-size: 0.8em; opacity: 0.7; margin-left: 5px;">('.$standPct.'%)</span>
+                </div>
             </div>
             <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
-                <div style="width: '.($player['standing_kills_pct'] ?? 0).'%; height: 100%; background: #2196f3; border-radius: 4px;"></div>
+                <div style="width: '.$standPct.'%; height: 100%; background: #2196f3; border-radius: 4px;"></div>
             </div>
         </div>
-         <div style="margin-bottom: 12px;">
+         <div style="margin-bottom: 12px; cursor: pointer;" class="drilldown-stat" data-stat="kills_while_crouching" data-dimension="map" title="Click for details">
             <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
                 <span>Crouching</span>
-                <strong>'.($player['crouching_kills_pct'] ?? 0).'%</strong>
+                <div>
+                    <strong>'.number_format($crouch).'</strong>
+                    <span style="font-size: 0.8em; opacity: 0.7; margin-left: 5px;">('.$crouchPct.'%)</span>
+                </div>
             </div>
             <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
-                <div style="width: '.($player['crouching_kills_pct'] ?? 0).'%; height: 100%; background: #4caf50; border-radius: 4px;"></div>
+                <div style="width: '.$crouchPct.'%; height: 100%; background: #4caf50; border-radius: 4px;"></div>
             </div>
         </div>
-         <div>
+         <div style="cursor: pointer;" class="drilldown-stat" data-stat="kills_while_prone" data-dimension="map" title="Click for details">
             <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
                 <span>Prone</span>
-                <strong>'.($player['prone_kills_pct'] ?? 0).'%</strong>
+                <div>
+                    <strong>'.number_format($prone).'</strong>
+                    <span style="font-size: 0.8em; opacity: 0.7; margin-left: 5px;">('.$pronePct.'%)</span>
+                </div>
             </div>
             <div style="height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
-                <div style="width: '.($player['prone_kills_pct'] ?? 0).'%; height: 100%; background: #ff9800; border-radius: 4px;"></div>
+                <div style="width: '.$pronePct.'%; height: 100%; background: #ff9800; border-radius: 4px;"></div>
             </div>
         </div>
     </div>';

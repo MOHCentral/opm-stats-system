@@ -201,33 +201,36 @@ type RawEvent struct {
 	MapName     string    `json:"map_name,omitempty"`
 
 	// Player info (primary actor for single-player events)
-	PlayerName  string  `json:"player_name,omitempty"`
-	PlayerGUID  string  `json:"player_guid,omitempty"`
-	PlayerTeam  string  `json:"player_team,omitempty"`
-	PlayerSMFID int64   `json:"player_smf_id,omitempty"` // SMF member ID (if authenticated)
-	PosX        float32 `json:"pos_x,omitempty"`
-	PosY        float32 `json:"pos_y,omitempty"`
-	PosZ        float32 `json:"pos_z,omitempty"`
+	PlayerName   string  `json:"player_name,omitempty"`
+	PlayerGUID   string  `json:"player_guid,omitempty"`
+	PlayerTeam   string  `json:"player_team,omitempty"`
+	PlayerSMFID  int64   `json:"player_smf_id,omitempty"` // SMF member ID (if authenticated)
+	PosX         float32 `json:"pos_x,omitempty"`
+	PosY         float32 `json:"pos_y,omitempty"`
+	PosZ         float32 `json:"pos_z,omitempty"`
+	PlayerStance string  `json:"player_stance,omitempty"`
 
 	// Attacker info (for kill/damage events)
-	AttackerName  string  `json:"attacker_name,omitempty"`
-	AttackerGUID  string  `json:"attacker_guid,omitempty"`
-	AttackerTeam  string  `json:"attacker_team,omitempty"`
-	AttackerSMFID int64   `json:"attacker_smf_id,omitempty"` // SMF member ID (if authenticated)
-	AttackerX     float32 `json:"attacker_x,omitempty"`
-	AttackerY     float32 `json:"attacker_y,omitempty"`
-	AttackerZ     float32 `json:"attacker_z,omitempty"`
-	AttackerPitch float32 `json:"attacker_pitch,omitempty"`
-	AttackerYaw   float32 `json:"attacker_yaw,omitempty"`
+	AttackerName   string  `json:"attacker_name,omitempty"`
+	AttackerGUID   string  `json:"attacker_guid,omitempty"`
+	AttackerTeam   string  `json:"attacker_team,omitempty"`
+	AttackerSMFID  int64   `json:"attacker_smf_id,omitempty"` // SMF member ID (if authenticated)
+	AttackerX      float32 `json:"attacker_x,omitempty"`
+	AttackerY      float32 `json:"attacker_y,omitempty"`
+	AttackerZ      float32 `json:"attacker_z,omitempty"`
+	AttackerPitch  float32 `json:"attacker_pitch,omitempty"`
+	AttackerYaw    float32 `json:"attacker_yaw,omitempty"`
+	AttackerStance string  `json:"attacker_stance,omitempty"`
 
 	// Victim info
-	VictimName  string  `json:"victim_name,omitempty"`
-	VictimGUID  string  `json:"victim_guid,omitempty"`
-	VictimTeam  string  `json:"victim_team,omitempty"`
-	VictimSMFID int64   `json:"victim_smf_id,omitempty"` // SMF member ID (if authenticated)
-	VictimX     float32 `json:"victim_x,omitempty"`
-	VictimY     float32 `json:"victim_y,omitempty"`
-	VictimZ     float32 `json:"victim_z,omitempty"`
+	VictimName   string  `json:"victim_name,omitempty"`
+	VictimGUID   string  `json:"victim_guid,omitempty"`
+	VictimTeam   string  `json:"victim_team,omitempty"`
+	VictimSMFID  int64   `json:"victim_smf_id,omitempty"` // SMF member ID (if authenticated)
+	VictimX      float32 `json:"victim_x,omitempty"`
+	VictimY      float32 `json:"victim_y,omitempty"`
+	VictimZ      float32 `json:"victim_z,omitempty"`
+	VictimStance string  `json:"victim_stance,omitempty"`
 
 	// Weapon/damage info
 	Weapon        string `json:"weapon,omitempty"`
@@ -244,6 +247,7 @@ type RawEvent struct {
 	Sprinted   float32 `json:"sprinted,omitempty"`
 	Swam       float32 `json:"swam,omitempty"`
 	Driven     float32 `json:"driven,omitempty"`
+	Distance   float32 `json:"distance,omitempty"`
 
 	// Aim angles
 	AimPitch float32 `json:"aim_pitch,omitempty"`
@@ -254,9 +258,10 @@ type RawEvent struct {
 	Count int    `json:"count,omitempty"`
 
 	// Target info (for hits)
-	TargetName  string `json:"target_name,omitempty"`
-	TargetGUID  string `json:"target_guid,omitempty"`
-	TargetSMFID int64  `json:"target_smf_id,omitempty"` // SMF member ID (if authenticated)
+	TargetName   string `json:"target_name,omitempty"`
+	TargetGUID   string `json:"target_guid,omitempty"`
+	TargetSMFID  int64  `json:"target_smf_id,omitempty"` // SMF member ID (if authenticated)
+	TargetStance string `json:"target_stance,omitempty"`
 
 	// Team change
 	OldTeam string `json:"old_team,omitempty"`
@@ -312,15 +317,17 @@ type ClickHouseEvent struct {
 	ActorPosZ   float32
 	ActorPitch  float32
 	ActorYaw    float32
+	ActorStance string
 
 	// Target (recipient of action)
-	TargetID    string
-	TargetName  string
-	TargetTeam  string
-	TargetSMFID int64 // SMF member ID (0 if not authenticated)
-	TargetPosX  float32
-	TargetPosY  float32
-	TargetPosZ  float32
+	TargetID     string
+	TargetName   string
+	TargetTeam   string
+	TargetSMFID  int64 // SMF member ID (0 if not authenticated)
+	TargetPosX   float32
+	TargetPosY   float32
+	TargetPosZ   float32
+	TargetStance string
 
 	// Metrics
 	Damage   uint32

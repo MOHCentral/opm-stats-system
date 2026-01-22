@@ -260,9 +260,9 @@ func (p *Pool) processBatch(batch []Job) error {
 		INSERT INTO raw_events (
 			timestamp, match_id, server_id, map_name, event_type,
 			actor_id, actor_name, actor_team, actor_weapon,
-			actor_pos_x, actor_pos_y, actor_pos_z, actor_pitch, actor_yaw,
+			actor_pos_x, actor_pos_y, actor_pos_z, actor_pitch, actor_yaw, actor_stance,
 			target_id, target_name, target_team,
-			target_pos_x, target_pos_y, target_pos_z,
+			target_pos_x, target_pos_y, target_pos_z, target_stance,
 			damage, hitloc, distance, raw_json, actor_smf_id, target_smf_id
 		)
 	`)
@@ -291,12 +291,14 @@ func (p *Pool) processBatch(batch []Job) error {
 			chEvent.ActorPosZ,
 			chEvent.ActorPitch,
 			chEvent.ActorYaw,
+			chEvent.ActorStance,
 			chEvent.TargetID,
 			chEvent.TargetName,
 			chEvent.TargetTeam,
 			chEvent.TargetPosX,
 			chEvent.TargetPosY,
 			chEvent.TargetPosZ,
+			chEvent.TargetStance,
 			chEvent.Damage,
 			chEvent.Hitloc,
 			chEvent.Distance,
@@ -355,7 +357,7 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		EventType: string(event.Type),
 		Damage:    uint32(event.Damage),
 		Hitloc:    event.Hitloc,
-		Distance:  0,
+		Distance:  event.Distance,
 		RawJSON:   rawJSON,
 	}
 
@@ -372,6 +374,7 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		ch.ActorPosZ = event.AttackerZ
 		ch.ActorPitch = event.AttackerPitch
 		ch.ActorYaw = event.AttackerYaw
+		ch.ActorStance = event.AttackerStance
 
 		ch.TargetID = event.VictimGUID
 		ch.TargetName = sanitizeName(event.VictimName)
@@ -380,6 +383,7 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		ch.TargetPosX = event.VictimX
 		ch.TargetPosY = event.VictimY
 		ch.TargetPosZ = event.VictimZ
+		ch.TargetStance = event.VictimStance
 
 		ch.Hitloc = event.Hitloc
 
@@ -388,9 +392,13 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		ch.ActorName = sanitizeName(event.AttackerName)
 		ch.ActorSMFID = event.AttackerSMFID
 		ch.ActorWeapon = event.Weapon
+		ch.ActorStance = event.AttackerStance // If available
+
 		ch.TargetID = event.VictimGUID
 		ch.TargetName = sanitizeName(event.VictimName)
 		ch.TargetSMFID = event.VictimSMFID
+		ch.TargetStance = event.VictimStance
+
 		ch.Damage = uint32(event.Damage)
 
 	case models.EventWeaponFire, models.EventWeaponReload, models.EventWeaponChange:
@@ -403,6 +411,7 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		ch.ActorPosZ = event.PosZ
 		ch.ActorPitch = event.AimPitch
 		ch.ActorYaw = event.AimYaw
+		ch.ActorStance = event.PlayerStance
 
 	case models.EventWeaponHit:
 		ch.ActorID = event.PlayerGUID
@@ -412,6 +421,9 @@ func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) 
 		ch.TargetName = sanitizeName(event.TargetName)
 		ch.TargetSMFID = event.TargetSMFID
 		ch.Hitloc = event.Hitloc
+		ch.ActorWeapon = event.Weapon
+		ch.ActorStance = event.PlayerStance
+		ch.TargetStance = event.TargetStance
 
 	case models.EventMatchOutcome:
 		ch.ActorID = event.PlayerGUID
@@ -546,8 +558,9 @@ func (p *Pool) handleMatchEnd(ctx context.Context, event *models.RawEvent) {
 					PlayerGUID: playerGUID,
 					PlayerTeam: playerTeam,
 					Gametype:   gType,
-					// Re-using 'Count' for Won/Lost (1/0)
-					Count: won,
+					// CRITICAL FIX: Use Damage field (maps to ClickHouse damage column)
+					// 1 = win, 0 = loss
+					Damage: won,
 				}
 				p.Enqueue(outcomeEvent)
 			}(guid, team, outcome, gametype)

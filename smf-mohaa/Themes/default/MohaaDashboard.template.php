@@ -117,6 +117,14 @@ function template_dashboard_my_stats()
                     <div class="stat-label">', $txt['mohaa_kd'], '</div>
                 </div>
                 <div class="mohaa-stat-card">
+                    <div class="stat-value">', number_format($stats['matches_won'] ?? 0), '</div>
+                    <div class="stat-label">WINS</div>
+                </div>
+                <div class="mohaa-stat-card">
+                    <div class="stat-value">', number_format($stats['matches_played'] ?? 0), '</div>
+                    <div class="stat-label">MATCHES</div>
+                </div>
+                <div class="mohaa-stat-card">
                     <div class="stat-value">', number_format($stats['headshots'] ?? 0), '</div>
                     <div class="stat-label">', $txt['mohaa_headshots'], '</div>
                 </div>

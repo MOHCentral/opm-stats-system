@@ -426,6 +426,7 @@ on_player_land local.height:
     end
 
 on_player_crouch local.dummy:
+        self.tracker_stance = "crouch"
         local.payload = global/tracker_common.scr::build_base_payload "crouch"
         local.payload = local.payload + global/tracker_common.scr::build_player_payload self "player"
     
@@ -433,6 +434,7 @@ on_player_crouch local.dummy:
     end
 
 on_player_prone local.dummy:
+        self.tracker_stance = "prone"
         local.payload = global/tracker_common.scr::build_base_payload "prone"
         local.payload = local.payload + global/tracker_common.scr::build_player_payload self "player"
     
@@ -516,6 +518,9 @@ on_client_begin local.player:
     // Initialize session-based counters
         local.player.shots_fired = 0
         local.player.shots_hit = 0
+        
+        // Initialize stance
+        local.player.tracker_stance = "stand"
 
         local.payload = global/tracker_common.scr::build_base_payload "client_begin"
         local.payload = local.payload + global/tracker_common.scr::build_player_payload local.player "player"

@@ -22,6 +22,7 @@ WEAPONS=("Thompson" "MP40" "Kar98k" "M1_Garand" "Springfield" "BAR" "StG44" "Gre
 
 # Hit locations
 HITLOCS=("head" "torso" "left_arm" "right_arm" "left_leg" "right_leg")
+STANCES=("stand" "crouch" "prone")
 
 TIMESTAMP=$(date +%s)
 
@@ -33,10 +34,12 @@ echo ""
 # Function to send event
 send_event() {
     local payload=$1
+    # Compact JSON to single line as API expects NDJSON
+    local clean_payload=$(echo "$payload" | tr -d '\n' | tr -s ' ')
     curl -s -X POST "$API_URL" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer test-token" \
-        -d "$payload" > /dev/null
+        -d "$clean_payload" > /dev/null
 }
 
 # Start a match
@@ -80,6 +83,7 @@ for i in $(seq 1 150); do
     hitloc=${HITLOCS[$((RANDOM % ${#HITLOCS[@]}))]}
     map=${MAPS[$((RANDOM % ${#MAPS[@]}))]}
     damage=$((50 + RANDOM % 100))
+    stance=${STANCES[$((RANDOM % ${#STANCES[@]}))]}
     
     send_event "{
         \"type\": \"kill\",
@@ -101,6 +105,7 @@ for i in $(seq 1 150); do
         \"target_pos_y\": $((RANDOM % 5000)),
         \"hitloc\": \"$hitloc\",
         \"damage\": $damage,
+        \"attacker_stance\": \"$stance\",
         \"timestamp\": $((TIMESTAMP + i))
     }"
     
