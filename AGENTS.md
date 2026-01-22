@@ -426,3 +426,9 @@ Tournaments (MohaaTournaments.php)
 NEVER REUTRN OR USE FAKE OR MOCK DATA. Absolately no fake data
 no use of mock or fake data
 All data must be seeded
+
+*** DEV ***
+lets not use docker for local dev. only docker for production!!!
+
+*** SUDO ***
+For sudo use TEMPerary password `Gramjchq1`

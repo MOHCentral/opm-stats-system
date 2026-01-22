@@ -309,10 +309,20 @@ func (p *Pool) processBatch(batch []Job) error {
 			continue
 		}
 
-		// Process side effects (Redis state updates, achievement checks)
+		// Process side effects (Redis state updates)
 		go p.processEventSideEffects(ctx, event)
+	}
 
-		// Process achievement triggers
+	// Send batch to ClickHouse FIRST
+	err = chBatch.Send()
+	if err != nil {
+		p.logger.Errorw("Failed to send batch to ClickHouse", "error", err, "batchSize", len(batch))
+		return err
+	}
+
+	// THEN process achievements (after data is in ClickHouse)
+	for _, job := range batch {
+		event := job.Event
 		if p.achievementWorker != nil {
 			p.logger.Infow("Calling achievement worker", "event_type", event.Type, "attacker_smf_id", event.AttackerSMFID)
 			go func(evt *models.RawEvent) {
@@ -323,16 +333,10 @@ func (p *Pool) processBatch(batch []Job) error {
 				}()
 				p.achievementWorker.ProcessEvent(evt)
 			}(event)
-		} else {
-			p.logger.Warn("Achievement worker is nil!")
 		}
 	}
 
-	err = chBatch.Send()
-	if err != nil {
-		p.logger.Errorw("Failed to send batch to ClickHouse", "error", err, "batchSize", len(batch))
-	}
-	return err
+	return nil
 }
 
 // convertToClickHouseEvent normalizes a raw event for ClickHouse

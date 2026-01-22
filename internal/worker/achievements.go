@@ -15,9 +15,9 @@ import (
 
 // AchievementWorker processes events and unlocks achievements
 type AchievementWorker struct {
-	db              *pgxpool.Pool        // Postgres for achievement defs and unlocks
-	ch              driver.Conn          // ClickHouse for stats queries
-	logger          *zap.SugaredLogger   // Logger for debugging
+	db              *pgxpool.Pool      // Postgres for achievement defs and unlocks
+	ch              driver.Conn        // ClickHouse for stats queries
+	logger          *zap.SugaredLogger // Logger for debugging
 	achievementDefs map[string]*AchievementDefinition
 	mu              sync.RWMutex
 	ctx             context.Context
@@ -110,14 +110,14 @@ func (w *AchievementWorker) loadAchievementDefinitions() error {
 func (w *AchievementWorker) ProcessEvent(event *models.RawEvent) {
 	// Determine Actor ID based on event type
 	actorSMFID := w.getActorSMFID(event)
-	w.logger.Debugw("Processing achievement event",
+	w.logger.Infow("Processing achievement event",
 		"type", event.Type,
 		"actorSMFID", actorSMFID,
 		"timestamp", event.Timestamp,
 	)
 
 	if actorSMFID == 0 {
-		w.logger.Debugw("Skipping achievement check - no authenticated player", "type", event.Type)
+		w.logger.Infow("Skipping achievement check - no authenticated player", "type", event.Type)
 		return // Only process for authenticated players
 	}
 
@@ -153,6 +153,7 @@ func (w *AchievementWorker) getActorSMFID(event *models.RawEvent) int64 {
 
 // checkCombatAchievements checks for combat-related achievements
 func (w *AchievementWorker) checkCombatAchievements(smfID int64, event *models.RawEvent) {
+	w.logger.Infow("[ACHIEVEMENT] checkCombatAchievements called", "smfID", smfID)
 	// Get player's total kills
 	totalKills := w.getPlayerStat(int(smfID), "total_kills")
 	w.logger.Infow("Player kill stats",
@@ -178,13 +179,18 @@ func (w *AchievementWorker) checkCombatAchievements(smfID int64, event *models.R
 		"legendary":       20, // In single match
 	}
 
+	w.logger.Infow("Checking milestones", "totalKills", totalKills, "milestoneCount", len(milestones))
+
 	for slug, threshold := range milestones {
-		if totalKills == threshold {
+		w.logger.Debugw("Checking milestone", "slug", slug, "threshold", threshold, "totalKills", totalKills, "passes", totalKills >= threshold)
+		if totalKills >= threshold {
 			w.logger.Infow("Achievement milestone reached!",
 				"slug", slug,
 				"threshold", threshold,
+				"totalKills", totalKills,
 				"smfID", smfID,
 			)
+			// unlockAchievement checks if already unlocked, so it's safe to call multiple times
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
 		}
 	}
