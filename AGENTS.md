@@ -20,7 +20,7 @@
 ## 🏗️ System Architecture
 
 ### 1. Game Layer (OpenMOHAA)
--   **Script**: `global/tracker.scr` (Morpheus Script).
+-   **Script**: `opm-stats-game-scripts/global/tracker.scr` (Morpheus Script).
 -   **Function**: Subscribes to 30 engine events.
 -   **Transport**: Sends standard HTTP POST to API.
 
@@ -65,7 +65,7 @@
 | :--- | :--- | :--- |
 | **SMF Sources** | `smf-mohaa/Sources/` | Edit PHP logic here. |
 | **SMF Templates** | `smf-mohaa/Themes/default/` | Edit HTML/JS here. |
-| **Game Tracker** | `global/tracker.scr` | Event capture script. |
+| **Game Tracker** | `opm-stats-game-scripts/global/tracker.scr` | Event capture script. |
 | **Go API** | `cmd/api/` | Main server entry point. |
 | **Documentation** | `docs/` | Detailed Reference (See below). |
 
@@ -173,7 +173,7 @@ The game GUID is permanent and unique per player. We use it as the linking key.
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `global/tracker_common.scr` | `build_player_payload` sends guid + smf_id |
+| `opm-stats-game-scripts/global/tracker_common.scr` | `build_player_payload` sends guid + smf_id |
 | `internal/logic/identity.go` | Go identity resolver with caching |
 | `internal/models/events.go` | RawEvent has PlayerSMFID, AttackerSMFID, VictimSMFID |
 | `smf-mohaa/Sources/MohaaStats/MohaaIdentityResolver.php` | PHP helper for profile links |
@@ -432,3 +432,55 @@ lets not use docker for local dev. only docker for production!!!
 
 *** SUDO ***
 For sudo use TEMPerary password `Gramjchq1`
+
+
+# API Documentation Generation: OpenAPI + Scalar
+
+## 1. The AI Prompt
+Copy and paste the block below into your AI tool after providing your source code (Controllers, Routes, and Models/DTOs).
+
+---
+
+**Role:** You are a Senior Backend Engineer and API Architect.
+
+**Task:** Analyse the provided source code and generate a comprehensive, valid OpenAPI Specification (v3.1) file in YAML format.
+
+**Output Requirements:**
+1. **Structural Metadata:** Include a clear title, version, and a detailed description.
+2. **Endpoint Mapping:** Identify every route. For each, provide:
+   * A unique `operationId`.
+   * Clear `summary` and `description`.
+   * All path, query, and header parameters with correct types.
+   * Full Request Body schemas for POST/PUT/PATCH.
+3. **Response Objects:** Define success (200, 201) and standard error responses (400, 401, 403, 404, 500).
+4. **Schemas & Components:** Use `components/schemas` for reusable data models. Every property must have a `type` and an `example`.
+5. **Security Schemes:** Identify the auth method (Bearer JWT, API Key, etc.) and define it in `components/securitySchemes`.
+6. **Scalar Optimisation:** Use `tags` to group endpoints logically (e.g., "Admin", "Payments") to ensure the Scalar sidebar is well-organised.
+
+**Constraint:** Only document what is present in the code. Do not hallucinate endpoints.
+
+---
+
+## 2. Implementation (Scalar CDN)
+Once you have the `openapi.yaml` from the AI, use this HTML boilerplate to display it on your website.
+
+```html
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <title>API Documentation</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <script
+      id="api-reference"
+      data-url="/path/to/your/openapi.yaml">
+    </script>
+
+    <script src="[https://cdn.jsdelivr.net/npm/@scalar/api-reference](https://cdn.jsdelivr.net/npm/@scalar/api-reference)"></script>
+  </body>
+</html>

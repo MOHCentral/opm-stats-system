@@ -1,25 +1,21 @@
+# Archive (Old logs, binaries, audit dumps)
+archive/
+
 # Genkit
 .genkit/
 
-# Node
+# Node (Global installs)
 node_modules/
-api-server/node_modules/
 
-# Go
-bin/
-*.exe
-*.test
-*.out
-go-api/go-api
-tools/seeder/seeder
-
-# Logs
+# Logs (Global)
 *.log
 logs/
 
-# IDE
+# IDE & System
 .vscode/
 .idea/
 *.swp
-*.DS_Store
+.DS_Store
+Thumbs.db
+
 
