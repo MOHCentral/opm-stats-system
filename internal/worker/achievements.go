@@ -4,19 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/openmohaa/stats-api/internal/models"
+	"go.uber.org/zap"
 )
 
 // AchievementWorker processes events and unlocks achievements
 type AchievementWorker struct {
 	db              *pgxpool.Pool        // Postgres for achievement defs and unlocks
 	ch              driver.Conn          // ClickHouse for stats queries
+	logger          *zap.SugaredLogger   // Logger for debugging
 	achievementDefs map[string]*AchievementDefinition
 	mu              sync.RWMutex
 	ctx             context.Context
@@ -34,12 +35,13 @@ type AchievementDefinition struct {
 }
 
 // NewAchievementWorker creates a new achievement processing worker
-func NewAchievementWorker(db *pgxpool.Pool, ch driver.Conn) *AchievementWorker {
+func NewAchievementWorker(db *pgxpool.Pool, ch driver.Conn, logger *zap.SugaredLogger) *AchievementWorker {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	worker := &AchievementWorker{
 		db:              db,
 		ch:              ch,
+		logger:          logger,
 		achievementDefs: make(map[string]*AchievementDefinition),
 		ctx:             ctx,
 		cancel:          cancel,
@@ -47,7 +49,7 @@ func NewAchievementWorker(db *pgxpool.Pool, ch driver.Conn) *AchievementWorker {
 
 	// Load achievement definitions from database
 	if err := worker.loadAchievementDefinitions(); err != nil {
-		log.Printf("Failed to load achievement definitions: %v", err)
+		logger.Errorw("Failed to load achievement definitions", "error", err)
 	}
 
 	return worker
@@ -55,13 +57,13 @@ func NewAchievementWorker(db *pgxpool.Pool, ch driver.Conn) *AchievementWorker {
 
 // Start begins the achievement worker
 func (w *AchievementWorker) Start() {
-	log.Println("Achievement Worker started")
+	w.logger.Info("Achievement Worker started")
 }
 
 // Stop gracefully stops the worker
 func (w *AchievementWorker) Stop() {
 	w.cancel()
-	log.Println("Achievement Worker stopped")
+	w.logger.Info("Achievement Worker stopped")
 }
 
 // loadAchievementDefinitions loads all achievements from database
@@ -92,7 +94,7 @@ func (w *AchievementWorker) loadAchievementDefinitions() error {
 			&def.Description,
 		)
 		if err != nil {
-			log.Printf("Failed to scan achievement: %v", err)
+			w.logger.Errorw("Failed to scan achievement", "error", err)
 			continue
 		}
 
@@ -100,7 +102,7 @@ func (w *AchievementWorker) loadAchievementDefinitions() error {
 		count++
 	}
 
-	log.Printf("Loaded %d achievement definitions", count)
+	w.logger.Infow("Loaded achievement definitions", "count", count)
 	return nil
 }
 
@@ -108,16 +110,21 @@ func (w *AchievementWorker) loadAchievementDefinitions() error {
 func (w *AchievementWorker) ProcessEvent(event *models.RawEvent) {
 	// Determine Actor ID based on event type
 	actorSMFID := w.getActorSMFID(event)
-	log.Printf("Processing event type=%s, actorSMFID=%d", event.Type, actorSMFID)
-	
+	w.logger.Debugw("Processing achievement event",
+		"type", event.Type,
+		"actorSMFID", actorSMFID,
+		"timestamp", event.Timestamp,
+	)
+
 	if actorSMFID == 0 {
+		w.logger.Debugw("Skipping achievement check - no authenticated player", "type", event.Type)
 		return // Only process for authenticated players
 	}
 
 	// Check different event types
 	switch event.Type {
 	case models.EventKill:
-		log.Printf("Checking combat achievements for SMF ID %d", actorSMFID)
+		w.logger.Infow("Checking combat achievements", "smfID", actorSMFID)
 		w.checkCombatAchievements(actorSMFID, event)
 	case models.EventHeadshot:
 		w.checkHeadshotAchievements(actorSMFID, event)
@@ -148,7 +155,10 @@ func (w *AchievementWorker) getActorSMFID(event *models.RawEvent) int64 {
 func (w *AchievementWorker) checkCombatAchievements(smfID int64, event *models.RawEvent) {
 	// Get player's total kills
 	totalKills := w.getPlayerStat(int(smfID), "total_kills")
-	log.Printf("Player SMF ID %d has %d total kills", smfID, totalKills)
+	w.logger.Infow("Player kill stats",
+		"smfID", smfID,
+		"totalKills", totalKills,
+	)
 
 	serverID := 0
 	// Try parsing ServerID if needed, or default to 0
@@ -170,7 +180,11 @@ func (w *AchievementWorker) checkCombatAchievements(smfID int64, event *models.R
 
 	for slug, threshold := range milestones {
 		if totalKills == threshold {
-			log.Printf("Achievement unlocked! %s (threshold: %d)", slug, threshold)
+			w.logger.Infow("Achievement milestone reached!",
+				"slug", slug,
+				"threshold", threshold,
+				"smfID", smfID,
+			)
 			w.unlockAchievement(int(smfID), slug, serverID, ts)
 		}
 	}
@@ -371,10 +385,20 @@ func (w *AchievementWorker) getPlayerStat(smfID int, statName string) int {
 	var value uint64
 	err := w.ch.QueryRow(w.ctx, query, smfID).Scan(&value)
 	if err != nil {
-		log.Printf("Error querying ClickHouse for %s: %v", statName, err)
+		w.logger.Errorw("ClickHouse query error",
+			"statName", statName,
+			"smfID", smfID,
+			"query", query,
+			"error", err,
+		)
 		return 0
 	}
 
+	w.logger.Debugw("Retrieved player stat",
+		"statName", statName,
+		"smfID", smfID,
+		"value", value,
+	)
 	return int(value)
 }
 
@@ -407,10 +431,13 @@ func (w *AchievementWorker) unlockAchievement(smfID int, slug string, serverID i
 	`
 	err := w.db.QueryRow(w.ctx, getIDQuery, slug).Scan(&achievementID)
 	if err != nil {
-		log.Printf("Achievement code not found: %s", slug)
+		w.logger.Errorw("Achievement code not found in database",
+			"slug", slug,
+			"error", err,
+		)
 		return
 	}
-	
+
 	// Check if already unlocked
 	var exists bool
 	checkQuery := `
@@ -420,8 +447,13 @@ func (w *AchievementWorker) unlockAchievement(smfID int, slug string, serverID i
 		)
 	`
 	err = w.db.QueryRow(w.ctx, checkQuery, smfID, achievementID).Scan(&exists)
-	if err != nil || exists {
-		return // Already unlocked or error
+	if err != nil {
+		w.logger.Errorw("Error checking existing achievement", "error", err)
+		return
+	}
+	if exists {
+		w.logger.Debugw("Achievement already unlocked", "slug", slug, "smfID", smfID)
+		return // Already unlocked
 	}
 
 	// Get achievement details
@@ -430,7 +462,7 @@ func (w *AchievementWorker) unlockAchievement(smfID int, slug string, serverID i
 	w.mu.RUnlock()
 
 	if !exists {
-		log.Printf("Achievement definition not found: %s", slug)
+		w.logger.Errorw("Achievement definition not found in memory", "slug", slug)
 		return
 	}
 
@@ -445,14 +477,24 @@ func (w *AchievementWorker) unlockAchievement(smfID int, slug string, serverID i
 
 	_, err = w.db.Exec(w.ctx, insertQuery, smfID, achievementID, 100, timestamp)
 	if err != nil {
-		log.Printf("Failed to unlock achievement %s for player %d: %v", slug, smfID, err)
+		w.logger.Errorw("Failed to insert achievement unlock",
+			"slug", slug,
+			"smfID", smfID,
+			"achievementID", achievementID,
+			"error", err,
+		)
 		return
 	}
 
 	// Note: Player achievement points can be calculated via SUM query
 	// No need to maintain separate counter
 
-	log.Printf("🏆 Achievement unlocked: %s for player %d (+%d points)", slug, smfID, def.Points)
+	w.logger.Infow("🏆 Achievement unlocked!",
+		"slug", slug,
+		"smfID", smfID,
+		"points", def.Points,
+		"description", def.Description,
+	)
 
 	// TODO: Send notification to player
 	w.notifyPlayer(smfID, slug, def)
@@ -472,7 +514,7 @@ func (w *AchievementWorker) notifyPlayer(smfID int, slug string, def *Achievemen
 	}
 
 	jsonData, _ := json.Marshal(notification)
-	log.Printf("Notification: %s", string(jsonData))
+	w.logger.Debugw("Achievement notification", "data", string(jsonData))
 
 	// In production, would use Redis pub/sub or WebSocket
 }

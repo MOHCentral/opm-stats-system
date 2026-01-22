@@ -110,7 +110,7 @@ func NewPool(cfg PoolConfig) *Pool {
 	}
 
 	// Initialize Achievement Worker with both Postgres and ClickHouse
-	pool.achievementWorker = NewAchievementWorker(cfg.Postgres, cfg.ClickHouse)
+	pool.achievementWorker = NewAchievementWorker(cfg.Postgres, cfg.ClickHouse, cfg.Logger.Sugar())
 	pool.achievementWorker.Start()
 
 	return pool
@@ -138,12 +138,12 @@ func (p *Pool) Start(ctx context.Context) {
 // Stop gracefully shuts down the worker pool
 func (p *Pool) Stop() {
 	p.logger.Info("Stopping worker pool...")
-	
+
 	// Stop achievement worker
 	if p.achievementWorker != nil {
 		p.achievementWorker.Stop()
 	}
-	
+
 	p.cancel()
 	close(p.jobQueue)
 	p.wg.Wait()
@@ -311,23 +311,47 @@ func (p *Pool) processBatch(batch []Job) error {
 
 		// Process side effects (Redis state updates, achievement checks)
 		go p.processEventSideEffects(ctx, event)
-		
+
 		// Process achievement triggers
 		if p.achievementWorker != nil {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					p.logger.Errorw("Achievement worker panic", "error", r, "event_type", event.Type)
-				}
-			}()
-			p.achievementWorker.ProcessEvent(event)
-		}()
+			p.logger.Infow("Calling achievement worker", "event_type", event.Type, "attacker_smf_id", event.AttackerSMFID)
+			go func(evt *models.RawEvent) {
+				defer func() {
+					if r := recover(); r != nil {
+						p.logger.Errorw("Achievement worker panic", "error", r, "event_type", evt.Type)
+					}
+				}()
+				p.achievementWorker.ProcessEvent(evt)
+			}(event)
+		} else {
+			p.logger.Warn("Achievement worker is nil!")
+		}
 	}
 
 	err = chBatch.Send()
 	if err != nil {
 		p.logger.Errorw("Failed to send batch to ClickHouse", "error", err, "batchSize", len(batch))
 	}
+	return err
+}
+
+// convertToClickHouseEvent normalizes a raw event for ClickHouse
+func (p *Pool) convertToClickHouseEvent(event *models.RawEvent, rawJSON string) *models.ClickHouseEvent {
+	// Parse match_id as UUID or generate one
+	matchID, err := uuid.Parse(event.MatchID)
+	if err != nil {
+		matchID = uuid.New()
+	}
+
+	ch := &models.ClickHouseEvent{
+		Timestamp: time.Unix(int64(event.Timestamp), 0),
+		MatchID:   matchID,
+		ServerID:  event.ServerID,
+		MapName:   event.MapName,
+		EventType: string(event.Type),
+		Damage:    uint32(event.Damage),
+		Hitloc:    event.Hitloc,
+		Distance:  0,
 		RawJSON:   rawJSON,
 	}
 
