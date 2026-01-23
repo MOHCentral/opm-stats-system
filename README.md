@@ -11,12 +11,13 @@ This workspace is now organized into modular repositories:
 -   Rest API handling global event ingestion.
 -   Databases (PostgreSQL, ClickHouse, Redis).
 -   Worker pools and analytic processing.
--   **Run here**: `docker compose up -d` or `./start.sh`
+-   **Run here**: `docker compose up -d` (Production) or `./start.sh` (Dev)
 
 ### [opm-stats-smf-integration/](./opm-stats-smf-integration/)
 **The Web Frontend** (PHP/SMF).
 -   Simple Machines Forum 2.1 Plugins.
 -   Player Profiles, Leaderboards, Match History (Frontend).
+-   **Build**: `./build_smf_package.sh` (Creates zip for SMF Package Manager)
 -   **Dev Note**: Contains local `smf-mohaa` environment and distributable `smf-plugins`.
 
 ### [opm-stats-game-scripts/](./opm-stats-game-scripts/)
