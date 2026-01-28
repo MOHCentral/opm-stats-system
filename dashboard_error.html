@@ -1,0 +1,253 @@
+* Uses proxy env variable NO_PROXY == '*.azureedge.net'
+* Host localhost:8083 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+  0      0   0      0   0      0      0      0                              0*   Trying [::1]:8083...
+* Established connection to localhost (::1 port 8083) from ::1 port 38144 
+* using HTTP/1.x
+> GET /index.php?action=mohaadashboard HTTP/1.1
+> Host: localhost:8083
+> User-Agent: curl/8.18.0
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 500 Internal Server Error
+< Date: Wed, 28 Jan 2026 20:44:22 GMT
+< Server: Apache/2.4.66 (Debian)
+< X-Powered-By: PHP/8.2.30
+< Set-Cookie: PHPSESSID=cec5650e9c572ed13a036910e9704952; path=/; HttpOnly
+< Expires: Mon, 26 Jul 1997 05:00:00 GMT
+< Cache-Control: private
+< Pragma: no-cache
+< x-frame-options: SAMEORIGIN
+< x-xss-protection: 1
+< x-content-type-options: nosniff
+< last-modified: Wed, 28 Jan 2026 20:44:22 GMT
+< Vary: Accept-Encoding
+< Connection: close
+< Transfer-Encoding: chunked
+< Content-Type: text/html; charset=UTF-8
+< 
+{ [8160 bytes data]
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" href="http://localhost:8083/Themes/default/css/minified_1f8192f97df3ec0885e5b2d5c09390aa.css?smf216_1769632183">
+	<style>
+	img.avatar { max-width: 65px !important; max-height: 65px !important; }
+	
+	</style>
+	<script>
+		var smf_theme_url = "http://localhost:8083/Themes/default";
+		var smf_default_theme_url = "http://localhost:8083/Themes/default";
+		var smf_images_url = "http://localhost:8083/Themes/default/images";
+		var smf_smileys_url = "http://localhost:8083/Smileys";
+		var smf_smiley_sets = "fugue,alienine";
+		var smf_smiley_sets_default = "fugue";
+		var smf_avatars_url = "http://localhost:8083/avatars";
+		var smf_scripturl = "http://localhost:8083/index.php";
+		var smf_iso_case_folding = false;
+		var smf_charset = "UTF-8";
+		var smf_session_id = "46f973f36ef53a461244cc6704541d6e";
+		var smf_session_var = "fa7d77b";
+		var smf_member_id = 0;
+		var ajax_notification_text = 'Loading...';
+		var help_popup_heading_text = 'A little lost? Let me explain:';
+		var banned_text = 'Sorry Guest, you are banned from using this forum!';
+		var smf_txt_expand = 'Expand';
+		var smf_txt_shrink = 'Shrink';
+		var smf_collapseAlt = 'Hide';
+		var smf_expandAlt = 'Show';
+		var smf_quote_expand = false;
+		var allow_xhjr_credentials = false;
+	</script>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+	<script src="http://localhost:8083/Themes/default/scripts/minified_a720b43aeed86cf9a48de47e45442db0.js?smf216_1769632183"></script>
+	<script>
+	var smf_you_sure ='Are you sure you want to do this?';
+	</script>
+	<title>War Room</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta property="og:site_name" content="My Community">
+	<meta property="og:title" content="War Room">
+	<meta property="og:description" content="War Room">
+	<meta name="description" content="War Room">
+	<meta name="theme-color" content="#557EA0">
+	<meta name="robots" content="noindex">
+	<link rel="help" href="http://localhost:8083/index.php?action=help">
+	<link rel="contents" href="http://localhost:8083/index.php">
+	<link rel="search" href="http://localhost:8083/index.php?action=search">
+	<link rel="alternate" type="application/rss+xml" title="My Community - RSS" href="http://localhost:8083/index.php?action=.xml;type=rss2">
+	<link rel="alternate" type="application/atom+xml" title="My Community - Atom" href="http://localhost:8083/index.php?action=.xml;type=atom">
+</head>
+<body id="smf" class="action_mohaadashboard">
+<div id="footerfix">
+	<div id="top_section">
+		<div class="inner_wrap">
+			<ul class="floatleft" id="top_info">
+				<li class="welcome">
+					Welcome to <strong>My Community</strong>.
+				</li>
+				<li class="button_login">
+					<a href="http://localhost:8083/index.php?action=login" class="open" onclick="return reqOverlayDiv(this.href, 'Log in', 'login');">
+						<span class="main_icons login"></span>
+						<span class="textmenu">Log in</span>
+					</a>
+				</li>
+				<li class="button_signup">
+					<a href="http://localhost:8083/index.php?action=signup" class="open">
+						<span class="main_icons regcenter"></span>
+						<span class="textmenu">Sign up</span>
+					</a>
+				</li>
+			</ul>
+			<form id="search_form" class="floatright" action="http://localhost:8083/index.php?action=search2" method="post" accept-charset="UTF-8">
+				<input type="search" name="search" value="">&nbsp;
+				<select name="search_selection">
+					<option value="all" selected>Entire forum </option>
+				</select>
+				<input type="submit" name="search2" value="Search" class="button">
+				<input type="hidden" name="advanced" value="0">
+			</form>
+		</div><!-- .inner_wrap -->
+	</div><!-- #top_section -->
+	<div id="header">
+		<h1 class="forumtitle">
+			<a id="top" href="http://localhost:8083/index.php">My Community</a>
+		</h1>
+		<img id="smflogo" src="http://localhost:8083/Themes/default/images/smflogo.svg" alt="Simple Machines Forum" title="Simple Machines Forum">
+	</div>
+	<div id="wrapper">
+		<div id="upper_section">
+			<div id="inner_secti100   8152   0   8152   0      0 229.7k      0                              0100   8152   0   8152   0      0 227.9k      0                              0100   8152   0   8152   0      0 226.1k      0                              0
+* shutting down connection #0
+on">
+				<div id="inner_wrap" class="hide_720">
+					<div class="user">
+						<time datetime="2026-01-28T20:44:22Z">Jan 28, 2026, 08:44 PM</time>
+					</div>
+					<div class="news">
+						<h2>News: </h2>
+						<p>SMF - Just Installed!</p>
+					</div>
+				</div>
+				<a class="mobile_user_menu">
+					<span class="menu_icon"></span>
+					<span class="text_menu">Main Menu</span>
+				</a>
+				<div id="main_menu">
+					<div id="mobile_user_menu" class="popup_container">
+						<div class="popup_window description">
+							<div class="popup_heading">Main Menu
+								<a href="javascript:void(0);" class="main_icons hide_popup"></a>
+							</div>
+							
+					<ul class="dropmenu menu_nav">
+						<li class="button_home">
+							<a class="active" href="http://localhost:8083/index.php">
+								<span class="main_icons home"></span><span class="textmenu">Home</span>
+							</a>
+						</li>
+						<li class="button_mohaastats subsections">
+							<a href="http://localhost:8083/index.php?action=mohaadashboard">
+								<span class="main_icons mohaastats"></span><span class="textmenu">MOHAA Stats</span>
+							</a>
+							<ul>
+								<li>
+									<a href="http://localhost:8083/index.php?action=mohaadashboard">
+										Stats Dashboard
+									</a>
+								</li>
+								<li>
+									<a href="http://localhost:8083/index.php?action=mohaaleaderboard">
+										Leaderboards
+									</a>
+								</li>
+								<li>
+									<a href="http://localhost:8083/index.php?action=mohaamatches">
+										Matches
+									</a>
+								</li>
+								<li>
+									<a href="http://localhost:8083/index.php?action=mohaaservers">
+										Servers
+									</a>
+								</li>
+								<li>
+									<a href="http://localhost:8083/index.php?action=mohaaachievements">
+										Achievements
+									</a>
+								</li>
+								<li>
+									<a href="http://localhost:8083/index.php?action=mohaatournaments">
+										Tournaments
+									</a>
+								</li>
+								<li>
+									<a href="http://localhost:8083/index.php?action=mohaateams">
+										Teams
+									</a>
+								</li>
+							</ul>
+						</li>
+						<li class="button_search">
+							<a href="http://localhost:8083/index.php?action=search">
+								<span class="main_icons search"></span><span class="textmenu">Search</span>
+							</a>
+						</li>
+					</ul><!-- .menu_nav -->
+						</div>
+					</div>
+				</div>
+				<div class="navigate_section">
+					<ul>
+						<li class="last">
+							<a href="http://localhost:8083/index.php"><span>My Community</span></a>
+						</li>
+					</ul>
+				</div><!-- .navigate_section -->
+			</div><!-- #inner_section -->
+		</div><!-- #upper_section -->
+		<div id="content_section">
+			<div id="main_content_section">
+	<div id="fatal_error">
+		<div class="cat_bar">
+			<h3 class="catbg">
+				Database Error
+			</h3>
+		</div>
+		<div class="windowbg">
+			<div class="padding">
+				Please try again. If you come back to this error screen, report the error to an administrator.
+			</div>
+		</div>
+	</div>
+	<div class="centertext">
+		<a class="button floatnone" href="javascript:document.location=document.referrer">Back</a>
+	</div>
+			</div><!-- #main_content_section -->
+		</div><!-- #content_section -->
+	</div><!-- #wrapper -->
+</div><!-- #footerfix -->
+	<div id="footer">
+		<div class="inner_wrap">
+		<ul>
+			<li class="floatright"><a href="http://localhost:8083/index.php?action=help">Help</a> | <a href="http://localhost:8083/index.php?action=agreement">Terms and Rules</a> | <a href="#top_section">Go Up &#9650;</a></li>
+			<li class="copyright"><a href="http://localhost:8083/index.php?action=credits" title="License" target="_blank" rel="noopener">SMF 2.1.6 &copy; 2025</a>, <a href="https://www.simplemachines.org" title="Simple Machines" target="_blank" rel="noopener">Simple Machines</a></li>
+		</ul>
+		</div>
+	</div><!-- #footer -->
+<script>
+window.addEventListener("DOMContentLoaded", function() {
+	function triggerCron()
+	{
+		$.get('http://localhost:8083' + "/cron.php?ts=1769633055");
+	}
+	window.setTimeout(triggerCron, 1);
+});
+</script>
+</body>
+</html>
