@@ -1,56 +1,88 @@
-# OPM Stats System - Deep Dive Audit & Perfection Protocol
+# OPM Stats System - End-to-End Functional Audit Protocol
 
-**Role:** You are a Senior Principal Software Architect and Security Engineer with expertise in Go, PHP (SMF), Docker, and High-Performance Data Systems (ClickHouse/Redis/PostgreSQL).
+**Role:** You are a Lead QA Automation Engineer and Backend Developer.
 
-**Objective:** Conduct a ruthless, line-by-line deep dive of the entire `opm-stats-system` codebase. Your goal is to guarantee a **100% working, zero-friction deployment** on Portainer, ensuring the data flow from "Game Server" -> "API" -> "Database" -> "SMF Frontend" is flawless.
-
-**Context:**
-- **Repo:** `opm-stats-system` (Main), `opm-stats-api` (Submodule/Repo), `opm-stats-web` (Directory).
-- **Deployment:** Two Docker stacks (`opm-stats-api-dev` and `dev-moh-central`) sharing an external network `opm-network-dev`.
-- **Core Requirement:** The system must work "out of the box" when these stacks are deployed.
+**Objective:** Conduct a rigorous **End-to-End (E2E) Functional Audit** of the OPM Stats System. You must verify that data flows correctly from the "Game Event" ingestion all the way to the "SMF Frontend" display. Infrastructure is secondary; **Logic and Data Integrity are primary.**
 
 ---
 
-## 🔍 Phase 1: Infrastructure & Configuration Audit
-*Critique the Docker composition and environment injection.*
-1.  **Environment Variables:** Verify that `.env.api-dev` and `.env.web-dev` cover *every single runtime requirement*. Are defaults safe? Are secrets actually secret?
-2.  **Networking:** Confirm service discovery mechanics (e.g., `MOHAA_API_URL` vs `MOHAA_API_PUBLIC_URL`). Will the PHP container (internal `http://opm-stats-api:8080`) and the user's browser (public `https://...`) both connect successfully?
-3.  **Volume Management:** Are database persistence volumes correctly defined? Will data survive a container rebuild?
-4.  **Healthchecks:** Do the containers wait for dependencies? Analyze `depends_on` and `healthcheck` definitions in `docker-compose.yml` files.
+## 🧪 Phase 1: API Logic & End-Point Verification (Go)
+*Goal: Prove every endpoint works, handles errors, and returns correct data.*
 
-## 💾 Phase 2: Database Layer & Schema Integrity
-*Inspect SQL migrations and data structures.*
-1.  **Schema Logic:** Audit `opm-stats-api/migrations` (Postgres & ClickHouse). Are the data types optimal (e.g., `UInt8` vs `Int32`, `DateTime64` in ClickHouse)?
-2.  **SMF Integration:** Inspect `opm-stats-web/init-db` and installer SQL. Does the plugin installation (`mohaa_install.php`) correctly modify the SMF tables?
-3.  **Relationships:** Verify foreign keys and indices. Is the mapping between `smf_members` (MySQL) and `player_profiles` (Postgres) robust?
+### 1. Ingestion Pipeline (`/api/v1/ingest`)
+*   **Test:** Send a simulated batch of game events (kills, deaths, capture_flag).
+*   **Verify:** 
+    *   Does it return HTTP 202? 
+    *   Are events persisted in ClickHouse (`mohaa_events_log`)?
+    *   Are live stats updated in Redis?
+*   **Edge Cases:** Send malformed JSON, invalid auth tokens, and empty batches.
 
-## ⚙️ Phase 3: API Backend (Go) Deep Dive
-*Analyze `opm-stats-api` code logic.*
-1.  **Concurrency & Safety:** Inspect the Worker Pool (`internal/worker`). Is the channel handling robust? Can it handle a flood of events without crashing?
-2.  **Stats Aggregation:** Trace the logic in `internal/logic`. Is the math correct for K/D ratios, accuracy, and win rates? Are edge cases (divide by zero) handled?
-3.  **Error Handling:** Are database connection failures handled gracefully? Is logging sufficient (`internal/logger`)?
-4.  **Security:** Audit the JWT implementation and input validation in `internal/handlers`. Is the Ingestion API secured against spoofed data?
+### 2. Player Stats (`/api/v1/stats/player/{guid}`)
+*   **Test:** Request stats for a known player GUID.
+*   **Verify:**
+    *   Are K/D, Accuracy, and Win Rate calculated correctly?
+    *   Compare API response vs. raw DB queries.
+    *   Check `last_seen` timestamp accuracy.
 
-## 🎨 Phase 4: Frontend & SMF Integration (PHP/JS)
-*Inspect `opm-stats-web` source code.*
-1.  **Plugin Architecture:** Audit `mohaa_master_install.php` and `Sources/Mohaa*.php`. Are hooks registered correctly?
-2.  **Display Logic:** Review `Themes/default/Mohaa*.template.php`. Is the HTML semantic? Are charts (ApexCharts/Chart.js) implemented correctly?
-3.  **Data Fetching:** Analyze how the PHP proxy handles API requests. Does it fail gracefully if the API is down?
-4.  **XSS/Security:** Are variables escaped before output in the SMF templates?
+### 3. Server Pulse & Leaderboards (`/api/v1/stats/server`, `/api/v1/leaderboard`)
+*   **Test:** Fetch server pulse and top 10 leaderboards.
+*   **Verify:**
+    *   Does `server/pulse` reflect recent activity?
+    *   Is the leaderboard sorting correct (e.g., sort by `skill_rating` vs `kills`)?
+    *   Are pagination and limits respected?
 
-## 🚀 Phase 5: Installer & Bootstrapping Mechanism
-*The "First Run" Experience.*
-1.  **Entrypoint Logic:** Deep dive into `opm-stats-web/docker-entrypoint.sh`. Does it handle the "chicken and egg" problem (installing the plugin before SMF is fully ready)?
-2.  **Idempotency:** Run the installer logic mentally twice. Will it crash on the second run, or gracefully skip?
-3.  **Dependency Patching:** Verification of the `sed` patches applied to `mohaa_install.php` at runtime. Are we correctly injecting the SMF db dependencies?
+### 4. Auth & Security
+*   **Test:** Verify JWT token generation and expiry.
+*   **Verify:** Can a user without a token access protected stats? (Should allow public read, but restrict admin writes).
 
 ---
 
-## 📝 Output Requirements
-For every issue found, provide:
-1.  **Severity:** (Critical/High/Medium/Low)
-2.  **Location:** File path and line number.
-3.  **Issue:** Description of the logic flaw, race condition, or bug.
-4.  **Fix:** Exact code change required.
+## 🖥️ Phase 2: SMF Frontend & Display Integration (PHP)
+*Goal: Prove that what is shown on the screen matches the API data.*
 
-**Final Deliverable:** A prioritized list of fixes to guarantee the system works perfectly upon deployment.
+### 1. The War Room (Dashboard)
+*   **Inspection:** `Themes/default/MohaaDashboard.template.php`
+*   **Verify:**
+    *   Does the "Live Server Status" widget load data via AJAX?
+    *   Are the charts (ApexCharts) rendering? Do they have data or are they empty?
+    *   **Crucial:** Check the *Browser Console* for JS errors (CORS, 404s, parsing errors).
+
+### 2. Player Profile Integration
+*   **Inspection:** `Sources/MohaaPlayers.php` (Profile hooks)
+*   **Verify:**
+    *   Go to a user's profile. Is the "MOHAA Stats" area visible?
+    *   Does it show the correct User-to-GUID mapping?
+    *   If the API returns "Player not found", does the UI handle it gracefully?
+
+### 3. Leaderboard Pages
+*   **Inspection:** `Themes/default/MohaaLeaderboard.template.php`
+*   **Verify:**
+    *   Does the AG Grid (or table) populate with rows?
+    *   Do the filter buttons (Kills, Deaths, Wins) correctly reload the grid?
+    *   Check for visual glitches (CSS) or broken images/badges.
+
+### 4. Achievement Showcase
+*   **Inspection:** `Sources/MohaaAchievements.php`
+*   **Verify:**
+    *   Do unlocked badges appear in color?
+    *   Do locked badges appear grayed out?
+    *   Click a badge: Does the modal details pop up work?
+
+---
+
+## � Phase 3: The "Golden Path" Verification
+*Perform this exact sequence to prove system health:*
+
+1.  **Inject Data:** Run `go run cmd/seeder/main.go` (or payload script) to inject 1 kill for Player A on Player B.
+2.  **Check API:** Request `/api/v1/stats/player/{PlayerA}`. Confirm kill count increased by 1.
+3.  **Check Frontend:** Reload Player A's profile on the Forum. Confirm kill count matches API.
+4.  **Check Leaderboard:** Reload Leaderboard. Confirm Player A's rank or stats updated.
+
+---
+
+## 📝 Output Deliverable
+Produce a **Verification Report** containing:
+1.  **PASS/FAIL** status for each Phase.
+2.  **Screenshots** (or text descriptions) of the Dashboard and Profile.
+3.  **Curl Responses** for critical API checkpoints.
+4.  **Bug List:** Any visual glitches, console errors, or data mismatches found.
