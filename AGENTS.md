@@ -120,15 +120,16 @@ end
 
 ## ✅ Project Status (Snapshot)
 
--   **Architecture**: Complete.
--   **API**: Healthy (Ingest, Workers, DBs connected). response < 10ms.
--   **SMF Plugin**: Core working. Player/Dashboard pages optimized (Parallel Curl).
+-   **Architecture**: Complete (Dual-store CH/PG, high-throughput workers).
+-   **API**: Advanced (Ingestion, Drill-downs, Peak Performance, Combo Metrics, Identity Registry all functional).
+-   **SMF Plugin**: Feature-complete core (War Room, Teams, Tournaments, Identity Linking).
+-   **Drill-Downs**: Fully implemented in API and integrated via AJAX in SMF.
 -   **Next Steps**:
-    1.  Restart Docker containers (fix stale mounts).
-    2.  Data Seeder.
-    3.  Achievement Logic Implementation.
-    3.  Achievement Logic Implementation (See `Feature Concepts`).
-    4.  Tournament Brackets.
+    1.  Confirm Telemetry Seeding flows (Refactoring done).
+    2.  Implement "Wipeout" and complex Round-based achievements.
+    3.  Develop AI Prediction Engine (`MohaaPredictions.php` placeholder).
+    4.  Visual Polish (Expand ApexCharts ubiquitous usage).
+    5.  Tournament Bracket Automator logic refinement.
 
 ---
 
