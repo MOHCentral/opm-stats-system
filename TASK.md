@@ -44,6 +44,7 @@ whats n# MOHAA Stats SMF Integration - Task Tracker
 ### 🔴 REMAINING CRITICAL ISSUES
 
 #### API Connections
+- [x] Fix 401 auto-recovery in game scripts (on_http_callback now re-registers)
 - [ ] Connect PHP frontend to Go API (currently using mock data)
 - [ ] Implement Go API database handlers
 
