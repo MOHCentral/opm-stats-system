@@ -1,0 +1,20 @@
+{
+  "pairs": [
+    {
+      "source": "opm-stats-smf-integration/smf-mohaa",
+      "target": "opm-stats-web/plugin-src/smf-mohaa"
+    },
+    {
+      "source": "opm-stats-smf-integration/smf-plugins",
+      "target": "opm-stats-web/plugin-src/smf-plugins"
+    }
+  ],
+  "ignore_globs": [
+    "**/.git/**",
+    "**/__pycache__/**",
+    "**/.DS_Store",
+    "**/*.swp",
+    "**/*.tmp",
+    "**/*.bak"
+  ]
+}

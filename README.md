@@ -41,3 +41,16 @@ This workspace is now organized into modular repositories:
 
 ## 🤖 AI Assistants & Developers
 Refer to [AGENTS.md](AGENTS.md) for global architectural standards.
+
+## 🔁 Web Code Single Source of Truth
+
+To prevent drift between duplicate SMF web code trees, use the sync tool:
+
+- Check for drift only:
+	- `python3 tools/sync_web_code.py --check`
+- Sync from canonical source (`opm-stats-smf-integration`) into mirrors (`opm-stats-web/plugin-src`):
+	- `python3 tools/sync_web_code.py`
+- Enforce exact mirror (remove target-only files):
+	- `python3 tools/sync_web_code.py --delete`
+
+Path mappings are declared in [tools/web_sync_manifest.json](tools/web_sync_manifest.json).
