@@ -106,7 +106,6 @@ def generate_go_constants(event_types, aliases):
         'jump': 'Movement',
         'land': 'Movement',
         'crouch': 'Movement',
-        'prone': 'Movement',
         'distance': 'Movement',
         'ladder_': 'Movement',
         'player_stand': 'Movement',
@@ -123,8 +122,6 @@ def generate_go_constants(event_types, aliases):
         'health_': 'Items',
         'ammo_': 'Items',
         'armor_': 'Items',
-        'vehicle_': 'Vehicles',
-        'turret_': 'Turrets',
         'server_': 'Server Lifecycle',
         'heartbeat': 'Server Lifecycle',
         'map_': 'Map Lifecycle',
@@ -317,8 +314,6 @@ def generate_scr_documentation(event_types, aliases):
             ('health_', 'Item'),
             ('ammo_', 'Item'),
             ('armor_', 'Item'),
-            ('vehicle_', 'Vehicle'),
-            ('turret_', 'Turret'),
             ('server_', 'Server'),
             ('map_', 'Map'),
             ('team_', 'Team'),
@@ -337,7 +332,7 @@ def generate_scr_documentation(event_types, aliases):
         
         if event_type in ['kill', 'death', 'damage', 'headshot']:
             return 'Combat'
-        if event_type in ['jump', 'land', 'crouch', 'prone', 'distance']:
+        if event_type in ['jump', 'land', 'crouch', 'distance']:
             return 'Movement'
         if event_type in ['chat', 'use', 'connect', 'disconnect', 'spawn', 'reload']:
             return 'Alias'
